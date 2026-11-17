@@ -8,35 +8,37 @@ extends RefCounted
 ## UnitMovement asks it, every tick of a walk, how far the unit goes (travel)
 ## instead of going at move_speed.
 ##
-## The unit leads and the clips follow (no root motion). The unit's speed is
-## gameplay's: it comes up to RUN_SPEED (or the walk's) in a fraction of a
-## second, eases as it swings round to face the way, and slows so as to stop
-## on the route's end. The clips are timed to that speed: a loop plays at the
-## rate that keeps its feet on the ground at the unit's speed; the start and
-## the stop are distance-matched, each frame showing the clip's own frame for
-## the ground the unit has covered or has left. How fast the unit comes up
-## to speed and slows for the end is read off the start and stops
-## themselves, so each plays out rather than being cut short.
+## The unit leads and the clips follow (no root motion), and every clip
+## plays at its own speed, 1x, always: the animation is never timed to the
+## unit's speed. Gameplay owns where the unit goes and when it stops; the
+## clips give it its speed:
+##   - on a loop, the loop's own (the walk's 1.72 m/s, the run's 4.5);
+##   - on a start or a stop, the clip's own over time, read off its root
+##     (so the clip and the unit cover the same ground), a stop's scaled to
+##     land on the route's end exactly;
+##   - between, gameplay's own easing: the run slowing to the walk for the
+##     route's end, the walk bending its speed (STEER_LEAST..MOST) to bring
+##     its stride to a stop's on the right foot. The feet slide by that
+##     difference; foot locking and stride warping are to take it up.
 ##
 ## A move goes (as BG3's do: the unit is under way within a frame of the
 ## order, whichever way it faces; it swings round as it steps off, at
 ## UnitFacing's rotation_speed, never standing to turn first):
 ##   STARTING  from rest into the run or the walk, by its start (its idle
 ##             lead-in skipped).
-##   MOVING    the loop, at the rate of the unit's speed.
-##   STOPPING  once the unit slows for the end: the stop whose pose is
-##             nearest the loop's, on its frame for the ground left.
+##   MOVING    the loop.
+##   STOPPING  near the end, on the frame whose legs are nearest one of the
+##             walk's stops (the stop or its mirror): that stop from its
+##             first frame.
 ##   SETTLING  the route is done, the stop's settle plays on; it hands to the
 ##             idle on the idle's own frame.
-## Running below the run loop's speed (swinging round, breaking into the
-## run) the walk shows under the run in step with it, the two weighed by the
-## unit's speed (_moving: a blend by speed, as a blend space does), so the
-## legs never play a run in slow motion.
+## A run ends on the walk's stop: nearing the end it slows, hands to the walk
+## loop on the same point of the stride once halfway down to the walk's
+## speed, and the walk goes into the stop. Run To Stop stays in the library
+## unused (a set with no walk ends its runs on it).
 ## A new order while moving or stopping goes on at the same gait, except
 ## that a walk whose new route is WALK_UNDER or longer breaks into the run
-## (with the walk and run marked, by speeding up through the blend from the
-## walk's own stride; otherwise by the run start, from its frame for the
-## unit's speed); one while
+## (by the run start, from its frame for the unit's speed); one while
 ## settling or turning in place starts at once. Routes under WALK_UNDER are
 ## walked, the rest run.
 ##
@@ -54,43 +56,29 @@ enum State { OFF, TURNING, STARTING, MOVING, STOPPING, SETTLING }
 
 ## A route shorter than this is walked; anything longer is run.
 const WALK_UNDER := 2.0
-## The run's ground speed, metres a second (the walk goes at its loop's).
-const RUN_SPEED := 4.6
-## Seconds from rest to full speed, at the least; a start that takes longer
-## to come up to speed, played at START_RATE, sets it.
+## Seconds from rest to the loop's speed where no start says (no start, or
+## after a stop is cut short).
 const RUN_ACCEL_TIME := 0.3
 const WALK_ACCEL_TIME := 0.25
-const ACCEL_TIME_MOST := 0.6
-const START_RATE := 2.0
-## Metres from the end the unit begins to slow, at full speed, where the
-## stops do not say (they do: where they drop below SLOWING of the loop's
-## speed), within STOP_DISTANCE_LEAST..MOST.
-const RUN_STOP_DISTANCE := 1.1
-const WALK_STOP_DISTANCE := 0.45
-const SLOWING := 0.9
-const STOP_DISTANCE_LEAST := 0.3
-const STOP_DISTANCE_MOST := 1.2
-## The route's end comes in two parts. A stop clip begins already slowed
-## (Mixamo's Run To Stop at about 3 m/s, its Stop Walking at 0.9), so the
-## loop first slows to the stop's own speed at its entry, at this rate (m/s^2),
-## the run alone; then the stop plays out its own
-## ground, slowing as it does.
+## How fast a run slows for the walk at the end of its route, m/s^2.
 const RUN_BRAKE := 5.0
-const WALK_BRAKE := 2.0
-## How much of a stop's start its entry speed is read over, seconds.
-const ENTRY_SPAN := 0.2
-## How fast a stop's playback rate follows the ground (1/s).
-const STOP_RATE_EASE := 12.0
-## The slowest the run plays while slowing for a stop (its speed over the
-## loop's; a run stop now enters near 3 m/s, so the run rarely gets near it).
-const BRAKE_RATE_LEAST := 0.3
-## How far the loop's rate may be bent while steering, to land on the stop's
-## stride (beyond about a quarter the feet are seen to slide).
-const PHASE_STEER_LEAST := 0.75
-const PHASE_STEER_MOST := 1.35
-## How far ahead of a stop's entry the loop starts bending to its stride, m.
-## The brake alone is too short for it (about a metre from the run).
+## Metres of walk ahead of the stop a run's end leaves, for the walk to bring
+## its stride to the stop's.
+const WALK_ROOM := 2.0
+## How far the walk's speed may be bent to land on a stop's stride, and from
+## how far ahead of the stop it starts to, metres.
+const STEER_LEAST := 0.8
+const STEER_MOST := 1.2
 const STEER_FROM := 5.0
+## A stop is entered with this share of its own ground left, at the most and
+## at the least (then, whatever the legs show).
+const ENTER_MOST := 1.35
+const ENTER_LEAST := 0.65
+## A stop is entered on the frame its legs are nearest what shows, once they
+## are within this (radians summed over MATCH_BONES).
+const ENTER_GAP := 1.2
+## Without stops, how fast the unit slows for the end, m/s^2.
+const STOPLESS_BRAKE := 4.0
 ## A turn of facing this large is a turn in place; less, UnitFacing's.
 const TURN_FROM := deg_to_rad(60.0)
 ## The turn is done once this much of it is, and hands on.
@@ -98,17 +86,15 @@ const TURN_DONE := 0.92
 ## A turn is scaled to the angle wanted by no more or less than this.
 const TURN_SCALE_LEAST := 0.5
 const TURN_SCALE_MOST := 1.6
-## The slowest the unit closes the last centimetres at.
+## The slowest the unit closes the last centimetres at, with no stop.
 const ARRIVE_SPEED := 0.4
 ## Facing further off the way than this slows the unit, down to SLOWEST at
 ## FROM + SPAN, while it swings round.
 const FACING_SLOW_FROM := deg_to_rad(40.0)
 const FACING_SLOW_SPAN := deg_to_rad(80.0)
 const FACING_SLOWEST := 0.05
-## Play-rate limits: the loop, and a start or stop matched to the ground.
-const LOOP_RATE_LEAST := 0.35
-const LOOP_RATE_MOST := 1.7
-const MATCH_RATE_MOST := 3.0
+## A start hands to the loop once its own speed is this share of the loop's.
+const UP_TO_SPEED := 0.98
 ## A clip's motion begins where it first goes this fast, m/s.
 const ONSET_SPEED := 0.3
 ## Crossfades: the walk or start from rest, a handover, into a stop, the idle.
@@ -133,11 +119,6 @@ const LEAN_RATE := 6.0
 const LEAD_NEAREST := 1.5
 const LEAD_SECONDS := 1.0
 
-## For comparing in tools/locomotion_demo only (not a gameplay setting): a run
-## ends on the walk's stops, slowing with the walk under it and handing to
-## the walk loop at the walk's speed, instead of on Run To Stop.
-static var runs_end_on_walk_stop: bool = false
-
 var state: State = State.OFF
 
 var _unit: Unit
@@ -147,45 +128,38 @@ var _set: LocomotionSet
 var _body: Node3D
 var _body_rest := Transform3D.IDENTITY
 
+## The loop of the gait, its speed, and the stops that end it.
 var _loop: LocomotionClip = null
-var _stops: Array[LocomotionClip] = []
-## The one-shot playing (start, stop).
-var _clip: LocomotionClip = null
-## The unit's speed and how it comes up and goes down.
-var _v: float = 0.0
 var _top: float = 0.0
+var _stops: Array[LocomotionClip] = []
+## Whether this route is run (it ends by slowing to the walk).
+var _runs: bool = false
+## The one-shot playing (start, stop) and how far into it, seconds: it plays
+## at 1x, so this keeps time with it.
+var _clip: LocomotionClip = null
+var _clip_t: float = 0.0
+## Seconds since the stop was entered (its blend in).
+var _stop_in: float = 0.0
+## The unit's speed, and how fast it comes up to the loop's.
+var _v: float = 0.0
 var _accel: float = 0.0
-var _decel: float = 0.0
-## The end of the route: the loop slows at `_brake` to `_entry_speed`, then
-## the stop covers its last `_stop_ground` metres (both 0 with no stops).
-var _brake: float = 0.0
-var _entry_speed: float = 0.0
+## The ground the walk's stops cover, on average.
 var _stop_ground: float = 0.0
-## The stop's playback rate, eased (the clip's position moves in frame steps,
-## so the rate read off one tick jumps about).
-var _stop_rate: float = 1.0
-## Slowing for the route's end, ahead of the stop: the run shows alone, as
-## the run stops begin from a running pose, not the walk's.
-var _braking: bool = false
-## Bending the loop's rate to land on the stop's stride (within STEER_FROM
-## of the stop's entry).
-var _steering: bool = false
-## Metres of the brake still to go before the stop is entered.
-var _to_entry: float = 0.0
-## Each stop's second of `_loop` whose legs are nearest the stop's own on
-## the frame it is entered at (cached per gait).
+## Each stop's second of the walk whose legs are nearest the stop's first
+## frame (steering aims at them).
 var _entry_phase: Dictionary = {}
-## The loop seconds still to play to the stride the stop is aimed at, and the
-## loop's position when last counted (-1: none aimed at yet).
+## The walk seconds still to play to the stride steering aims at, and the
+## walk's position when last counted (-1: none aimed at yet).
 var _steer_left: float = -1.0
 var _steer_at: float = 0.0
+## The nearest the stops' legs were to what showed last tick (entering on
+## the frame they are nearest).
+var _last_gap: float = INF
 ## How far the stop's legs were from the pose showing as it was entered,
 ## degrees summed (for the demo).
 var entry_gap: float = 0.0
 ## Per clip, its progress along its own way on each frame, metres.
 var _ground := {}
-## A gait's stop distance, per stop list (cached).
-var _stop_distances := {}
 
 ## The turn in place: the unit's yaw it began from, how much of the clip's
 ## turn it takes, and the yaw it is for.
@@ -200,9 +174,6 @@ var _turn_lead: BodyTurnLead = null
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
-## Where the walk under the run last stood (seconds), so a walk of several
-## stride pairs keeps to the one it is on.
-var _under_at: float = 0.0
 
 
 func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: Node3D) -> void:
@@ -246,8 +217,9 @@ func begin(route: float, _first_leg: Vector3) -> void:
 		if _loop == _set.walk and route >= WALK_UNDER and _set.jog != null:
 			_break_into_run()
 		elif state == State.STOPPING:
-			_playback.play(_loop.clip, BLEND_HAND)
-			state = State.MOVING
+			_play_loop(_loop, _playback.current_animation, _clip_t)
+		_last_gap = INF
+		_steer_left = -1.0
 		return
 	# Standing, or turning in place (dropped where it is): under way now.
 	_v = 0.0
@@ -296,78 +268,50 @@ func _aim_turn(yaw: float) -> void:
 ## Into the move, by the gait's start: the run past WALK_UNDER, the walk
 ## short of it.
 func _start_moving(blend: float) -> void:
-	var runs: bool = _route >= WALK_UNDER and _set.jog != null
-	var start: LocomotionClip = _take_gait(runs)
+	var start: LocomotionClip = _take_gait(_route >= WALK_UNDER and _set.jog != null)
 	_v = 0.0
 	if start:
-		_clip = start
-		_playback.play(_clip.clip, blend)
-		_playback.seek(_onset(_clip))
+		_play_clip(start, blend, _onset(start))
 		state = State.STARTING
 		return
 	_playback.play(_loop.clip, BLEND_WALK_IN)
 	state = State.MOVING
 
 
-## The gait's loop, stops, top speed, how it comes up to it and slows from
-## it; returns its start (null for none).
+## The gait's loop, its speed and stops; returns its start (null for none).
 func _take_gait(runs: bool) -> LocomotionClip:
+	_runs = runs
 	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
-	_stops = _set.jog_stops if runs and not runs_end_on_walk_stop else _set.walk_stops
-	_top = RUN_SPEED if runs else _loop.speed
-	var start: LocomotionClip = _set.jog_start if runs else _set.walk_start
-	var accel_time: float = RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME
-	if start:
-		accel_time = clampf(_ramp_time(start, _top) / START_RATE, accel_time, ACCEL_TIME_MOST)
-	_accel = _top / accel_time
-	var stop_distance: float = _stop_distance(_stops, _top, RUN_STOP_DISTANCE if runs else WALK_STOP_DISTANCE)
-	_decel = _top * _top / (2.0 * stop_distance)
-	_brake = RUN_BRAKE if runs else WALK_BRAKE
-	_entry_speed = 0.0
+	_top = _loop.speed
+	_accel = _top / (RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME)
+	# Runs end on the walk's stop; Run To Stop only for a set with no walk.
+	_stops = _set.walk_stops if _set.walk != null else _set.jog_stops
 	_stop_ground = 0.0
 	for stop in _stops:
-		_entry_speed += _entry_speed_of(stop) / _stops.size()
 		_stop_ground += _stop_ground_of(stop) / _stops.size()
-	_entry_speed = minf(_entry_speed, _top)
 	_entry_phase.clear()
 	_steer_left = -1.0
-	if _loop != null:
-		for stop in _stops:
-			_entry_phase[stop] = _matching_time(stop.clip, _time_left(stop, _stop_ground), _loop)
-	if _stops.is_empty():
-		_brake = _decel
-	return start
+	_last_gap = INF
+	var walk: LocomotionClip = _set.walk if _set.walk != null else _loop
+	for stop in _stops:
+		_entry_phase[stop] = _matching_time(stop.clip, 0.0, walk)
+	return _set.jog_start if runs else _set.walk_start
 
 
 ## Walking, a new order far enough to run: into the run start on its frame
 ## for the unit's speed now (past its lead-in), which comes up to speed and
 ## hands to the run loop as from rest; or straight to the loop with none.
 func _break_into_run() -> void:
-	var walk: LocomotionClip = _loop
-	var walk_at: float = _playback.current_animation_position
+	var from: StringName = _playback.current_animation
+	var at: float = _clip_t if state != State.MOVING else _playback.current_animation_position
 	var start: LocomotionClip = _take_gait(true)
-	if _blends():
-		# On the run loop at the walk's own stride, the walk under it at full
-		# weight: the unit speeds up through the blend.
-		_playback.play(_loop.clip, BLEND_HAND)
-		_playback.seek(_loop.time_at(walk.phase_at(walk_at)))
-		_under_at = walk_at
-		state = State.MOVING
-		_moving()
-		return
 	if start == null:
-		var from: StringName = _playback.current_animation
-		var at: float = _playback.current_animation_position
-		_playback.play(_loop.clip, BLEND_HAND)
-		_playback.seek(_matching_time(from, at, _loop))
-		state = State.MOVING
+		_play_loop(_loop, from, at)
 		return
 	var t: float = _onset(start)
 	while t < start.length - BLEND_HAND and _clip_speed(start, t) < _v:
 		t += 1.0 / LocomotionClip.FPS
-	_clip = start
-	_playback.play(_clip.clip, BLEND_HAND)
-	_playback.seek(t)
+	_play_clip(start, BLEND_HAND, t)
 	state = State.STARTING
 
 
@@ -383,46 +327,20 @@ func travel(delta: float, left: float) -> float:
 		_speed = 0.0
 		_lean_into(delta)
 		return 0.0
-	var want: float = _top * _facing_share()
-	if _v < want:
-		_v = minf(_v + _accel * delta, want)
-	else:
-		_v = maxf(want, _v - _decel * delta)
-	var most: float = _speed_for_left(left)
-	var ending: bool = most < _v
-	if ending:
-		_v = most
-	# The stop takes over for its own ground; before that the loop slows.
-	var stopping: bool = ending and left <= _stop_ground + 1e-3
-	_braking = ending and not stopping and not _stops.is_empty()
-	_to_entry = left - _stop_ground
-	_steering = not stopping and not _stops.is_empty() and _to_entry <= STEER_FROM
-	if not _steering:
-		_steer_left = -1.0
-	var step: float = minf((maxf(_v, ARRIVE_SPEED) if stopping or _stops.is_empty() and ending else _v) * delta, left)
+	var step: float = 0.0
 	match state:
 		State.STARTING:
-			_starting(delta)
+			step = _starting(delta, left)
 		State.MOVING:
-			_moving()
-	if (stopping or ending and _stops.is_empty()) and state != State.STOPPING:
-		_begin_stop(left)
-	if state == State.STOPPING:
-		_stopping(delta, left - step)
+			step = _moving(delta, left)
+		State.STOPPING:
+			step = _stopping(delta, left)
+	step = clampf(step, 0.0, left)
+	if state == State.STARTING or state == State.MOVING:
+		_maybe_enter_stop(left - step)
 	_speed = step / maxf(delta, 1e-4)
 	_lean_into(delta)
 	return step
-
-
-## The most speed the unit may have `left` metres from the end: down to the
-## stop's entry speed at `_brake` by the stop's ground, and from there to
-## nothing over it, evenly.
-func _speed_for_left(left: float) -> float:
-	if left > _stop_ground:
-		return sqrt(_entry_speed * _entry_speed + 2.0 * _brake * (left - _stop_ground))
-	if _stop_ground <= 1e-4:
-		return 0.0
-	return _entry_speed * sqrt(left / _stop_ground)
 
 
 ## A tick with no walk: the settle after a stop, the lean coming upright.
@@ -447,7 +365,6 @@ func finish() -> bool:
 	_v = 0.0
 	match state:
 		State.STOPPING:
-			_playback.set_clip_speed(1.0)
 			state = State.SETTLING
 			return true
 		State.SETTLING:
@@ -487,6 +404,18 @@ func _facing_share() -> float:
 	return clampf(1.0 - (off - FACING_SLOW_FROM) / FACING_SLOW_SPAN, FACING_SLOWEST, 1.0)
 
 
+## The most speed the unit may have `left` metres from the end. A run slows
+## at RUN_BRAKE to the walk's speed WALK_ROOM ahead of the stop; with no stops
+## the unit slows to nothing on the end.
+func _speed_cap(left: float) -> float:
+	if _stops.is_empty():
+		return maxf(sqrt(2.0 * STOPLESS_BRAKE * left), ARRIVE_SPEED)
+	if not _runs or _set.walk == null:
+		return INF
+	var walk: float = _set.walk.speed
+	return sqrt(walk * walk + 2.0 * RUN_BRAKE * maxf(left - _stop_ground - WALK_ROOM, 0.0))
+
+
 # --- states -------------------------------------------------------------------
 
 ## The turn in place, the unit turned by the clip's own root yaw, scaled to
@@ -502,73 +431,84 @@ func _turning() -> void:
 	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
 	state = State.OFF
 
-## The start, played at the rate that keeps its feet under the unit's speed.
-func _starting(_delta: float) -> void:
-	var t: float = _playback.current_animation_position
-	var own: float = _clip_speed(_clip, t)
-	var rate: float = MATCH_RATE_MOST if own < 0.05 else clampf(_v / own, 0.5, MATCH_RATE_MOST)
-	_playback.set_clip_speed(rate)
-	# Up to speed, or the start runs out: the rest of the start is the jog's
-	# own long run-up, which the loop shows better at this speed.
-	if _v >= _top * 0.98 or t >= _clip.length - BLEND_HAND:
-		# Onto the loop on the frame whose legs match the start's.
-		var from: StringName = _playback.current_animation
-		_playback.play(_loop.clip, BLEND_HAND)
-		_playback.seek(_matching_time(from, t, _loop))
-		state = State.MOVING
-		_moving()
 
-
-func _moving() -> void:
-	var run_into_walk_stop: bool = runs_end_on_walk_stop and _loop == _set.run and _set.walk != null
-	if run_into_walk_stop and _braking and _v <= _set.walk.speed:
+## The start at 1x, the unit going at its own speed on each frame. Up to the
+## loop's speed, or out of start, it hands to the loop on the frame whose
+## legs match.
+func _starting(delta: float, left: float) -> float:
+	var t0: float = _clip_t
+	_clip_t += delta
+	var own: float = (_progress(_clip, _clip_t) - _progress(_clip, t0)) / maxf(delta, 1e-4)
+	_v = minf(maxf(own, 0.0) * _facing_share(), _speed_cap(left))
+	if _runs and _loop != _set.walk and _set.walk != null and _speed_cap(left) <= (_top + _set.walk.speed) * 0.5:
+		# A run too short to reach its speed: on to the walk for the stop.
 		_hand_run_to_walk()
-		run_into_walk_stop = false
-	var steer: float = _phase_steer() if _steering and not run_into_walk_stop else 1.0
-	if _braking and not (run_into_walk_stop and _blends()):
-		_playback.clear_partner()
-		if _loop.speed > 0.0:
-			_playback.set_clip_speed(clampf(_v / _loop.speed * steer, BRAKE_RATE_LEAST, LOOP_RATE_MOST))
-		return
-	if _blends():
-		_moving_blended(steer)
-		return
-	if _loop.speed > 0.0:
-		_playback.set_clip_speed(clampf(_v / _loop.speed * steer, LOOP_RATE_LEAST, LOOP_RATE_MOST))
+	elif _clip_speed(_clip, _clip_t) >= _top * UP_TO_SPEED or _clip_t >= _clip.length - BLEND_HAND:
+		_play_loop(_loop, _clip.clip, _clip_t)
+	return _v * delta
 
 
-## Whether the run can have the walk under it: running on the run loop, and
-## both loops' strikes marked.
-func _blends() -> bool:
-	return (_loop != null and _loop == _set.run and _set.walk != null
-		and _loop.marked() and _set.walk.marked() and _set.walk.speed < _loop.speed)
+## The loop at 1x. The unit comes up to the loop's speed (bent by steering,
+## on the walk), and on a run slows for the end, handing to the walk once
+## halfway down to its speed.
+func _moving(delta: float, left: float) -> float:
+	var cap: float = _speed_cap(left)
+	if _runs and _loop != _set.walk and _set.walk != null and cap < _top:
+		if _v <= (_top + _set.walk.speed) * 0.5:
+			_hand_run_to_walk()
+			cap = _speed_cap(left)
+	var want: float = _top * _facing_share()
+	if _loop == _set.walk and not _stops.is_empty():
+		want = minf(want, _steer_speed(left))
+	want = minf(want, cap)
+	if _v < want:
+		_v = minf(_v + _accel * delta, want)
+	else:
+		_v = maxf(_v - RUN_BRAKE * delta, want)
+	_v = minf(_v, cap)
+	return _v * delta
 
 
-## The run with the walk under it, weighed by speed: all walk at the walk's
-## speed and below, all run at the run's. The two share one stride: its
-## length is theirs weighed the same way, and it goes at the rate that keeps
-## the feet down at the unit's speed. The run is played at that rate; the
-## walk stands on the same point of its stride (_walk_in_step).
-## How much faster or slower than its ground the loop plays while braking
-## so that it reaches the stop on the stride the stop begins from. Played at
-## its ground, the loop gains `_to_entry / speed` seconds by the entry. As
-## the brake begins this picks the nearest second some stop's legs match
-## (nearest as a ratio, so a little faster and a little slower weigh alike)
-## and keeps to it, counting down the loop seconds played, so the target
-## never flips between strides; the ratio is worked out afresh each tick.
-func _phase_steer() -> float:
+## The run at the end of its route, handed to the walk loop on the same point
+## of the stride (by their strikes if marked, else the nearest legs; from the
+## run start, the nearest legs).
+func _hand_run_to_walk() -> void:
+	var run: LocomotionClip = _clip if state == State.STARTING else _loop
+	var at: float = _clip_t if state == State.STARTING else _playback.current_animation_position
+	var from_loop: bool = state == State.MOVING
+	_loop = _set.walk
+	_top = _loop.speed
+	_accel = _top / WALK_ACCEL_TIME
+	if from_loop and run.marked() and _loop.marked():
+		_playback.play(_loop.clip, BLEND_HAND)
+		_playback.seek(_loop.time_at(run.phase_at(at)))
+		state = State.MOVING
+	else:
+		_play_loop(_loop, run.clip, at)
+	_steer_left = -1.0
+	_last_gap = INF
+
+
+## The walk's speed that brings it onto a stop's stride as it reaches the
+## stop's ground: steering aims at the nearest second of the walk some stop
+## enters on (nearest as a ratio, so a little faster and a little slower weigh
+## alike) and keeps to it, counting down the walk seconds played, so the aim
+## never flips between strides.
+func _steer_speed(left: float) -> float:
+	var to_entry: float = left - _stop_ground
+	if to_entry <= 0.0 or to_entry > STEER_FROM or _entry_phase.is_empty():
+		_steer_left = -1.0
+		return INF
 	var length: float = _loop.length
 	var now: float = _playback.current_animation_position
-	var natural: float = _to_entry / _loop.speed
 	if _steer_left < 0.0:
-		if _entry_phase.is_empty() or natural <= 0.0:
-			return 1.0
+		var natural: float = to_entry / _loop.speed
 		var best_off: float = INF
 		for stop in _entry_phase:
 			var ahead: float = fposmod(float(_entry_phase[stop]) - now, length)
-			for k in 3:
+			for k in 4:
 				var want: float = ahead + k * length
-				if want <= 0.0:
+				if want <= 0.05:
 					continue
 				var off: float = absf(log(want / natural))
 				if off < best_off:
@@ -577,89 +517,65 @@ func _phase_steer() -> float:
 	else:
 		_steer_left = maxf(_steer_left - fposmod(now - _steer_at, length), 0.0)
 	_steer_at = now
-	if natural <= 0.02:
-		return 1.0
-	return clampf(_steer_left / natural, PHASE_STEER_LEAST, PHASE_STEER_MOST)
+	if _steer_left <= 0.02:
+		return _loop.speed
+	return clampf(to_entry / _steer_left, _loop.speed * STEER_LEAST, _loop.speed * STEER_MOST)
 
 
-func _moving_blended(steer: float) -> void:
-	var run: LocomotionClip = _loop
-	var walk: LocomotionClip = _set.walk
-	var w: float = clampf((_v - walk.speed) / (run.speed - walk.speed), 0.0, 1.0)
-	var own: float = lerpf(walk.speed, run.speed, w)
-	var run_stride: float = run.length / run.pairs()
-	var stride: float = lerpf(walk.length / walk.pairs(), run_stride, w)
-	_playback.set_clip_speed(clampf(run_stride / stride * _v / own * steer, LOOP_RATE_LEAST, LOOP_RATE_MOST))
-	if w >= 0.999:
-		_playback.clear_partner()
-	else:
-		_playback.set_partner(walk.clip, 1.0 - w, _walk_in_step)
-
-
-## runs_end_on_walk_stop: the run, slowed to the walk's speed with the walk
-## under it at full weight, hands to the walk loop on the walk's own frame,
-## and the walk's stops are aimed at from it.
-func _hand_run_to_walk() -> void:
-	_loop = _set.walk
-	_playback.clear_partner()
-	_playback.play(_loop.clip, BLEND_HAND)
-	_playback.seek(_under_at)
-	_entry_phase.clear()
-	_steer_left = -1.0
-	for stop in _stops:
-		_entry_phase[stop] = _matching_time(stop.clip, _time_left(stop, _stop_ground), _loop)
-
-
-## The walk's seconds on the same point of its stride as the run at `run_at`.
-## A walk of several stride pairs keeps to the pair it was on.
-func _walk_in_step(run_at: float) -> float:
-	var walk: LocomotionClip = _set.walk
-	var phase: float = fposmod(_loop.phase_at(run_at), 1.0)
-	var best: float = walk.time_at(phase)
-	var best_gap: float = INF
-	for k in walk.pairs():
-		var t: float = walk.time_at(phase + k)
-		var gap: float = fposmod(t - _under_at, walk.length)
-		if gap < best_gap:
-			best = t
-			best_gap = gap
-	_under_at = best
-	return best
-
-
-## Into the stop whose legs are nearest what shows now, on its frame for the
-## ground left.
-func _begin_stop(left: float) -> void:
-	if _stops.is_empty():
+## Near the end, into the stop whose first frame's legs are nearest what
+## shows, on the frame they are nearest (once close enough); short of
+## ENTER_LEAST of its ground, whatever shows. Not from the run (it slows
+## to the walk first) unless forced.
+func _maybe_enter_stop(left: float) -> void:
+	if _stops.is_empty() or _stop_ground <= 1e-3:
+		return
+	if left > _stop_ground * ENTER_MOST:
+		_last_gap = INF
+		return
+	var forced: bool = left <= _stop_ground * ENTER_LEAST
+	var on_walk: bool = _loop == _set.walk or _set.walk == null
+	if not on_walk and not forced:
 		return
 	var from: StringName = _playback.current_animation
-	var at: float = _playback.current_animation_position
+	var at: float = _clip_t if state == State.STARTING else _playback.current_animation_position
 	var best: LocomotionClip = null
-	var best_t: float = 0.0
 	var best_gap: float = INF
 	for stop in _stops:
-		var t: float = _time_left(stop, left)
-		var gap: float = _pose_gap(from, at, stop.clip, t)
+		var gap: float = _pose_gap(from, at, stop.clip, 0.0)
 		if gap < best_gap:
 			best = stop
-			best_t = t
 			best_gap = gap
+	# The frame before was the nearest: the gap has begun to grow.
+	var passed: bool = _last_gap < INF and best_gap > _last_gap and _last_gap <= ENTER_GAP
+	_last_gap = best_gap
+	if not (passed or forced):
+		return
 	_clip = best
 	entry_gap = rad_to_deg(best_gap)
-	_braking = false
-	_playback.play(_clip.clip, BLEND_STOP)
-	_playback.seek(best_t)
-	_stop_rate = 1.0
+	_play_clip(best, BLEND_STOP, 0.0)
+	_stop_in = 0.0
 	state = State.STOPPING
 
 
-## The stop shown on its frame for the ground still left after this tick.
-func _stopping(delta: float, left_after: float) -> void:
-	var t: float = _playback.current_animation_position
-	var want: float = _time_left(_clip, maxf(left_after, 0.0))
-	var rate: float = clampf((want - t) / maxf(delta, 1e-4), 0.3, MATCH_RATE_MOST)
-	_stop_rate = lerpf(_stop_rate, rate, 1.0 - exp(-STOP_RATE_EASE * delta))
-	_playback.set_clip_speed(_stop_rate)
+## The stop at 1x. The unit covers the ground left in step with the stop's
+## own: each tick its share of what the stop has still to cover, so it lands
+## on the end as the stop arrives. Over the blend in it eases from the speed
+## it came in at.
+func _stopping(delta: float, left: float) -> float:
+	var t0: float = _clip_t
+	_clip_t += delta
+	_stop_in += delta
+	var p: PackedFloat32Array = _progress_frames(_clip)
+	var arrive: float = p[p.size() - 1] * ARRIVED
+	var still: float = arrive - _progress(_clip, t0)
+	var step: float = left
+	if still > 1e-3:
+		step = left * clampf((_progress(_clip, _clip_t) - _progress(_clip, t0)) / still, 0.0, 1.0)
+	var w: float = clampf(_stop_in / BLEND_STOP, 0.0, 1.0)
+	step = lerpf(_v * delta, step, w)
+	if w >= 1.0:
+		_v = step / maxf(delta, 1e-4)
+	return step
 
 
 func _hand_to_idle_near_end() -> void:
@@ -669,6 +585,23 @@ func _hand_to_idle_near_end() -> void:
 	_playback.play(_set.idle.clip, BLEND_IDLE)
 	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
 	state = State.OFF
+
+
+## A start or stop from `at` seconds, at 1x, timed by _clip_t.
+func _play_clip(clip: LocomotionClip, blend: float, at: float) -> void:
+	_clip = clip
+	_clip_t = at
+	_playback.play(clip.clip, blend)
+	_playback.seek(at)
+
+
+## Onto `loop` at 1x on the frame whose legs match `from`'s at `at`.
+func _play_loop(loop: LocomotionClip, from: StringName, at: float) -> void:
+	var t: float = _matching_time(from, at, loop)
+	_loop = loop
+	_playback.play(loop.clip, BLEND_HAND)
+	_playback.seek(t)
+	state = State.MOVING
 
 
 # --- the clips' ground --------------------------------------------------------
@@ -709,45 +642,6 @@ func _yaw_at(clip: LocomotionClip, seconds: float) -> float:
 	return lerpf(y[i], y[mini(i + 1, y.size() - 1)], at - i)
 
 
-## Seconds a start takes from its onset to SLOWING of `top`, at its own rate.
-func _ramp_time(clip: LocomotionClip, top: float) -> float:
-	var from: float = _onset(clip)
-	var t: float = from
-	while t < clip.length:
-		if _clip_speed(clip, t) >= top * SLOWING:
-			return t - from
-		t += 1.0 / LocomotionClip.FPS
-	return clip.length - from
-
-
-## Metres from the end the unit begins to slow, as the stops do: the ground
-## each has left to its arrival where it first drops below SLOWING of `top`,
-## on average; `otherwise` with no stops.
-func _stop_distance(stops: Array[LocomotionClip], top: float, otherwise: float) -> float:
-	if stops.is_empty():
-		return otherwise
-	if _stop_distances.has(stops):
-		return _stop_distances[stops]
-	var sum: float = 0.0
-	for stop in stops:
-		var p: PackedFloat32Array = _progress_frames(stop)
-		var arrive: float = p[p.size() - 1] * ARRIVED
-		var at: float = p[0]
-		var t: float = 0.0
-		var fast: bool = false
-		while t < stop.length:
-			var v: float = _clip_speed(stop, t)
-			fast = fast or v >= top * SLOWING
-			if fast and v < top * SLOWING:
-				at = _progress(stop, t)
-				break
-			t += 1.0 / LocomotionClip.FPS
-		sum += arrive - at
-	var d: float = clampf(sum / stops.size(), STOP_DISTANCE_LEAST, STOP_DISTANCE_MOST)
-	_stop_distances[stops] = d
-	return d
-
-
 ## The second a clip's motion begins, a few frames ahead of it.
 func _onset(clip: LocomotionClip) -> float:
 	var t: float = 0.0
@@ -758,35 +652,10 @@ func _onset(clip: LocomotionClip) -> float:
 	return 0.0
 
 
-## How fast a stop goes as it begins: the most over its first ENTRY_SPAN.
-func _entry_speed_of(stop: LocomotionClip) -> float:
-	var most: float = 0.0
-	var t: float = 0.0
-	while t <= ENTRY_SPAN:
-		most = maxf(most, _clip_speed(stop, t))
-		t += 1.0 / LocomotionClip.FPS
-	return most
-
-
 ## The ground a stop covers from its first frame to its arrival.
 func _stop_ground_of(stop: LocomotionClip) -> float:
 	var p: PackedFloat32Array = _progress_frames(stop)
 	return maxf(p[p.size() - 1] * ARRIVED - p[0], 0.0)
-
-
-## The second of a stop at which `metres` are left to its arrival.
-func _time_left(clip: LocomotionClip, metres: float) -> float:
-	var p: PackedFloat32Array = _progress_frames(clip)
-	var whole: float = p[p.size() - 1]
-	var arrive: float = whole * ARRIVED
-	var goal: float = arrive - metres
-	if goal <= p[0]:
-		return 0.0
-	for i in range(1, p.size()):
-		if p[i] >= goal:
-			var w: float = (goal - p[i - 1]) / maxf(p[i] - p[i - 1], 1e-5)
-			return (i - 1 + w) / LocomotionClip.FPS
-	return clip.length
 
 
 ## The second of `loop` whose legs are nearest `clip`'s at `at`.

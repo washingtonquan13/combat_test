@@ -6,8 +6,7 @@ extends "res://tools/fog_cloud_demo.gd"
 ## order is under way. Record it the same way as item_layer_demo, without
 ## opengl3. The camera follows the hero, close. INERTIA=0 in the environment
 ## records it with plain crossfades instead of BodyInertia, for a before
-## and after. RUN_STOP=walk ends the runs on the walk's stop instead of
-## Run To Stop.
+## and after.
 
 
 func _run() -> void:
@@ -16,7 +15,6 @@ func _run() -> void:
 	_hero = PartyManager.leader
 	SelectionManager.select(_hero)
 	BodyAnimationTree.of(_hero).inertia().enabled = OS.get_environment("INERTIA") != "0"
-	UnitLocomotion.runs_end_on_walk_stop = OS.get_environment("RUN_STOP") == "walk"
 	var home: Vector3 = _hero.global_position
 	var ahead: Vector3 = _hero.visual_forward()
 	var right: Vector3 = ahead.cross(Vector3.UP)
