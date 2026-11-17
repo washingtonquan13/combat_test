@@ -8,13 +8,19 @@ skeleton (imported from its baked .glb, so the rest is the game's to the bit)
 with one action per clip, and no mesh. The clips keep their travel and turn;
 land_mixamo.gd bakes them in place.
 
-The hero is on MPFB's "mixamo" rig (tools/characters/bake_character.py), the
-same 52 bones as Mixamo's own, so each bone takes its source bone's motion by
-name. How each one takes it depends on why its rest differs from the source's:
+The hero is on MPFB's "mixamo_unity" rig (tools/characters/bake_character.py),
+Mixamo's own bones by name (the extra jaw, eye, breast and buttock bones have
+no source and follow their parents), so each bone takes its source bone's
+motion by name. How each one takes it depends on why its rest differs from
+the source's:
 
-  the limbs           differ by POSE (the hero rests in an A, Mixamo in a T):
-                      each is laid so its head -> child-head line runs along
-                      the source's, and takes the source's turn from there.
+  the limbs           differ a little by POSE: both rest in a T (the hero in
+                      MPFB's T-pose, tools/characters/tpose.py), but the
+                      hero's arms sit ~4 deg, its forearms ~8 deg and its
+                      hands ~12 deg off Mixamo's, and MakeHuman's fingers rest
+                      curled (20-40 deg). Each is laid so its head -> child-head
+                      line runs along the source's, and takes the source's
+                      turn from there.
   BUILD (spine, pelvis, neck, head, clavicles, feet, toes)
                       differ by BUILD (the hero's S-curved spine, sloped
                       clavicles, low ankle): each takes the source's turn away
