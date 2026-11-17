@@ -57,6 +57,10 @@ What comes out, every time:
   by these alone;
 - every part with a game-engine material (Principled BSDF and image
   textures), which glTF carries as standard PBR;
+- with eyes, round each eye an occlusion strip ("<name>.eye_occlusion")
+  and a tear line ("<name>.tearline") laid on the eyeball along the lid's
+  waterline, riding on it by the same bone weights and blend shapes
+  (eye_shells.py);
 - with a hairstyle, its hair as cards (groom.py), a hull over it for the
   outline (hidden in game), and <out>_scalp.png beside the .glb: where the
   hair grows, for the skin shader;
@@ -270,6 +274,13 @@ FaceService.interpolate_targets(basemesh)
 # is cut for 2000s game budgets, and its polygons show at the jaw, ears and
 # shoulders up close. The shape keys are carried through the subdivision, and
 # Godot builds the far LODs back down on import.
+here = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, here)
+import eye_shells
+# The lid's waterline, marked while the base mesh's rings are still whole.
+if eyes is not None:
+    eye_shells.mark(basemesh, eyes)
+
 SUBDIV = int(recipe.get("subdiv", 1))
 if SUBDIV:
     for obj in [basemesh] + clothes + list(wearables.values()):
@@ -289,11 +300,8 @@ rig.name = rig.data.name = "Armature"
 for old, new in (("Root", "root"), ("head", "Head")):
     rig.data.bones[old].name = new
 
-here = os.path.dirname(os.path.abspath(__file__))
-
 # Each wearable to its own .glb, on the same rig: worn, its skin binds to the
 # body's skeleton by bone name. No blend shapes: the face's don't reach cloth.
-sys.path.insert(0, here)
 import groom
 wear_root = os.path.join(here, "..", "..", "assets", "wearables")
 for name, obj in wearables.items():
@@ -311,6 +319,9 @@ for name, obj in wearables.items():
     groom.write_png(os.path.join(folder, name + "_covers.png"), wearables_covers[name])
     print("WORE", name, "verts", len(obj.data.vertices), "->", glb)
     bpy.data.objects.remove(obj, do_unlink=True)
+
+if eyes is not None:
+    eye_shells.build(basemesh, eyes, rig, basemesh.name)
 
 if recipe.get("hairstyle"):
     if eyes is None:
