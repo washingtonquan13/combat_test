@@ -394,13 +394,6 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## underfoot instead (see unit_selection.gd's header). Its `visible` is
 ## the ring's on/off switch. Safe to leave unassigned — no ring is drawn.
 @export var highlight_mesh: MeshInstance3D
-## Optional full-body outline — a SEPARATE MeshInstance3D sharing the
-## same mesh and skeleton as the character model, with the outline.gdshader
-## material applied (see that file's header for the technique). Distinct
-## from highlight_mesh (that one's a flat ring at the feet; this one
-## traces the actual animated silhouette) — safe to leave unassigned,
-## same as highlight_mesh.
-@export var outline_mesh: MeshInstance3D
 ## No longer read by the ring or the outline: those take their hue from
 ## the unit's relation to the party (IndicatorPalette). Kept because it is
 ## still saved and restored per party member (PartyManager) and set in
@@ -678,7 +671,7 @@ func _swap_model(scene: PackedScene) -> void:
 		model.queue_free()
 		return
 
-	for outgoing in [get_node_or_null("CharacterModel"), outline_mesh, highlight_mesh]:
+	for outgoing in [get_node_or_null("CharacterModel"), highlight_mesh]:
 		if is_instance_valid(outgoing):
 			remove_child(outgoing)
 			outgoing.queue_free()
@@ -701,9 +694,8 @@ func _bind_model() -> void:
 	if body == null:
 		return
 
-	# Either may be null, and that is allowed — UnitSelection guards both.
-	# A body that wants a selection ring or an outline declares one.
-	outline_mesh = body.outline_mesh
+	# May be null, and that is allowed — UnitSelection guards it. A body
+	# that wants a selection ring declares one.
 	highlight_mesh = body.highlight_mesh
 
 	# avoidance_margin is a gap between bodies, not part of one, so it
@@ -928,7 +920,7 @@ func _ready() -> void:
 	# add_child() runs its _enter_tree and _ready synchronously right
 	# here, between them doing what the _selection.setup() call at the
 	# bottom of this function used to. Safe at this point for a precise
-	# reason: everything that setup read (highlight_mesh, outline_mesh)
+	# reason: everything that setup read (highlight_mesh, the body)
 	# is bound in _enter_tree (see _bind_model), long before any of this.
 	#
 	# Created from code rather than authored into unit.tscn so every unit

@@ -81,8 +81,8 @@ func _run() -> void:
 
 	var model: Node3D = (load(model_path) as PackedScene).instantiate()
 	world.add_child(model)
-	# The hover outline and highlight are hidden in play until hovered.
-	for hidden in ["OutlineMesh", "HighlightMesh"]:
+	# The highlight is hidden in play until hovered.
+	for hidden in ["HighlightMesh"]:
 		if model.has_node(hidden):
 			(model.get_node(hidden) as Node3D).visible = false
 	# --wear dresses the model, once per item given, as UnitWearables would.

@@ -122,18 +122,20 @@ static func _shown_by(original: CharacterModel) -> Object:
 
 
 ## The body carries what the player is shown about the unit: the hover
-## outline and the ring (whose decals hang under highlight_mesh). On the
+## outline (UnitOutline, a parameter on its meshes, which a copy takes
+## with it) and the ring (whose decals hang under highlight_mesh). On the
 ## copy nothing would drive them, so whatever was showing at the moment of
 ## the copy, a ring for the selected leader, an outline for the person just
 ## clicked to talk to, would stand frozen in every shot. They stay the
 ## unit's own, hidden with its body and back when the copy is struck.
 static func _strip_player_feedback(original: CharacterModel, copy: CharacterModel) -> void:
-	for own: Node in [original.outline_mesh, original.highlight_mesh]:
-		if own == null or not original.is_ancestor_of(own):
-			continue
-		var twin: Node = copy.get_node_or_null(original.get_path_to(own))
-		if twin:
-			twin.free()
+	UnitOutline.clear(copy)
+	var own: Node = original.highlight_mesh
+	if own == null or not original.is_ancestor_of(own):
+		return
+	var twin: Node = copy.get_node_or_null(original.get_path_to(own))
+	if twin:
+		twin.free()
 
 
 ## The stand-in showing unit, or null when its own body is what is on screen.

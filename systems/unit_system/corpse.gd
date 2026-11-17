@@ -164,6 +164,8 @@ static func _leave_now(unit: Unit) -> void:
 func _take_body(unit: Unit, body: Node3D) -> void:
 	_body = body
 	body.reparent(self, true)
+	# A unit hovered or selected as it died would keep its outline lit.
+	UnitOutline.clear(body)
 	# Held weapons and anything else solid on the body: a corpse blocks
 	# nothing and is clicked through its own area.
 	for solid: CollisionObject3D in body.find_children("*", "CollisionObject3D", true, false):

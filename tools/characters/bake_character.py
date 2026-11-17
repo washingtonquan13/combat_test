@@ -59,8 +59,8 @@ What comes out, every time:
   by these alone;
 - every part with a game-engine material (Principled BSDF and image
   textures), which glTF carries as standard PBR;
-- with a hairstyle, its hair as cards (groom.py), a hull over it for the
-  outline (hidden in game), and <out>_scalp.png beside the .glb: where the
+- with a hairstyle, its hair as cards (groom.py), a hull over it (hidden in
+  game; it was for the old outline bake), and <out>_scalp.png beside the .glb: where the
   hair grows, for the skin shader;
 - for each wearable, assets/wearables/<item>/<name>.glb, the item fitted to
   this body on the same rig (no blend shapes), and <item>_covers.png beside

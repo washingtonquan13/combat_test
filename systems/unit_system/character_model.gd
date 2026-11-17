@@ -4,12 +4,12 @@ extends Node3D
 ##
 ## The Unit is the ACTOR — stats, skills, abilities, AI, turn state. This
 ## is the BODY: the mesh it wears, the skeleton under it, the library it
-## animates from, the silhouette it outlines with, the ring at its feet,
-## and the points on it other systems need to aim at.
+## animates from, the ring at its feet, and the points on it other systems
+## need to aim at. (Its hover outline is drawn by its own meshes: UnitOutline.)
 ##
 ## The test for whether something belongs here is simple: **would it be
-## wrong for a different creature?** The outline mesh is skinned to one
-## specific skeleton, so it belongs here. Clip names are facts about one
+## wrong for a different creature?** The ring is sized to one body's
+## footprint, so it belongs here. Clip names are facts about one
 ## animation library, so they belong here. UnitAnimator's sequencing —
 ## phases, interruption, advance — is identical for every creature, so it
 ## stays on the Unit and merely reads what it is given.
@@ -92,11 +92,6 @@ extends Node3D
 @export var ragdoll: RagdollProfile
 
 @export_group("Presentation")
-## The silhouette drawn behind the body when hovered or selected. Skinned
-## to THIS body's skeleton, which is the whole reason it cannot live on
-## the Unit: an outline is a second copy of one specific mesh on one
-## specific rig.
-@export var outline_mesh: MeshInstance3D
 ## The ring at the feet. Belongs to the body because it has to match the
 ## body's footprint: at runtime UnitSelection reads the ring's radius from
 ## this mesh, then clears it and projects a decal ring onto the ground in

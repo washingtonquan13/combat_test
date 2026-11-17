@@ -51,12 +51,6 @@ func _a_named_body_replaces_the_authored_one() -> void:
 		unit.find_child("GeneralSkeleton", true, false) == null,
 		"the placeholder skeleton is still in the tree — two bodies")
 
-	# The outline mesh was skinned to that skeleton. Left behind, it would
-	# be one creature's silhouette welded to bones that no longer exist.
-	check("and the outline skinned to it went with it",
-		not is_instance_valid(unit.outline_mesh) or unit.outline_mesh.get_parent() == body,
-		"outline_mesh survived its skeleton")
-
 	check("and the selection ring now belongs to the new body",
 		is_instance_valid(unit.highlight_mesh) and unit.highlight_mesh.get_parent() == body,
 		"highlight_mesh is not the one this body declares")

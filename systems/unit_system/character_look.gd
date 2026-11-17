@@ -11,7 +11,7 @@ extends Node
 ##
 ## A character baked with a hairstyle has hair cards (tools/characters/
 ## groom.py), "<name>.groom", which get groom.gdshader, and a hull over them,
-## "<name>.hair_shell", kept for the outline bake and hidden. The cards draw
+## "<name>.hair_shell", hidden (it was for the old outline bake). The cards draw
 ## their own strands, baked with them; the scalp texture turns the skin to
 ## short hair where the hair grows.
 ##
@@ -42,7 +42,7 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 
 ## The skin's materials, every pass, to hand the covers mask to.
 var _skin_passes: Array[ShaderMaterial] = []
-## What wear() put on: the items' meshes and their outline hulls.
+## What wear() put on: the items' meshes.
 var _worn: Array[Node] = []
 ## The joined covers of what is worn; null for none.
 var _covers: Texture2D
@@ -80,16 +80,14 @@ func _ready() -> void:
 
 ## Dresses the body in items, in place of what it wore. An item with no fit
 ## for this body_type shows nothing. Each item's meshes go on the body's
-## skeleton, each with an outline hull under the model's outline mesh, so
-## the hover outline follows the clothes; the skin under them is dropped.
+## skeleton (UnitOutline outlines them with the body); the skin under them
+## is dropped.
 func wear(items: Array[Wearable]) -> void:
 	for node in _worn:
 		if is_instance_valid(node):
 			node.queue_free()
 	_worn.clear()
 	var skeleton := _skeleton()
-	var model := get_parent() as CharacterModel
-	var outline: MeshInstance3D = model.outline_mesh if model else null
 	var masks: Array[Texture2D] = []
 	for item in items:
 		var scene: PackedScene = item.meshes.get(body_type)
@@ -105,15 +103,6 @@ func wear(items: Array[Wearable]) -> void:
 			mesh.skeleton = mesh.get_path_to(skeleton)
 			mesh.layers = _body_layers(skeleton)
 			_worn.append(mesh)
-			if outline:
-				var hull := MeshInstance3D.new()
-				hull.mesh = mesh.mesh
-				hull.skin = mesh.skin
-				hull.material_override = outline.material_override
-				hull.layers = outline.layers
-				outline.add_child(hull)
-				hull.skeleton = hull.get_path_to(skeleton)
-				_worn.append(hull)
 		fitted.free()
 	_covers = _joined(masks)
 	_show_covers()

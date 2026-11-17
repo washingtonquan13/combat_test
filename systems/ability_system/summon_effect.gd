@@ -43,7 +43,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	# which expires everything it summoned the moment it dies.
 	summon.summoned_by = attacker
 	# Reads as "your" summon, not a random third color scheme — only the
-	# plain Color values, not highlight_mesh/outline_mesh themselves
+	# plain Color values, not highlight_mesh itself
 	# (those stay as whatever mesh nodes the summon's own instance already
 	# wires up internally; copying a NODE reference from the attacker
 	# would point the summon's selection visuals at the attacker's own

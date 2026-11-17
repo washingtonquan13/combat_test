@@ -266,8 +266,8 @@ func _collect(wanted: Dictionary) -> void:
 			continue
 		for node in body.find_children("*", "MeshInstance3D", true, false):
 			var mesh := node as MeshInstance3D
-			# The outline hull and the foot ring are indicators, not body.
-			if mesh == unit.outline_mesh or mesh == unit.highlight_mesh:
+			# The foot ring is an indicator, not body.
+			if mesh == unit.highlight_mesh:
 				continue
 			wanted[mesh.get_instance_id()] = [mesh, material]
 

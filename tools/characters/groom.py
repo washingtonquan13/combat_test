@@ -10,7 +10,9 @@ human: the strands are grown on the body by rule, then
    hairline fades out in strokes instead of ending at a card's edge;
 3. each card's own strands, the lock's grown strands carried onto it, are
    drawn into a tile of the character's strand atlas;
-4. a hull over the hair is kept for the outline bake.
+4. a hull over the hair, hidden in game. It was the hair's part of the old
+   outline bake; the outline is now drawn by each mesh (UnitOutline), which
+   leaves the hair out, so the hull is unused until hair comes back.
 
 The atlas holds no colour, only strands: coverage, a random id per strand,
 shading across each strand and by how far back it lies, and how far along
@@ -85,7 +87,7 @@ def build(body, eyes, rig, style_path, name, scalp_png, strands_png, seed=1):
     """Grows the hairstyle at style_path (tools/characters/hairstyles/) on the
     baked body, whose eyes place the head, and makes game hair of it:
     "<name>.groom", the cards, and "<name>.hair_shell", a hull over the hair
-    that the outline is built from (CharacterLook hides it). Both ride the
+    (CharacterLook hides it; unused since the old outline bake went). Both ride the
     Head bone. scalp_png gets where the hair grows on the skin, strands_png
     the cards' strands. Returns the cards."""
     import hairstyle
@@ -392,7 +394,7 @@ def _object(name, positions, normals, uvs, colours, faces, rig):
 
 
 def _hull(head, S, info, name, rig):
-    """The hair's outer surface, for the outline: the scalp under the hair,
+    """The hair's outer surface (was for the old outline bake): the scalp under the hair,
     lifted to where its outer strands lie, and a hull round the bun."""
     import bmesh
     from mathutils import Vector

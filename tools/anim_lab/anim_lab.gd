@@ -113,7 +113,7 @@ var _label := ""
 
 func _ready() -> void:
 	var model := get_node("Model")
-	for hidden: String in ["OutlineMesh", "HighlightMesh"]:
+	for hidden: String in ["HighlightMesh"]:
 		var n := model.get_node_or_null(hidden)
 		if n:
 			n.visible = false

@@ -29,7 +29,10 @@ extends Node
 ## first trip and never got it back. See _enter_tree's own comment: that
 ## is a deliberate behaviour change, not a refactor.
 ##
-## highlight_mesh/outline_mesh stay as plain @export vars directly on Unit
+## THE OUTLINE is UnitOutline's: a pass of the body's own materials, lit
+## per mesh, so it is drawn wherever the body is (a lean, a crawl).
+##
+## highlight_mesh stays as a plain @export var directly on Unit
 ## rather than moving in here — same editor-safety reasoning as
 ## UnitFacing's rotation_speed/facing_offset_degrees: the editor needs to
 ## read/write @export values before this component ever exists. This
@@ -146,6 +149,8 @@ const RING_GLOW_ALPHA: float = 0.35
 ## Ring textures by width, shared by every unit: [albedo, emission].
 static var _ring_textures: Dictionary = {}
 
+## The hover outline, drawn by the body itself; null for a unit with no body.
+var _outline: UnitOutline
 var _ring: Decal
 var _turn_ring: Decal
 var _drop_line: PathTube
@@ -239,7 +244,7 @@ func _autoload_connections() -> Array:
 ## lifetime act, not something a reparent should redo, and _ready is the
 ## notification that fires once.
 ##
-## Equivalent timing to the old setup(): highlight_mesh/outline_mesh are
+## Equivalent timing to the old setup(): highlight_mesh and the body are
 ## bound in Unit's _enter_tree() (see Unit._bind_model), so both are
 ## already answered by the time any child of the Unit readies.
 func _ready() -> void:
@@ -250,8 +255,9 @@ func _ready() -> void:
 		_build_ring(_owner.highlight_mesh)
 		_owner.highlight_mesh.visible = false
 
-	if _owner.outline_mesh:
-		_owner.outline_mesh.visible = false
+	var model := _owner.get_node_or_null("CharacterModel") as Node3D
+	if model:
+		_outline = UnitOutline.new(model, _owner.highlight_mesh)
 
 	# The owner's own signal, not an autoload's, so it dies with the owner
 	# and needs no release. A unit can die on its own turn, and nothing
@@ -522,16 +528,13 @@ func update_highlight() -> void:
 			_drop_line.visible = false
 		set_physics_process(any_ring)
 
-	if _owner.outline_mesh:
-		var outlined: bool = show or area_targeted
-		_owner.outline_mesh.visible = outlined
-		if outlined:
-			var outline_color: Color = state_color
-			if area_targeted:
-				outline_color = _relation_color()
-			var outline_material := _owner.outline_mesh.material_override as ShaderMaterial
-			if outline_material:
-				outline_material.set_shader_parameter("outline_color", outline_color)
+	if _outline:
+		var outline_color := Color(0, 0, 0, 0)
+		if area_targeted:
+			outline_color = _relation_color()
+		elif show:
+			outline_color = state_color
+		_outline.lit(outline_color)
 
 
 ## Who this unit is to the party. PARTY is "a unit the player commands"
