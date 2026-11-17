@@ -28,9 +28,15 @@ extends RefCounted
 ##             nearest the loop's, on its frame for the ground left.
 ##   SETTLING  the route is done, the stop's settle plays on; it hands to the
 ##             idle on the idle's own frame.
+## Running below the run loop's speed (swinging round, breaking into the
+## run) the walk shows under the run in step with it, the two weighed by the
+## unit's speed (_moving: a blend by speed, as a blend space does), so the
+## legs never play a run in slow motion.
 ## A new order while moving or stopping goes on at the same gait, except
 ## that a walk whose new route is WALK_UNDER or longer breaks into the run
-## (by the run start, from its frame for the unit's speed); one while
+## (with the walk and run marked, by speeding up through the blend from the
+## walk's own stride; otherwise by the run start, from its frame for the
+## unit's speed); one while
 ## settling or turning in place starts at once. Routes under WALK_UNDER are
 ## walked, the rest run.
 ##
@@ -136,6 +142,9 @@ var _lean: float = 0.0
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
+## Where the walk under the run last stood (seconds), so a walk of several
+## stride pairs keeps to the one it is on.
+var _under_at: float = 0.0
 
 
 func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: Node3D) -> void:
@@ -259,7 +268,18 @@ func _take_gait(runs: bool) -> LocomotionClip:
 ## for the unit's speed now (past its lead-in), which comes up to speed and
 ## hands to the run loop as from rest; or straight to the loop with none.
 func _break_into_run() -> void:
+	var walk: LocomotionClip = _loop
+	var walk_at: float = _playback.current_animation_position
 	var start: LocomotionClip = _take_gait(true)
+	if _blends():
+		# On the run loop at the walk's own stride, the walk under it at full
+		# weight: the unit speeds up through the blend.
+		_playback.play(_loop.clip, BLEND_HAND)
+		_playback.seek(_loop.time_at(walk.phase_at(walk_at)))
+		_under_at = walk_at
+		state = State.MOVING
+		_moving()
+		return
 	if start == null:
 		var from: StringName = _playback.current_animation
 		var at: float = _playback.current_animation_position
@@ -406,8 +426,54 @@ func _starting(_delta: float) -> void:
 
 
 func _moving() -> void:
+	if _blends():
+		_moving_blended()
+		return
 	if _loop.speed > 0.0:
 		_playback.set_clip_speed(clampf(_v / _loop.speed, LOOP_RATE_LEAST, LOOP_RATE_MOST))
+
+
+## Whether the run can have the walk under it: running on the run loop, and
+## both loops' strikes marked.
+func _blends() -> bool:
+	return (_loop != null and _loop == _set.run and _set.walk != null
+		and _loop.marked() and _set.walk.marked() and _set.walk.speed < _loop.speed)
+
+
+## The run with the walk under it, weighed by speed: all walk at the walk's
+## speed and below, all run at the run's. The two share one stride: its
+## length is theirs weighed the same way, and it goes at the rate that keeps
+## the feet down at the unit's speed. The run is played at that rate; the
+## walk stands on the same point of its stride (_walk_in_step).
+func _moving_blended() -> void:
+	var run: LocomotionClip = _loop
+	var walk: LocomotionClip = _set.walk
+	var w: float = clampf((_v - walk.speed) / (run.speed - walk.speed), 0.0, 1.0)
+	var own: float = lerpf(walk.speed, run.speed, w)
+	var run_stride: float = run.length / run.pairs()
+	var stride: float = lerpf(walk.length / walk.pairs(), run_stride, w)
+	_playback.set_clip_speed(clampf(run_stride / stride * _v / own, LOOP_RATE_LEAST, LOOP_RATE_MOST))
+	if w >= 0.999:
+		_playback.clear_partner()
+	else:
+		_playback.set_partner(walk.clip, 1.0 - w, _walk_in_step)
+
+
+## The walk's seconds on the same point of its stride as the run at `run_at`.
+## A walk of several stride pairs keeps to the pair it was on.
+func _walk_in_step(run_at: float) -> float:
+	var walk: LocomotionClip = _set.walk
+	var phase: float = fposmod(_loop.phase_at(run_at), 1.0)
+	var best: float = walk.time_at(phase)
+	var best_gap: float = INF
+	for k in walk.pairs():
+		var t: float = walk.time_at(phase + k)
+		var gap: float = fposmod(t - _under_at, walk.length)
+		if gap < best_gap:
+			best = t
+			best_gap = gap
+	_under_at = best
+	return best
 
 
 ## Into the stop whose legs are nearest what shows now, on its frame for the

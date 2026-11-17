@@ -52,6 +52,46 @@ const FPS := 30.0
 ## A loop's cycles of the same stride pair (the walk: 3). A stop that enters
 ## on one frame of the loop enters as well a 1/strides of the cycle on.
 @export var strides: int = 1
+## A loop's foot strikes: the seconds into it each foot comes down (is
+## furthest ahead), in turn, the left's first, over one cycle. Two loops are
+## shown in step by them (phase_at, time_at: a walk under a run as it slows).
+## Each is later than the one before, so the last may be past `length` (a
+## cycle on).
+## Empty: not marked. Set by tools/locomotion/land_mixamo.gd.
+@export var strikes: PackedFloat32Array = PackedFloat32Array()
+
+
+## Whether the loop's strikes are marked, so it can be played in step.
+func marked() -> bool:
+	return strikes.size() >= 2 and strikes.size() % 2 == 0 and length > 0.0
+
+
+## How many stride pairs (left strike to left strike) a cycle holds.
+func pairs() -> int:
+	return strikes.size() / 2
+
+
+## Where in its strides the loop is `seconds` in: 0 on the left's strike,
+## 0.5 on the right's, 1 on the next left's, up to pairs() over a cycle.
+## Between two strikes it goes evenly.
+func phase_at(seconds: float) -> float:
+	var n: int = strikes.size()
+	var t: float = fposmod(seconds - strikes[0], length) + strikes[0]
+	for i in n:
+		var to: float = strikes[i + 1] if i + 1 < n else strikes[0] + length
+		if t < to or i == n - 1:
+			return (i + clampf((t - strikes[i]) / maxf(to - strikes[i], 1e-4), 0.0, 1.0)) * 0.5
+	return 0.0
+
+
+## The seconds into the loop at `phase` (phase_at's measure, taken round the
+## cycle).
+func time_at(phase: float) -> float:
+	var n: int = strikes.size()
+	var p: float = fposmod(phase * 2.0, float(n))
+	var i: int = mini(floori(p), n - 1)
+	var to: float = strikes[i + 1] if i + 1 < n else strikes[0] + length
+	return fposmod(lerpf(strikes[i], to, p - i), length)
 
 
 ## Where the unit stands `seconds` in, from where it stood on the first

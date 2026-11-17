@@ -16,6 +16,7 @@ travel = 0.0
 turn = 0.0
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_0ods0"]
 script = ExtResource("1_6nq0i")
@@ -30,6 +31,7 @@ travel = 2.69702
 turn = 0.0
 speed = 3.23642
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_ee2f0"]
 script = ExtResource("1_6nq0i")
@@ -44,6 +46,7 @@ travel = 2.07
 turn = 0.0
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_1uvrb"]
 script = ExtResource("1_6nq0i")
@@ -58,6 +61,7 @@ travel = 0.83265
 turn = -0.801574
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_ayd58"]
 script = ExtResource("1_6nq0i")
@@ -72,6 +76,7 @@ travel = 0.83265
 turn = 0.801575
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_1fo51"]
 script = ExtResource("1_6nq0i")
@@ -86,6 +91,7 @@ travel = 3.14967
 turn = 0.0
 speed = 4.49953
 strides = 1
+strikes = PackedFloat32Array(0.195686, 0.535881)
 
 [sub_resource type="Resource" id="Resource_se2eg"]
 script = ExtResource("1_6nq0i")
@@ -100,6 +106,7 @@ travel = 0.0
 turn = 3.28341
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_fi56c"]
 script = ExtResource("1_6nq0i")
@@ -114,6 +121,7 @@ travel = 0.0416255
 turn = 2.7032
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_7bxqg"]
 script = ExtResource("1_6nq0i")
@@ -128,6 +136,7 @@ travel = 0.0
 turn = -3.00095
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_mstes"]
 script = ExtResource("1_6nq0i")
@@ -142,6 +151,7 @@ travel = 0.0807791
 turn = -2.92201
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_kfsay"]
 script = ExtResource("1_6nq0i")
@@ -156,6 +166,7 @@ travel = 0.00721957
 turn = 1.56158
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_1p57y"]
 script = ExtResource("1_6nq0i")
@@ -170,6 +181,7 @@ travel = 0.00480073
 turn = -1.7893
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_e3c5u"]
 script = ExtResource("1_6nq0i")
@@ -184,6 +196,7 @@ travel = 0.00623117
 turn = 3.0743
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_7yww7"]
 script = ExtResource("1_6nq0i")
@@ -198,6 +211,7 @@ travel = 0.00269629
 turn = -3.05556
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_8brq0"]
 script = ExtResource("1_6nq0i")
@@ -212,6 +226,7 @@ travel = 1.77263
 turn = 0.0
 speed = 1.71545
 strides = 1
+strikes = PackedFloat32Array(0.189224, 0.73256)
 
 [sub_resource type="Resource" id="Resource_28a1h"]
 script = ExtResource("1_6nq0i")
@@ -226,6 +241,7 @@ travel = 2.04219
 turn = 0.1833
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_bb0b5"]
 script = ExtResource("1_6nq0i")
@@ -240,6 +256,7 @@ travel = 1.24128
 turn = -0.1833
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_x3lvx"]
 script = ExtResource("1_6nq0i")
@@ -254,6 +271,7 @@ travel = 1.24128
 turn = 0.1833
 speed = 0.0
 strides = 1
+strikes = PackedFloat32Array()
 
 [resource]
 script = ExtResource("2_0ods0")

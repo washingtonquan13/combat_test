@@ -70,6 +70,33 @@ var _internal_seeked: bool = false
 var _end_reached: bool = false
 var _end_notify: bool = false
 var _processed_from: Animation = null
+## A second loop shown under the current one, in step with it (a walk
+## under a run as the run slows: UnitLocomotion). It weighs `partner_weight`
+## of what the current one weighs, and stands where `partner_sync` (the
+## current clip's position in, the partner's out) puts it after the current
+## one has moved, so the two never drift apart. Not in the player: our own.
+## A play of another clip drops it.
+var partner: Track = null
+var partner_weight: float = 0.0
+var partner_sync: Callable = Callable()
+
+
+## Shows `clip` under the current one at `weight` (0-1), placed by `sync`.
+func set_partner(clip: StringName, animation: Animation, weight: float, sync: Callable) -> void:
+	if partner == null or partner.clip != clip:
+		partner = Track.new()
+		partner.clip = clip
+		partner.animation = animation
+	partner_weight = clampf(weight, 0.0, 1.0)
+	partner_sync = sync
+	if current != null and sync.is_valid():
+		partner.pos = sync.call(current.pos)
+
+
+func clear_partner() -> void:
+	partner = null
+	partner_weight = 0.0
+	partner_sync = Callable()
 
 
 ## Plays `clip` (an Animation the tree has under that name), crossfading
@@ -89,6 +116,8 @@ func play(clip: StringName, animation: Animation, custom_blend: float = -1.0, cu
 			_fades.append(fade)
 		else:
 			_fades.clear()
+	if assigned != clip:
+		clear_partner()
 	var resumed: Track = current
 	current = Track.new() if resumed == null else resumed
 	current.clip = clip
@@ -152,6 +181,7 @@ func stop() -> void:
 	current = null
 	assigned = &""
 	playing = false
+	clear_partner()
 	_fades.clear()
 	_started = false
 	_seeked = false
@@ -175,7 +205,14 @@ func _process(time: float, seek_request: bool, _is_external_seeking: bool, test_
 	if not is_zero_approx(delta):
 		_seeked = false
 		_internal_seeked = false
-	_blend_track(current, delta, current_blend_amount(), seeked, internal_seeked, started, true)
+	var weight: float = current_blend_amount()
+	var under: float = partner_weight if partner != null and not _end_reached else 0.0
+	_blend_track(current, delta, weight * (1.0 - under), seeked, internal_seeked, started, true)
+	if under > 0.0 and not _end_reached:
+		if partner_sync.is_valid():
+			partner.pos = partner_sync.call(current.pos)
+		blend_animation(partner.clip, partner.pos, 0.0, true, false, weight * under,
+			Animation.LOOPED_FLAG_NONE)
 	if _end_reached:
 		_fades.clear()
 		return 0.0

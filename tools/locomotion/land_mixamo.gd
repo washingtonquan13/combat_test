@@ -26,6 +26,10 @@ extends SceneTree
 #   a turn, the walk start, a stop
 #                    follows the hips smoothed over about half a second.
 #
+# The walk and run are marked with their foot strikes (LocomotionClip.strikes):
+# the frames each foot is furthest ahead of the body, refined between frames,
+# by which the game plays the two in step.
+#
 # The stops and turns hand to the idle on a pose of it
 # (LocomotionClip.leaves_at): the idle's frame nearest the clip's last pose. A
 # turn also enters off the idle's frame nearest its first (enters_at).
@@ -119,6 +123,10 @@ func _land() -> void:
 		idle_poses.append(_pose(hero_player, hero, set.idle.clip, f / FPS))
 	for clip: Resource in set.walk_stops + set.jog_stops + set.turns:
 		_reland(clip, idle_poses, hero_player, hero, clip in set.turns)
+	print("
+FOOT STRIKES")
+	for clip: Resource in [set.walk, set.run]:
+		_mark_strikes(clip, hero_player, hero)
 
 	var err: Error = ResourceSaver.save(library, LIBRARY_PATH)
 	print("\n%s: %s" % [LIBRARY_PATH, error_string(err)])
@@ -308,6 +316,49 @@ func _reland(clip: Resource, idle_poses: Array[PackedVector3Array], player: Anim
 		clip.enters_at = into[0]
 		said += "; enters at %5.2f s, %4.1f cm off" % [into[0], into[1] * 100.0]
 	print(said)
+
+
+## A loop's strikes: for each foot, the frames it is furthest ahead (model
+## +Z, from the skeleton's root), each a peak over the frames half a stride
+## either side, refined on a parabola through its neighbours; in time order,
+## the left's first. Left and right must take turns.
+func _mark_strikes(clip: Resource, player: AnimationPlayer, skeleton: Skeleton3D) -> void:
+	var frames: int = roundi(clip.length * FPS)
+	var ahead := {"LeftFoot": PackedFloat32Array(), "RightFoot": PackedFloat32Array()}
+	for f in frames:
+		player.play(clip.clip)
+		player.seek(f / FPS, true)
+		for foot: String in ahead:
+			ahead[foot].append((_basis * skeleton.get_bone_global_pose(skeleton.find_bone(foot)).origin).z)
+	var marks: Array = []
+	for foot: String in ahead:
+		var z: PackedFloat32Array = ahead[foot]
+		var reach: int = maxi(2, frames / 6)
+		for f in frames:
+			var peak := true
+			for d in range(-reach, reach + 1):
+				if d != 0 and z[posmod(f + d, frames)] > z[f]:
+					peak = false
+					break
+			if not peak:
+				continue
+			var a: float = z[posmod(f - 1, frames)]
+			var c: float = z[posmod(f + 1, frames)]
+			var bend: float = a - 2.0 * z[f] + c
+			var off: float = 0.0 if is_zero_approx(bend) else clampf(0.5 * (a - c) / bend, -0.5, 0.5)
+			marks.append([fposmod((f + off) / FPS, clip.length), foot == "LeftFoot"])
+	marks.sort_custom(func(x: Array, y: Array) -> bool: return x[0] < y[0])
+	while not marks.is_empty() and not marks[0][1]:
+		marks.push_back(marks.pop_front())
+	var ok: bool = marks.size() >= 2 and marks.size() % 2 == 0
+	for i in marks.size():
+		ok = ok and marks[i][1] == (i % 2 == 0)
+	clip.strikes = PackedFloat32Array()
+	if ok:
+		# Each after the one before: past the cycle's end, a cycle on.
+		for m: Array in marks:
+			clip.strikes.append(m[0] + (clip.length if m[0] < marks[0][0] else 0.0))
+	print("  %-16s %s%s" % [clip.clip, clip.strikes, "" if ok else "  NOT MARKED (feet do not take turns)"])
 
 
 ## [seconds, metres]: the idle frame nearest `pose`, and how far its worst joint is.

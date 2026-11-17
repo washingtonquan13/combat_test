@@ -71,7 +71,8 @@ func _order(to: Vector3) -> bool:
 			under_way = t
 			print("  under way after %.2f s" % t)
 		if i % 6 == 5:
-			print("  t %.2f state %s clip %s" % [t, UnitLocomotion.State.keys()[loco.state], _hero.animator().playback.current_animation])
+			print("  t %.2f state %s clip %s, walk under %.2f, %.2f m/s" % [t, UnitLocomotion.State.keys()[loco.state],
+				_hero.animator().playback.current_animation, _hero.animator().playback.partner_weight(), loco._speed])
 	return true
 
 

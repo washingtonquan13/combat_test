@@ -230,6 +230,29 @@ func seek(seconds: float, update: bool = false) -> void:
 		_playback.clear_seek()
 
 
+## Shows the loop `clip` under the body's clip at `weight`, in step with it:
+## `sync` takes the body clip's position and gives the partner's
+## (ClipPlayback.partner). Weight 0, or another play(), drops it.
+func set_partner(clip: StringName, weight: float, sync: Callable) -> void:
+	if weight <= 0.0:
+		_playback.clear_partner()
+		return
+	var animation: Animation = get_animation(clip)
+	if animation == null:
+		push_error("BodyAnimationTree: animation not found: %s." % clip)
+		return
+	_playback.set_partner(clip, animation, weight, sync)
+
+
+func clear_partner() -> void:
+	_playback.clear_partner()
+
+
+## How much the partner loop weighs under the body's clip (0: none).
+func partner_weight() -> float:
+	return _playback.partner_weight if _playback.partner else 0.0
+
+
 ## The playing clip's own speed, changed as it plays (a loop sped or slowed
 ## to fit the ground it must cover: UnitLocomotion).
 func set_clip_speed(scale: float) -> void:
@@ -266,6 +289,8 @@ func _advance(delta: float) -> void:
 	if _upper:
 		_step_upper(delta)
 	advance(delta)
+	if _inertia:
+		_inertia.applied()
 	_playback.post_process()
 	if _upper:
 		_upper.post_process()
@@ -284,8 +309,6 @@ func _step_upper(delta: float) -> void:
 func _fade_upper(target: float, seconds: float) -> void:
 	_upper_target = target
 	_upper_rate = 1.0 / seconds if seconds > 0.0 else 0.0
-	if _inertia:
-		_inertia.applied()
 	if seconds <= 0.0:
 		_upper_weight = target
 
