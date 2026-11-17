@@ -4,7 +4,9 @@ extends "res://tools/fog_cloud_demo.gd"
 ## swinging round as it steps off), a walk that a click further on breaks
 ## into the run, and a run sent back the other way. Prints how soon each
 ## order is under way. Record it the same way as item_layer_demo, without
-## opengl3.
+## opengl3. The camera follows the hero, close. INERTIA=0 in the environment
+## records it with plain crossfades instead of BodyInertia, for a before
+## and after.
 
 
 func _run() -> void:
@@ -12,10 +14,11 @@ func _run() -> void:
 	await _boot_into_arena()
 	_hero = PartyManager.leader
 	SelectionManager.select(_hero)
+	BodyAnimationTree.of(_hero).inertia().enabled = OS.get_environment("INERTIA") != "0"
 	var home: Vector3 = _hero.global_position
 	var ahead: Vector3 = _hero.visual_forward()
 	var right: Vector3 = ahead.cross(Vector3.UP)
-	_frame(home + Vector3(0.0, 1.0, 0.0), 6.0)
+	_follow(4.5)
 	await _wait(1.5)
 
 	_say("Warrior Idle")
@@ -28,7 +31,6 @@ func _run() -> void:
 	await _go(home - ahead * 1.5)
 	await _wait(2.0)
 	var at: Vector3 = _hero.global_position
-	_frame(at + Vector3(0.0, 1.0, 0.0), 9.0)
 	_say("Walk, then a click further on: breaks into the run")
 	_order(at + ahead * 1.5)
 	await _wait(0.6)
@@ -41,6 +43,15 @@ func _run() -> void:
 	await _go(at - right * 2.0)
 	await _wait(3.0)
 	get_tree().quit()
+
+
+## The camera on the hero, `distance` away, following.
+func _follow(distance: float) -> void:
+	var camera: CRPGCamera = get_tree().root.find_children("*", "CRPGCamera", true, false)[0]
+	camera.focus_target = _hero
+	camera.target_anchor_offset = Vector3.ZERO
+	camera.target_distance = distance
+	camera.target_yaw = camera.current_yaw + 70.0
 
 
 ## Orders a move and prints how long the unit took to be under way and how

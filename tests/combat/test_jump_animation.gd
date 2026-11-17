@@ -6,7 +6,7 @@ extends AiTestCase
 ## and its airborne hold ends when the body touches down, so neither phase
 ## ends on a pose the next clip starts from. With a hard cut the knee turned about 90 degrees in a
 ## single frame at each change; UnitAnimator.phase_blend_time crossfades
-## them. The clips' own fastest authored motion turns a joint about 35
+## them (since 2026-11-17 BodyInertia carries each change off). The clips' own fastest authored motion turns a joint about 35
 ## degrees between frames at 30 fps, and less the faster the test runs,
 ## so anything well past that can only be a cut.
 
@@ -39,11 +39,14 @@ func run() -> void:
 	var seen := {}
 	var worst := 0.0
 	var worst_at := ""
+	await skeleton.skeleton_updated
 	var last := _pose(skeleton)
 	unit.use_ability(jump, unit.global_position + unit.visual_forward() * 4.0)
 	var until := Time.get_ticks_msec() + 3000
 	while Time.get_ticks_msec() < until:
-		await get_tree().process_frame
+		# The pose as drawn: a clip change shows through BodyInertia, a
+		# modifier, so the mixer's own pose cuts at once.
+		await skeleton.skeleton_updated
 		var now := _pose(skeleton)
 		var clip := String(player.current_animation)
 		seen[clip] = true

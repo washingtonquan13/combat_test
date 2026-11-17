@@ -29,6 +29,10 @@ extends AnimationTree
 ##          method track too, so a release key in it still fires.
 ##   FLINCH a hit clip's recoil added to whatever shows (BodyFlinch), so a
 ##          blow lands without stopping the walk or the cast.
+## A change of BODY clip is no crossfade: the new clip shows alone at once
+## and the old pose's offset from it dies away on top (BodyInertia), over
+## the blend time the play asked for. UPPER still fades in and out by its
+## weight.
 ## The root is then a blend: BODY into a Blend2 whose filter is the upper
 ## body, with UPPER on its other input. At weight 0 the blend passes BODY
 ## through untouched, so a body nobody layers shows exactly what it showed
@@ -82,6 +86,7 @@ var _upper_rate: float = 0.0
 ## The fade out a non-looping UPPER clip takes when it ends.
 var _upper_out: float = 0.0
 var _flinch: BodyFlinch = null
+var _inertia: BodyInertia = null
 
 
 ## Puts a tree beside `player` and makes it what shows the body's clips.
@@ -110,6 +115,7 @@ static func attach(player: AnimationPlayer, upper_body_bone: StringName = UPPER_
 	tree._playback.finished.connect(tree._on_finished)
 	if skeleton:
 		tree._flinch = BodyFlinch.attach(skeleton)
+		tree._inertia = BodyInertia.attach(skeleton)
 	player.pause()
 	player.active = false
 	player.add_sibling(tree)
@@ -181,6 +187,12 @@ func is_flinching() -> bool:
 	return _flinch != null and _flinch.is_flinching()
 
 
+## The BodyInertia carrying this body from clip to clip, null without a
+## skeleton. Off, BODY clips crossfade as the player's did.
+func inertia() -> BodyInertia:
+	return _inertia
+
+
 ## AnimationPlayer.play(): crossfades from what is showing over
 ## `custom_blend` seconds (-1 is the player's default and blend times),
 ## at `custom_speed`.
@@ -194,6 +206,13 @@ func play(clip: StringName, custom_blend: float = -1.0, custom_speed: float = 1.
 		if table > 0.0:
 			custom_blend = table
 	_sync_player_settings()
+	var blend: float = custom_blend if custom_blend >= 0.0 else _playback.default_blend_time
+	var current: ClipPlayback.Track = _playback.current
+	if (_inertia and _inertia.enabled and blend > 0.0 and current
+			and not (_playback.assigned == clip and _playback.playing)):
+		_inertia.capture(blend, current.animation, current.pos,
+			_playback.speed_scale * current.speed_scale if _playback.playing else 0.0)
+		custom_blend = 0.0
 	_playback.play(clip, animation, custom_blend, custom_speed)
 	animation_started.emit(clip)
 
@@ -265,6 +284,8 @@ func _step_upper(delta: float) -> void:
 func _fade_upper(target: float, seconds: float) -> void:
 	_upper_target = target
 	_upper_rate = 1.0 / seconds if seconds > 0.0 else 0.0
+	if _inertia:
+		_inertia.applied()
 	if seconds <= 0.0:
 		_upper_weight = target
 

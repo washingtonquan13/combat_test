@@ -56,10 +56,13 @@ func _lifts_hovers_glides_and_lands() -> void:
 	unit.movement_started.emit(unit)
 	check("moving in the air glides, not jogs", player.current_animation == "Flight/Fly_Fwd",
 		player.current_animation)
+	# The pose as drawn, at skeleton_updated: a clip change shows through
+	# BodyInertia, a modifier, so the mixer's own pose cuts at once.
 	await get_tree().process_frame
-	await get_tree().process_frame
+	await skeleton.skeleton_updated
 	var leaving: Quaternion = skeleton.get_bone_pose_rotation(hips)
 	await get_tree().create_timer(0.3).timeout
+	await skeleton.skeleton_updated
 	var gliding: Quaternion = skeleton.get_bone_pose_rotation(hips)
 	check("the hips fade out of the hover instead of cutting to the glide",
 		hovering.angle_to(leaving) < hovering.angle_to(gliding) * 0.5,
