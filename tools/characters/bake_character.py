@@ -47,14 +47,15 @@ baked to their own .glb so the game can put them on and take them off: see
 
 What comes out, every time:
 - the body with its shape baked in: no slider shape keys, helper geometry gone;
-- MPFB's mixamo rig, as "Armature", with Mixamo's bone names less the
+- MPFB's mixamo_unity rig, as "Armature", with Mixamo's bone names less the
   "mixamorig:" prefix and a "root" bone that Hips hangs from, so Mixamo's clips
   go onto it bone for bone. The .glb's import BoneMap takes it to Godot's
-  humanoid profile, which every library retargets through. It rests in an
-  A-pose: the import also needs retarget/rest_fixer/fix_silhouette;
+  humanoid profile, which every library retargets through. It rests in
+  MPFB's own T-pose for that rig (tpose.py), not MakeHuman's A-pose, as Mixamo's
+  rig and Godot's profile do;
 - the 52 ARKit face units and the Meta/Oculus visemes as blend shapes, at 0,
   carried over onto the brows, lashes, teeth and tongue so a blink or a jaw
-  drop moves them too. The rig has no jaw or eye bones, so the face is driven
+  drop moves them too. The rig's jaw and eye bones are left at rest: the face is driven
   by these alone;
 - every part with a game-engine material (Principled BSDF and image
   textures), which glTF carries as standard PBR;
@@ -125,9 +126,11 @@ for part, source in recipe.get("parts", {}).items():
 TargetService.bake_targets(basemesh)
 
 # The rig is fitted to the helper geometry, so it goes on before helpers go.
-# MPFB's "mixamo" rig: Mixamo's own skeleton (52 bones, Hips at the top), so
-# Mixamo's clips are laid on it bone for bone (tools/_probe/gait/mixrig).
-HumanService.add_builtin_rig(basemesh, "mixamo", import_weights=True)
+# MPFB's "mixamo_unity" rig: Mixamo's own skeleton (Hips at the top), so
+# Mixamo's clips are laid on it bone for bone, plus jaw, eye, eyelid, breast
+# and buttock bones the humanoid BoneMap leaves alone. It, not MPFB's plain
+# "mixamo" rig, because MPFB ships a T-pose for it (tpose.py).
+HumanService.add_builtin_rig(basemesh, "mixamo_unity", import_weights=True)
 
 
 def asset_file(kind, name, ext):
@@ -303,6 +306,13 @@ rig.data.edit_bones["Hips"].parent = root
 bpy.ops.object.mode_set(mode="OBJECT")
 
 here = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, here)
+
+# Rest in MPFB's T-pose for this rig, not MakeHuman's A-pose, as Mixamo's rig
+# and Godot's humanoid profile do: the body, its parts and the wearables are
+# moved into the pose, shape keys and all, and the pose becomes the rest.
+import tpose
+tpose.apply(rig)
 
 # Each wearable to its own .glb, on the same rig: worn, its skin binds to the
 # body's skeleton by bone name. No blend shapes: the face's don't reach cloth.
