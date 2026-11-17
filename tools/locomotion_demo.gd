@@ -1,8 +1,10 @@
 extends "res://tools/fog_cloud_demo.gd"
 ## Recorded showcase of the hero's locomotion - NOT a test. Warrior Idle,
-## the turns in place standing, a move behind (turn first, then the walk
-## start), a walk stop, and a long move into the run and its stop. Record it
-## the same way as item_layer_demo, without opengl3.
+## the turns in place standing, a short move behind (under way at once,
+## swinging round as it steps off), a walk that a click further on breaks
+## into the run, and a run sent back the other way. Prints how soon each
+## order is under way. Record it the same way as item_layer_demo, without
+## opengl3.
 
 
 func _run() -> void:
@@ -13,25 +15,60 @@ func _run() -> void:
 	var home: Vector3 = _hero.global_position
 	var ahead: Vector3 = _hero.visual_forward()
 	var right: Vector3 = ahead.cross(Vector3.UP)
-	_frame(home + Vector3(0.0, 1.0, 0.0), 5.0)
+	_frame(home + Vector3(0.0, 1.0, 0.0), 6.0)
 	await _wait(1.5)
 
 	_say("Warrior Idle")
-	await _wait(5.0)
-	_say("Turn in place, 90 left")
-	await _face(-right, 3.0)
-	_say("Turn in place, 180")
-	await _face(right, 3.5)
-	_say("Turn in place, 90 right")
-	await _face(-ahead, 3.0)
-	_say("Short move behind: turn, walk start, walk stop")
-	await _go(home + ahead * 4.0)
-	await _wait(2.5)
-	_frame(home + ahead * 4.0 + Vector3(0.0, 1.0, 0.0), 9.0)
-	_say("Long move: run, run stop")
-	await _go(home + ahead * 4.0 + right * 16.0)
+	await _wait(3.0)
+	_say("Turn in place, 90 left (standing)")
+	await _face(-right, 2.5)
+	_say("Turn in place, 180 (standing)")
+	await _face(right, 3.0)
+	_say("Short move behind: steps off at once, swings round")
+	await _go(home - ahead * 1.5)
+	await _wait(2.0)
+	var at: Vector3 = _hero.global_position
+	_frame(at + Vector3(0.0, 1.0, 0.0), 9.0)
+	_say("Walk, then a click further on: breaks into the run")
+	_order(at + ahead * 1.5)
+	await _wait(0.6)
+	await _go(at + ahead * 9.0)
+	await _wait(2.0)
+	at = _hero.global_position
+	_say("Run, then a click back the other way")
+	_order(at + right * 10.0)
+	await _wait(1.0)
+	await _go(at - right * 2.0)
 	await _wait(3.0)
 	get_tree().quit()
+
+
+## Orders a move and prints how long the unit took to be under way and how
+## its gait goes over the next second.
+func _order(to: Vector3) -> bool:
+	var from: Vector3 = _hero.global_position
+	if not _hero.move_to(to):
+		_say("move refused")
+		return false
+	var loco: UnitLocomotion = _hero.animator().locomotion
+	var t: float = 0.0
+	var under_way: float = -1.0
+	for i in 30:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
+		if under_way < 0.0 and _hero.global_position.distance_to(from) > 0.02:
+			under_way = t
+			print("  under way after %.2f s" % t)
+		if i % 6 == 5:
+			print("  t %.2f state %s clip %s" % [t, UnitLocomotion.State.keys()[loco.state], _hero.animator().playback.current_animation])
+	return true
+
+
+func _go(to: Vector3) -> void:
+	if not await _order(to):
+		return
+	while _hero.is_moving():
+		await get_tree().physics_frame
 
 
 ## Faces `direction` the way gameplay does: face_direction every physics frame.
@@ -44,12 +81,3 @@ func _face(direction: Vector3, seconds: float) -> void:
 		left -= dt
 		if fmod(left, 0.5) < dt:
 			print("  yaw %.1f, turning %s" % [rad_to_deg(_hero.rotation.y), _hero.animator().locomotion.turning()])
-
-
-func _go(to: Vector3) -> void:
-	if not _hero.move_to(to):
-		_say("move refused")
-		return
-	await get_tree().physics_frame
-	while _hero.is_moving():
-		await get_tree().physics_frame
