@@ -1,6 +1,5 @@
 """Fitting a head scan to an MPFB head, for the tools that take things from it:
-bake_scan_detail.py (its fine detail, as a normal map) and bake_scan_parts.py
-(its shapes, as MakeHuman targets).
+bake_scan_parts.py (its shapes, as MakeHuman targets) and bake_bone_shapes.py.
 
 An MPFB head here is Z up and faces -Y, in metres. Landmarks are found on the
 head itself (nose tip, crown, the ear's widest point) and everything else is
