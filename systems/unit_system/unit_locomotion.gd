@@ -32,15 +32,24 @@ extends RefCounted
 ##             first frame.
 ##   SETTLING  the route is done, the stop's settle plays on; it hands to the
 ##             idle on the idle's own frame.
-## A run ends on the walk's stop: nearing the end it slows, hands to the walk
-## loop on the same point of the stride once halfway down to the walk's
-## speed, and the walk goes into the stop. Run To Stop stays in the library
-## unused (a set with no walk ends its runs on it).
+## A run ends on the run's own stops (Run To Stop and its mirror): nearing
+## the end it brakes to the stop's first speed and goes into it, still
+## running. Only a set with no run stops ends its runs on the walk's (slowing,
+## handing to the walk loop on the same point of the stride once halfway down
+## to the walk's speed, and the walk going into the stop).
 ## A new order while moving or stopping goes on at the same gait, except
 ## that a walk whose new route is WALK_UNDER or longer breaks into the run
 ## (by the run start, from its frame for the unit's speed); one while
 ## settling or turning in place starts at once. Routes under WALK_UNDER are
 ## walked, the rest run.
+##
+## Held (ClickRouter's hold-to-move sets `held` while the button is down):
+## the orders are steering, not destinations. No stop is planned at the
+## point; the unit slows only softly as it closes on it (STOPLESS_BRAKE), a
+## walk breaks into the run at HELD_RUN_FROM, and a run drops to the walk
+## only when the point is about 1.4 m off, so the gait does not flip with
+## every new point. On release the last point is an ordinary end, stop and
+## all.
 ##
 ## Standing (TURNING), a swing of facing of TURN_FROM or more (UnitFacing
 ## asks, turn_to) is the turn in place nearest the angle, scaled to it,
@@ -77,8 +86,22 @@ const ENTER_LEAST := 0.65
 ## A stop is entered on the frame its legs are nearest what shows, once they
 ## are within this (radians summed over MATCH_BONES).
 const ENTER_GAP := 1.2
-## Without stops, how fast the unit slows for the end, m/s^2.
+## Without stops (or held), how fast the unit slows for the end, m/s^2.
 const STOPLESS_BRAKE := 4.0
+## Held, a walk breaks into the run once its point is this far off, metres
+## (a run drops to the walk at about 1.4 m: the gap keeps the gait steady).
+const HELD_RUN_FROM := 3.0
+## Held, the unit closes on its point as if it were this much nearer, metres:
+## it trails a slow cursor instead of reaching the point between orders and
+## starting again from rest.
+const HELD_SHORT := 0.3
+## Held, the most speed per metre the point is off (past HELD_SHORT), 1/s: a
+## gentle line, so each step the point jumps ahead nudges the pace instead
+## of swinging it (a steep braking curve did).
+const HELD_FOLLOW := 2.0
+## How hard the unit brakes when its speed is over what the end allows (an
+## order changed under it, a hold let go), m/s^2.
+const HARD_BRAKE := 15.0
 ## A turn of facing this large is a turn in place; less, UnitFacing's.
 const TURN_FROM := deg_to_rad(60.0)
 ## The turn is done once this much of it is, and hands on.
@@ -132,8 +155,19 @@ var _body_rest := Transform3D.IDENTITY
 var _loop: LocomotionClip = null
 var _top: float = 0.0
 var _stops: Array[LocomotionClip] = []
-## Whether this route is run (it ends by slowing to the walk).
+## Whether this route is run, and whether the run ends by slowing to the
+## walk (a set with no run stops) rather than on its own stops.
 var _runs: bool = false
+var _run_to_walk: bool = false
+## The speed the stops begin at, on average (a run brakes to it).
+var _entry_speed: float = 0.0
+## Held: the order is steering (hold-to-move), with no stop at its end.
+var held: bool = false:
+	set(value):
+		if value != held:
+			held = value
+			_steer_left = -1.0
+			_last_gap = INF
 ## The one-shot playing (start, stop) and how far into it, seconds: it plays
 ## at 1x, so this keeps time with it.
 var _clip: LocomotionClip = null
@@ -217,7 +251,7 @@ func begin(route: float, _first_leg: Vector3) -> void:
 	if (state == State.STARTING or state == State.MOVING or state == State.STOPPING) and _loop:
 		# An order replaced mid-move: a walk with far to go breaks into the
 		# run; otherwise on at the same gait.
-		if _loop == _set.walk and route >= WALK_UNDER and _set.jog != null:
+		if _loop == _set.walk and route >= (HELD_RUN_FROM if held else WALK_UNDER) and _set.jog != null:
 			_break_into_run()
 		elif state == State.STOPPING:
 			_play_loop(_loop, _playback.current_animation, _clip_t)
@@ -271,7 +305,7 @@ func _aim_turn(yaw: float) -> void:
 ## Into the move, by the gait's start: the run past WALK_UNDER, the walk
 ## short of it.
 func _start_moving(blend: float) -> void:
-	var start: LocomotionClip = _take_gait(_route >= WALK_UNDER and _set.jog != null)
+	var start: LocomotionClip = _take_gait(_route >= (HELD_RUN_FROM if held else WALK_UNDER) and _set.jog != null)
 	_v = 0.0
 	if start:
 		_play_clip(start, blend, _onset(start))
@@ -287,17 +321,24 @@ func _take_gait(runs: bool) -> LocomotionClip:
 	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
 	_top = _loop.speed
 	_accel = _top / (RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME)
-	# Runs end on the walk's stop; Run To Stop only for a set with no walk.
-	_stops = _set.walk_stops if _set.walk != null else _set.jog_stops
+	# Runs end on their own stops; on the walk's only for a set with none.
+	_run_to_walk = runs and _set.jog_stops.is_empty() and _set.walk != null
+	if runs and not _set.jog_stops.is_empty():
+		_stops = _set.jog_stops
+	else:
+		_stops = _set.walk_stops if _set.walk != null else _set.jog_stops
 	_stop_ground = 0.0
+	_entry_speed = 0.0
 	for stop in _stops:
 		_stop_ground += _stop_ground_of(stop) / _stops.size()
+		_entry_speed += _clip_speed(stop, 0.0) / _stops.size()
 	_entry_phase.clear()
 	_steer_left = -1.0
 	_last_gap = INF
-	var walk: LocomotionClip = _set.walk if _set.walk != null else _loop
-	for stop in _stops:
-		_entry_phase[stop] = _matching_time(stop.clip, 0.0, walk)
+	# Steering (the walk's) aims at the walk second each stop enters on.
+	if _stops == _set.walk_stops and _set.walk != null:
+		for stop in _stops:
+			_entry_phase[stop] = _matching_time(stop.clip, 0.0, _set.walk)
 	return _set.jog_start if runs else _set.walk_start
 
 
@@ -408,15 +449,30 @@ func _facing_share() -> float:
 
 
 ## The most speed the unit may have `left` metres from the end. A run slows
-## at RUN_BRAKE to the walk's speed WALK_ROOM ahead of the stop; with no stops
-## the unit slows to nothing on the end.
+## at RUN_BRAKE to its stops' first speed as it reaches their ground (or, a
+## set with no run stops, to the walk's speed WALK_ROOM ahead of the walk's
+## stop); with no stops, or held, the unit slows to nothing on the end.
 func _speed_cap(left: float) -> float:
+	if held:
+		return maxf(minf(HELD_FOLLOW * maxf(left - HELD_SHORT, 0.0), sqrt(2.0 * STOPLESS_BRAKE * left)), ARRIVE_SPEED)
 	if _stops.is_empty():
 		return maxf(sqrt(2.0 * STOPLESS_BRAKE * left), ARRIVE_SPEED)
-	if not _runs or _set.walk == null:
+	if not _runs:
 		return INF
-	var walk: float = _set.walk.speed
-	return sqrt(walk * walk + 2.0 * RUN_BRAKE * maxf(left - _stop_ground - WALK_ROOM, 0.0))
+	if _run_to_walk:
+		var walk: float = _set.walk.speed
+		return sqrt(walk * walk + 2.0 * RUN_BRAKE * maxf(left - _stop_ground - WALK_ROOM, 0.0))
+	return sqrt(_entry_speed * _entry_speed + 2.0 * RUN_BRAKE * maxf(left - _stop_ground, 0.0))
+
+
+## Whether the run is to hand to the walk now, at `cap` and speed `v`: a run
+## ending on the walk's stop, or a held run whose point has come close.
+func _drops_to_walk(cap: float, v: float) -> bool:
+	if not _runs or _loop == _set.walk or _set.walk == null:
+		return false
+	if not (_run_to_walk or held):
+		return false
+	return cap < _top and v <= (_top + _set.walk.speed) * 0.5
 
 
 # --- states -------------------------------------------------------------------
@@ -443,8 +499,8 @@ func _starting(delta: float, left: float) -> float:
 	_clip_t += delta
 	var own: float = (_progress(_clip, _clip_t) - _progress(_clip, t0)) / maxf(delta, 1e-4)
 	_v = minf(maxf(own, 0.0) * _facing_share(), _speed_cap(left))
-	if _runs and _loop != _set.walk and _set.walk != null and _speed_cap(left) <= (_top + _set.walk.speed) * 0.5:
-		# A run too short to reach its speed: on to the walk for the stop.
+	if _drops_to_walk(_speed_cap(left), _speed_cap(left)):
+		# A run too short to reach its speed: on to the walk.
 		_hand_run_to_walk()
 	elif _clip_speed(_clip, _clip_t) >= _top * UP_TO_SPEED or _clip_t >= _clip.length - BLEND_HAND:
 		_play_loop(_loop, _clip.clip, _clip_t)
@@ -456,32 +512,39 @@ func _starting(delta: float, left: float) -> float:
 ## halfway down to its speed.
 func _moving(delta: float, left: float) -> float:
 	var cap: float = _speed_cap(left)
-	if _runs and _loop != _set.walk and _set.walk != null and cap < _top:
-		if _v <= (_top + _set.walk.speed) * 0.5:
-			_hand_run_to_walk()
-			cap = _speed_cap(left)
+	if _drops_to_walk(cap, _v):
+		_hand_run_to_walk()
+		cap = _speed_cap(left)
 	var want: float = _top * _facing_share()
-	if _loop == _set.walk and not _stops.is_empty():
+	if _loop == _set.walk and not _stops.is_empty() and not held:
 		want = minf(want, _steer_speed(left))
 	want = minf(want, cap)
 	if _v < want:
 		_v = minf(_v + _accel * delta, want)
 	else:
 		_v = maxf(_v - RUN_BRAKE * delta, want)
-	_v = minf(_v, cap)
+	# Over the cap (the end came nearer, a hold let go): brake hard onto it
+	# rather than snap. Held, the point jumps ahead in steps and the cap with
+	# it: braking at RUN_BRAKE alone keeps the pace from following the teeth.
+	if _v > cap and not held:
+		_v = maxf(_v - HARD_BRAKE * delta, cap)
 	return _v * delta
 
 
-## The run at the end of its route, handed to the walk loop on the same point
-## of the stride (by their strikes if marked, else the nearest legs; from the
-## run start, the nearest legs).
+## The run handed to the walk loop on the same point of the stride (by their
+## strikes if marked, else the nearest legs; from the run start, the nearest
+## legs): at the end of a run that ends on the walk's stop, or held with the
+## point close, when the walk is taken as the gait, stops and all.
 func _hand_run_to_walk() -> void:
 	var run: LocomotionClip = _clip if state == State.STARTING else _loop
 	var at: float = _clip_t if state == State.STARTING else _playback.current_animation_position
 	var from_loop: bool = state == State.MOVING
-	_loop = _set.walk
-	_top = _loop.speed
-	_accel = _top / WALK_ACCEL_TIME
+	if _run_to_walk:
+		_loop = _set.walk
+		_top = _loop.speed
+		_accel = _top / WALK_ACCEL_TIME
+	else:
+		_take_gait(false)
 	if from_loop and run.marked() and _loop.marked():
 		_playback.play(_loop.clip, BLEND_HAND)
 		_playback.seek(_loop.time_at(run.phase_at(at)))
@@ -527,16 +590,16 @@ func _steer_speed(left: float) -> float:
 
 ## Near the end, into the stop whose first frame's legs are nearest what
 ## shows, on the frame they are nearest (once close enough); short of
-## ENTER_LEAST of its ground, whatever shows. Not from the run (it slows
-## to the walk first) unless forced.
+## ENTER_LEAST of its ground, whatever shows. Not from a run that ends on the
+## walk's stop (it slows to the walk first) unless forced; never held.
 func _maybe_enter_stop(left: float) -> void:
-	if _stops.is_empty() or _stop_ground <= 1e-3:
+	if _stops.is_empty() or _stop_ground <= 1e-3 or held:
 		return
 	if left > _stop_ground * ENTER_MOST:
 		_last_gap = INF
 		return
 	var forced: bool = left <= _stop_ground * ENTER_LEAST
-	var on_walk: bool = _loop == _set.walk or _set.walk == null
+	var on_walk: bool = not _run_to_walk or _loop == _set.walk
 	if not on_walk and not forced:
 		return
 	var from: StringName = _playback.current_animation

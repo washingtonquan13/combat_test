@@ -59,8 +59,10 @@ const CLICK_DRAG_THRESHOLD: float = 6.0
 const HOLD_MOVE_AFTER: float = 0.25
 ## While holding, the order is sent again this often, when the cursor's
 ## ground point has moved at least HOLD_MOVE_STEP metres since the last.
+## Held orders are steering: each unit sent is marked held on its
+## UnitLocomotion (no stop at the point) until release.
 const HOLD_MOVE_EVERY: float = 0.1
-const HOLD_MOVE_STEP: float = 0.3
+const HOLD_MOVE_STEP: float = 0.15
 
 ## How far every ray this router casts reaches.
 const RAY_LENGTH: float = 1000.0
@@ -117,6 +119,8 @@ var _press_msec: int = 0
 var _hold_moving: bool = false
 var _hold_point: Vector3 = Vector3.INF
 var _hold_next_msec: int = 0
+## The units a hold has sent, marked held, to let go on release.
+var _held_units: Array[Unit] = []
 
 ## The MovableProp a left press landed on, while that press may still turn
 ## into dragging it (see _begin_prop_drag). Null otherwise.
@@ -868,6 +872,17 @@ func _begin_hold_move() -> void:
 func _end_hold_move() -> void:
 	_hold_moving = false
 	_hold_point = Vector3.INF
+	# Let go: each unit's last point is an ordinary end now, stop and all.
+	for unit in _held_units:
+		if is_instance_valid(unit):
+			_set_held(unit, false)
+	_held_units.clear()
+
+
+func _set_held(unit: Unit, held: bool) -> void:
+	var animator: UnitAnimator = unit.animator()
+	if animator and animator.locomotion:
+		animator.locomotion.held = held
 
 
 ## Each frame: a press held still past HOLD_MOVE_AFTER becomes a hold; a
@@ -891,6 +906,11 @@ func _hold_move_tick(now: PlayerIntent) -> void:
 		return
 	_hold_point = point
 	_hold_next_msec = msec + int(HOLD_MOVE_EVERY * 1000.0)
+	# Held before the order, so it starts (or goes on) as steering.
+	for unit in move_order_units():
+		_set_held(unit, true)
+		if not _held_units.has(unit):
+			_held_units.append(unit)
 	command_move(point)
 
 
