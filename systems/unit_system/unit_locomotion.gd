@@ -32,11 +32,12 @@ extends RefCounted
 ##             first frame.
 ##   SETTLING  the route is done, the stop's settle plays on; it hands to the
 ##             idle on the idle's own frame.
-## A run ends on the run's own stops (Run To Stop and its mirror): nearing
-## the end it brakes to the stop's first speed and goes into it, still
-## running. Only a set with no run stops ends its runs on the walk's (slowing,
-## handing to the walk loop on the same point of the stride once halfway down
-## to the walk's speed, and the walk going into the stop).
+## A run ends on the walk's stop: it holds its speed until WALK_ROOM (half a
+## metre) of walk is left ahead of the stop's ground, brakes to the walk's
+## speed, hands to the walk loop on the same point of the stride once halfway
+## down, and the walk goes into the stop. Run To Stop (its skid throws a foot
+## 0.6 m ahead, which then slides back) is used only by a set with no walk,
+## which brakes to the stop's first speed and goes into it from the run.
 ## A new order while moving or stopping goes on at the same gait, except
 ## that a walk whose new route is WALK_UNDER or longer breaks into the run
 ## (by the run start, from its frame for the unit's speed); one while
@@ -72,8 +73,9 @@ const WALK_ACCEL_TIME := 0.25
 ## How fast a run slows for the walk at the end of its route, m/s^2.
 const RUN_BRAKE := 5.0
 ## Metres of walk ahead of the stop a run's end leaves, for the walk to bring
-## its stride to the stop's.
-const WALK_ROOM := 2.0
+## its stride to the stop's (about one stride: 2 m walked the last 3 m of a
+## run and slowed play).
+const WALK_ROOM := 0.5
 ## How far the walk's speed may be bent to land on a stop's stride, and from
 ## how far ahead of the stop it starts to, metres.
 const STEER_LEAST := 0.8
@@ -321,9 +323,9 @@ func _take_gait(runs: bool) -> LocomotionClip:
 	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
 	_top = _loop.speed
 	_accel = _top / (RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME)
-	# Runs end on their own stops; on the walk's only for a set with none.
-	_run_to_walk = runs and _set.jog_stops.is_empty() and _set.walk != null
-	if runs and not _set.jog_stops.is_empty():
+	# Runs end on the walk's stop; on Run To Stop only for a set with no walk.
+	_run_to_walk = runs and _set.walk != null and not _set.walk_stops.is_empty()
+	if runs and not _run_to_walk and not _set.jog_stops.is_empty():
 		_stops = _set.jog_stops
 	else:
 		_stops = _set.walk_stops if _set.walk != null else _set.jog_stops
@@ -449,9 +451,9 @@ func _facing_share() -> float:
 
 
 ## The most speed the unit may have `left` metres from the end. A run slows
-## at RUN_BRAKE to its stops' first speed as it reaches their ground (or, a
-## set with no run stops, to the walk's speed WALK_ROOM ahead of the walk's
-## stop); with no stops, or held, the unit slows to nothing on the end.
+## at RUN_BRAKE to the walk's speed WALK_ROOM ahead of the walk's stop (or, a
+## set with no walk, to its run stops' first speed as it reaches their
+## ground); with no stops, or held, the unit slows to nothing on the end.
 func _speed_cap(left: float) -> float:
 	if held:
 		return maxf(minf(HELD_FOLLOW * maxf(left - HELD_SHORT, 0.0), sqrt(2.0 * STOPLESS_BRAKE * left)), ARRIVE_SPEED)
