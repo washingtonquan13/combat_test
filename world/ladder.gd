@@ -176,6 +176,69 @@ func rung_heights() -> PackedFloat32Array:
 	return out
 
 
+## The mount's own length (s): UnitMovement walks its leg in this, so it
+## plays at 1x. 0 with no mount clip.
+static func mount_seconds() -> float:
+	var clip: Animation = _clip("Climb_Mount")
+	return clip.length if clip else 0.0
+
+
+## How far short of the mount's start the walk comes in along its heading
+## (approach), so the last step onto it already goes the way the clip's
+## first frame walks.
+const APPROACH: float = 0.6
+## The mount's start and the approach must have ground the grid stands the
+## unit on within MOUNT_STAND_ACROSS of them, and MOUNT_STAND_UP of their
+## height; otherwise the climb has no mount. The grid answers in cell
+## centres (0.25 m cells), and the mount's start is close by the ladder,
+## where the unit's whole clearance does not fit: so the test is the
+## unit's radius, one cell over, and a cell and a half across.
+const MOUNT_STAND_ACROSS: float = 0.4
+const MOUNT_STAND_UP: float = 0.25
+
+
+## This ladder's climb for `unit`, base to top (climb_waypoints): with the
+## mount when its start is ground the unit can stand on, else without.
+func waypoints(unit: Unit) -> PackedVector3Array:
+	var base: Vector3 = base_position()
+	var top: Vector3 = top_position()
+	var points: PackedVector3Array = climb_waypoints(base, top, facing())
+	if points[0] != base and not _can_stand(unit, points[0]):
+		return climb_waypoints(base, top)
+	return points
+
+
+## Where the walk to the ladder's foot ends when going up: APPROACH back
+## from the mount's start along its heading, so the step onto it is the
+## clip's own; the start itself when there is no mount or the approach is
+## not ground to stand on.
+func approach(unit: Unit, points: PackedVector3Array) -> Vector3:
+	var on: Vector3 = points[0]
+	var clip: Animation = _clip("Climb_Mount")
+	if clip == null or on.is_equal_approx(points[1]):
+		return on
+	var from: Vector3 = on - mount_heading() * APPROACH
+	return from if _can_stand(unit, from) else on
+
+
+## The way the mount's first frame walks, in the world (its clip's
+## mount_heading turned onto this ladder's facing).
+func mount_heading() -> Vector3:
+	var clip: Animation = _clip("Climb_Mount")
+	var heading: float = float(clip.get_meta("mount_heading", 0.0)) if clip else 0.0
+	return Basis(Vector3.UP, atan2(facing().x, facing().z)) * Vector3(sin(heading), 0.0, cos(heading))
+
+
+static func _can_stand(unit: Unit, point: Vector3) -> bool:
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(unit.get_tree(), point,
+		unit.radius, false, unit, 1)
+	if not snap.found:
+		return false
+	var at: Vector3 = snap.point
+	return Vector2(at.x - point.x, at.z - point.z).length() <= MOUNT_STAND_ACROSS \
+		and absf(at.y - point.y) <= MOUNT_STAND_UP
+
+
 static func _clip(name: String) -> Animation:
 	var library := load("res://assets/ladder_animations.tres") as AnimationLibrary
 	return library.get_animation(name) if library and library.has_animation(name) else null
@@ -283,6 +346,9 @@ static var _cache_route: Dictionary = {}
 ##   tail_waypoints: find_path from far to the destination (UnitMovement
 ##     plans it with what budget is left)
 ##   going_up: bool — which way to walk climb_waypoints (see its header)
+##   points: the climb for this unit, base to top (Ladder.waypoints). Going
+##     up, near_planned ends at the mount's approach (Ladder.approach), not
+##     at points[0]; going down, far is points[0], the mount's start.
 ## Whether a budget covers the climb is the caller's question (see
 ## UnitMovement.plan_route): the same route serves every budget.
 ##
@@ -374,9 +440,15 @@ static func _best_route(unit: Unit, destination: Vector3, ignore: Array, candida
 		# A misplaced ladder whose climb would cut through geometry
 		# declines to engage rather than animate through it (see
 		# climb_waypoints for the reproduced corner-clip).
-		if not _climb_path_is_clear(unit, ladder.base_position(), ladder.top_position(), going_up):
+		var points: PackedVector3Array = ladder.waypoints(unit)
+		if not _climb_path_is_clear(unit, points, going_up):
 			continue
-		var near_planned: Dictionary = _plan_leg(unit, unit.global_position, near, ignore, sampler)
+		# The mount's ends: the walk up comes in to its approach, and the
+		# walk on from the bottom leaves from its start.
+		var approach: Vector3 = ladder.approach(unit, points) if going_up else near
+		if not going_up:
+			far = points[0]
+		var near_planned: Dictionary = _plan_leg(unit, unit.global_position, approach, ignore, sampler)
 		if near_planned.is_empty():
 			continue
 		var tail: Dictionary = _plan_leg(unit, far, destination, ignore, sampler)
@@ -393,6 +465,7 @@ static func _best_route(unit: Unit, destination: Vector3, ignore: Array, candida
 			"near_planned": near_planned,
 			"tail_waypoints": tail.waypoints,
 			"going_up": going_up,
+			"points": points,
 		}
 	return best
 
@@ -444,25 +517,53 @@ static func _flat(a: Vector3, b: Vector3) -> float:
 ## actual climb, so what's validated and what's played can never
 ## disagree.
 ##
-## Always five points, base-to-top, a leg between each pair:
-##   0 base
-##   1 stop: over_rungs() rungs below the landing — the rungs end here
-##   2 elbow: base's XZ at top's height
-##   3 off: over_reach() onto the landing toward top
-##   4 top
-## Legs 1-2 and 2-3 are the climb-over (Climb_Over_Top up, Climb_On_Top
-## down), the same two legs whichever way the list is walked. A short
-## ladder or a top close to the climb line collapses some legs to zero
-## length; they are kept, so the indices hold, and reached at once.
-static func climb_waypoints(base: Vector3, top: Vector3) -> PackedVector3Array:
+## Always six points, base-to-top, a leg between each pair:
+##   0 on: where the mount starts, on the ground beside the ladder
+##   1 mount: base's XZ, on the rung the mount ends standing on
+##   2 stop: over_rungs() rungs below the landing — the rungs end here
+##   3 elbow: base's XZ at top's height
+##   4 off: over_reach() onto the landing toward top
+##   5 top
+## Leg 0-1 is the mount (Climb_Mount up, Climb_Dismount down); legs 2-3
+## and 3-4 the climb-over (Climb_Over_Top up, Climb_On_Top down), the
+## same legs whichever way the list is walked. A short ladder or a top
+## close to the climb line collapses some legs to zero length; they are
+## kept, so the indices hold, and reached at once.
+##
+## THE MOUNT. Given the ladder's `facing`, and a Climb_Mount clip, on is
+## the clip's mount_from turned onto the facing (beside the ladder and
+## back from it), at base's height; mount is a whole number of the loop's
+## cycles below stop, the one nearest the clip's own rise, so the climbing
+## loop (phased from stop) picks up on its first frame where the mount
+## ends. With no facing, no clip, or a ladder too short to fit the mount
+## under stop, on and mount are base: the climb starts at the foot.
+static func climb_waypoints(base: Vector3, top: Vector3, facing := Vector3.ZERO) -> PackedVector3Array:
 	var elbow := Vector3(base.x, top.y, base.z)
 	var stop := Vector3(base.x, maxf(base.y, top.y - over_rungs() * rung_spacing()), base.z)
 	var ahead := Vector3(top.x - base.x, 0.0, top.z - base.z)
 	var off: Vector3 = elbow + ahead.limit_length(over_reach())
-	return PackedVector3Array([base, stop, elbow, off, top])
+	var on: Vector3 = base
+	var mount: Vector3 = base
+	var clip: Animation = _clip("Climb_Mount") if facing != Vector3.ZERO else null
+	var loop: Animation = _clip("Climb_Up")
+	if clip and loop:
+		var from: Vector3 = clip.get_meta("mount_from", Vector3.ZERO)
+		var rise: float = float(loop.get_meta("rise", 0.0))
+		var lift: float = -from.y
+		if rise > 0.0 and lift > 0.0:
+			var cycles: int = roundi((stop.y - base.y - lift) / rise)
+			var height: float = stop.y - cycles * rise
+			if height < base.y + lift - rise * 0.5:
+				cycles -= 1
+				height += rise
+			if cycles >= 0 and height <= stop.y:
+				mount = Vector3(base.x, height, base.z)
+				var turn := Basis(Vector3.UP, atan2(facing.x, facing.z))
+				on = base + turn * Vector3(from.x, 0.0, from.z)
+	return PackedVector3Array([on, mount, stop, elbow, off, top])
 
 
-## Whether climb_waypoints(base, top)'s planned route is actually clear of
+## Whether `points` (Ladder.waypoints)' planned route is actually clear of
 ## solid geometry along its full length, not just at its endpoints (those
 ## are already confirmed valid points by construction — this checks what
 ## connects them). Sampled roughly every 0.5m along each segment against
@@ -519,12 +620,12 @@ static func climb_waypoints(base: Vector3, top: Vector3) -> PackedVector3Array:
 ## one cell) fixes the false rejection at an exact boundary without
 ## meaningfully weakening real-obstruction detection — an obstacle
 ## actually worth rejecting a ladder over spans many cells, not one.
-static func _climb_path_is_clear(unit: Unit, base: Vector3, top: Vector3, going_up: bool) -> bool:
+static func _climb_path_is_clear(unit: Unit, points: PackedVector3Array, going_up: bool) -> bool:
 	const SAMPLE_SPACING: float = 0.5
 	const SNAP_RADIUS_CELLS: int = 1
 
 	var clearance: float = unit.radius + unit.avoidance_margin
-	var waypoints: PackedVector3Array = climb_waypoints(base, top)
+	var waypoints: PackedVector3Array = points.duplicate()
 	if not going_up:
 		waypoints.reverse()
 

@@ -1319,6 +1319,14 @@ func climbing_over() -> int:
 	return _movement.climbing_over()
 
 
+func climbing_on() -> int:
+	return _movement.climbing_on()
+
+
+func climb_mount_seconds() -> float:
+	return _movement.climb_mount_seconds()
+
+
 ## Metres of the move under way left to walk (UnitMovement.remaining_distance).
 func remaining_distance() -> float:
 	return _movement.remaining_distance()

@@ -104,6 +104,8 @@ var _locomotion_set: LocomotionSet = null
 @export var climb_animation: String = ""
 @export var climb_off_animation: String = ""
 @export var climb_on_animation: String = ""
+@export var climb_mount_animation: String = ""
+@export var climb_dismount_animation: String = ""
 
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's pose
@@ -231,6 +233,8 @@ func adopt_model(model: CharacterModel) -> void:
 	climb_animation = model.climb_animation
 	climb_off_animation = model.climb_off_animation
 	climb_on_animation = model.climb_on_animation
+	climb_mount_animation = model.climb_mount_animation
+	climb_dismount_animation = model.climb_dismount_animation
 	_locomotion_set = model.locomotion
 	if _locomotion_set and _locomotion_set.idle:
 		idle_animation = String(_locomotion_set.idle.clip)
@@ -727,7 +731,8 @@ func _on_stance_changed(stance: StringName) -> void:
 
 
 ## What the ladder is showing: 1 climbing up, -1 down, 2 over the top
-## edge, -2 getting on there, 0 not climbing.
+## edge, -2 getting on there, 3 mounting at the foot, -3 getting off
+## there, 0 not climbing.
 var _climb_shown: int = 0
 ## Stepped off the rungs with route still to walk: locomotion takes it up
 ## once the climb is behind (the level steps on and off are the climb's).
@@ -767,6 +772,10 @@ func _physics_process(delta: float) -> void:
 	var shown: int = unit.climb_direction()
 	if over != 0:
 		shown = 2 * over if animation_player.has_animation(over_clip) else over
+	var on: int = unit.climbing_on()
+	var on_clip: String = climb_mount_animation if on > 0 else climb_dismount_animation
+	if on != 0:
+		shown = 3 * on if on_clip != "" and animation_player.has_animation(on_clip) else on
 	_feed_grip(shown)
 	if shown == _climb_shown:
 		return
@@ -782,6 +791,10 @@ func _physics_process(delta: float) -> void:
 	if absi(shown) == 2:
 		var over_seconds: float = maxf(unit.climb_over_seconds(), 0.01)
 		playback.play(over_clip, 0.1, animation_player.get_animation(over_clip).length / over_seconds)
+		return
+	if absi(shown) == 3:
+		var on_seconds: float = maxf(unit.climb_mount_seconds(), 0.01)
+		playback.play(on_clip, 0.2, animation_player.get_animation(on_clip).length / on_seconds)
 		return
 	if climb_animation == "" or not animation_player.has_animation(climb_animation):
 		return

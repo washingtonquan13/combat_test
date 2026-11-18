@@ -79,10 +79,13 @@ func run() -> void:
 	var worst_miss: float = 0.0
 	var worst_rung: float = 0.0
 	var rungs: PackedFloat32Array = ladder.rung_heights()
+	var dismounted: bool = false
 	guard = 0
 	while walker.is_moving() and guard < 1200:
 		await get_tree().physics_frame
 		guard += 1
+		if walker.climbing_on() < 0 and String(_animation_player(walker).current_animation) == "Ladder/Climb_Dismount":
+			dismounted = true
 		if grip == null or walker.climb_direction() == 0:
 			continue
 		for i in 4:
@@ -99,11 +102,12 @@ func run() -> void:
 			"%d held, missed %.3f, off a rung %.3f" % [held, worst_miss, worst_rung])
 	var seconds: float = float(Engine.get_physics_frames() - climb_frame) / Engine.physics_ticks_per_second
 	var climb_length: float = 0.0
-	var climb: PackedVector3Array = Ladder.climb_waypoints(base, top)
+	var climb: PackedVector3Array = ladder.waypoints(walker)
 	for i in range(1, climb.size()):
 		climb_length += climb[i].distance_to(climb[i - 1])
-	check("it finishes the climb at the base", walker.global_position.distance_to(base) < 0.6,
-		"ended %s, base %s" % [walker.global_position, base])
+	check("it gets off at the foot with the mount run backwards", dismounted)
+	check("it finishes the climb where the mount starts", walker.global_position.distance_to(climb[0]) < 0.1,
+		"ended %s, mount start %s" % [walker.global_position, climb[0]])
 	check("at climb speed, not a snap (%.1fs for %.1fm)" % [seconds, climb_length],
 		seconds > 0.7 * climb_length / ladder.speed())
 
@@ -121,14 +125,18 @@ func run() -> void:
 	check("SETUP: the walker's turn", fight.is_running and fight.current_unit == walker)
 	var before: float = walker.move_remaining
 	walker.move_to(top)
+	var mounted: bool = false
 	guard = 0
 	while walker.is_moving() and guard < 1200:
 		await get_tree().physics_frame
 		guard += 1
+		if walker.climbing_on() > 0 and String(_animation_player(walker).current_animation) == "Ladder/Climb_Mount":
+			mounted = true
+	check("it gets on at the foot with its own clip", mounted)
 	check("in combat it climbs up", walker.global_position.distance_to(top) < 0.6,
 		"ended %s" % walker.global_position)
 	check("and the Move budget pays only the walk (%.2f spent)" % (before - walker.move_remaining),
-		before - walker.move_remaining < 1.0)
+		before - walker.move_remaining < 2.0)
 
 	if fight.is_running:
 		fight.finish(&"")

@@ -2,8 +2,8 @@ extends SceneTree
 
 # Lands the Mixamo ladder takes (tools/locomotion/takes/mixamo_ladder.glb,
 # made by tools/locomotion/mixamo_retarget.py with LADDER=1) in
-# assets/ladder_animations.tres as Climb_Up, Climb_Over_Top and
-# Climb_On_Top, replacing the CMU loop and the blocked climb-over that
+# assets/ladder_animations.tres as Climb_Up, Climb_Over_Top, Climb_On_Top,
+# Climb_Mount and Climb_Dismount, replacing the CMU loop and the blocked climb-over that
 # tools/make_ladder_animations.gd made.
 #
 #   godot --headless --path . -s res://tools/locomotion/land_ladder.gd
@@ -21,6 +21,16 @@ extends SceneTree
 #                   steady speed (stop -> elbow -> off).
 #   Climb_On_Top    Climb_Over_Top played backwards, frame for frame (there
 #                   is no Mixamo climb down); its plants run backwards too.
+#   Climb_Mount     from "Start Climbing Ladder", from MOUNT_FROM on: the
+#                   take stands with its back to its ladder, beside it, and
+#                   turns; from MOUNT_FROM it walks in sideways toward the
+#                   climb line, steps up and ends on the loop's first pose.
+#                   Framed on its LAST frame (the loop's rule below), its
+#                   root goes in a straight line, steadily, from under its
+#                   Hips at its first frame, on the ground, to the climb
+#                   root at its last, as UnitMovement walks the mount leg
+#                   (Ladder.climb_waypoints: on -> mount).
+#   Climb_Dismount  Climb_Mount backwards.
 #
 # THE ROOT. Both takes start on the same pose, the loop's first frame, so
 # one rule places the root in both and the loop hands to the climb-over on
@@ -42,6 +52,11 @@ extends SceneTree
 #                 a rung, or on the landing).
 #   contact       {limb: float}: how high the hand's or ankle's bone sits
 #                 over the rung it holds, on average while planted.
+#   mount_from    (Climb_Mount) where its root starts, from where it ends,
+#                 in the ladder's frame (+Z the way the climber faces; y is
+#                 the drop to the ground): Ladder starts the mount there.
+#   mount_heading (Climb_Mount) the way the body faces at its first frame,
+#                 radians about Y off +Z: the walk comes in that way.
 #
 # THE LANDING. The take's floor is not a whole number of rungs over the
 # rung it starts on; ours is (Ladder counts its rungs down from the top).
@@ -72,6 +87,11 @@ const TOE_OVER_RUNG := 0.045
 ## mocap's own slip): SPEEDS=1 in the environment prints every frame's.
 const STILL_SLOW := 0.2
 const STILL_FAST := 0.5
+## The mount's first frame in the take: walking in sideways toward the climb
+## line (the Hips facing ~82 deg off the ladder). Before it the take stands
+## idle with its back to the ladder and swings round on the spot, which no
+## walk arriving at a ladder does.
+const MOUNT_FROM := 30
 
 var _skeleton: Skeleton3D
 var _player: AnimationPlayer
@@ -164,7 +184,49 @@ func _land() -> void:
 	climb_on.set_meta("contact", climb.get_meta("contact"))
 	print("  Climb_Over_Top backwards, %.2f s" % climb_on.length)
 
-	for pair: Array in [["Climb_Up", climb], ["Climb_Over_Top", climb_over], ["Climb_On_Top", climb_on]]:
+	print("\nCLIMB_MOUNT")
+	var start: Dictionary = _trimmed(_sample("ladder_start"), MOUNT_FROM)
+	var k: int = start.frames
+	var mount: Dictionary = _frame(start, k - 1)
+	var first_toes: float = minf(((mount.basis as Basis) * (start.at["LeftToes"][0] as Vector3)).y,
+		((mount.basis as Basis) * (start.at["RightToes"][0] as Vector3)).y)
+	var ground: float = first_toes - toes_rest
+	var first_hips: Vector3 = (mount.basis as Basis) * (start.hips[0] as Transform3D).origin
+	var from := Vector3(first_hips.x, ground, first_hips.z)
+	var facing: Vector3 = (mount.basis as Basis) * (start.hips[0] as Transform3D).basis.z
+	var heading: float = atan2(facing.x, facing.z)
+	var end_pose: Vector3 = (mount.basis as Basis) * (start.hips[k - 1] as Transform3D).origin
+	var loop_pose: Vector3 = (loop.basis as Basis) * (up.hips[0] as Transform3D).origin
+	print("  ends with its Hips %.1f cm off the loop's first frame (each from its root)" % (
+		(end_pose - mount.root0).distance_to(loop_pose - loop.root0) * 100.0))
+	var mount_path: Array[Transform3D] = []
+	for f in k:
+		mount_path.append(Transform3D(Basis.IDENTITY, from.lerp(mount.root0, float(f) / (k - 1))))
+	var climb_mount: Animation = _bake(start, mount, mount_path, PackedFloat32Array(), false)
+	var mount_plants: Dictionary = _plants(start, mount, false, Vector3.ZERO)
+	var mount_from: Vector3 = from - mount.root0
+	climb_mount.set_meta("mount_from", mount_from)
+	climb_mount.set_meta("mount_heading", heading)
+	climb_mount.set_meta("rung", rung)
+	climb_mount.set_meta("plants", mount_plants)
+	climb_mount.set_meta("contact", climb.get_meta("contact"))
+	print("  %.2f s; starts %s from its end (%.2f m down), facing %+.0f deg" % [climb_mount.length,
+		mount_from.snapped(Vector3.ONE * 0.001), -mount_from.y, rad_to_deg(heading)])
+
+	print("\nCLIMB_DISMOUNT")
+	var climb_dismount: Animation = _reversed(climb_mount)
+	var dismount_plants: Dictionary = {}
+	for limb: String in mount_plants:
+		var w: PackedFloat32Array = mount_plants[limb].duplicate()
+		w.reverse()
+		dismount_plants[limb] = w
+	climb_dismount.set_meta("plants", dismount_plants)
+	climb_dismount.set_meta("rung", rung)
+	climb_dismount.set_meta("contact", climb.get_meta("contact"))
+	print("  Climb_Mount backwards, %.2f s" % climb_dismount.length)
+
+	for pair: Array in [["Climb_Up", climb], ["Climb_Over_Top", climb_over], ["Climb_On_Top", climb_on],
+			["Climb_Mount", climb_mount], ["Climb_Dismount", climb_dismount]]:
 		if library.has_animation(pair[0]):
 			library.remove_animation(pair[0])
 		library.add_animation(StringName(pair[0]), pair[1])
@@ -216,16 +278,17 @@ func _sample(name: String) -> Dictionary:
 
 
 ## The take turned to face +Z (its ladder ahead, by its toes from its Hips
-## at the first frame), and its root there (see THE ROOT): {basis, root0}.
-func _frame(take: Dictionary) -> Dictionary:
+## at frame `on`, the first by default), and its root there (see THE ROOT):
+## {basis, root0}.
+func _frame(take: Dictionary, on: int = 0) -> Dictionary:
 	var at: Dictionary = take.at
-	var hips: Vector3 = (take.hips[0] as Transform3D).origin
-	var toes: Vector3 = ((at["LeftToes"][0] as Vector3) + (at["RightToes"][0] as Vector3)) * 0.5
+	var hips: Vector3 = (take.hips[on] as Transform3D).origin
+	var toes: Vector3 = ((at["LeftToes"][on] as Vector3) + (at["RightToes"][on] as Vector3)) * 0.5
 	var ahead := Vector3(toes.x - hips.x, 0.0, toes.z - hips.z).normalized()
 	var basis := Basis(Vector3.UP, ahead.signed_angle_to(Vector3.BACK, Vector3.UP))
-	var lower: String = "LeftToes" if (at["LeftToes"][0] as Vector3).y < (at["RightToes"][0] as Vector3).y else "RightToes"
-	var foot: Vector3 = basis * (at[lower][0] as Vector3)
-	var hands: Vector3 = basis * (((at["LeftHand"][0] as Vector3) + (at["RightHand"][0] as Vector3)) * 0.5)
+	var lower: String = "LeftToes" if (at["LeftToes"][on] as Vector3).y < (at["RightToes"][on] as Vector3).y else "RightToes"
+	var foot: Vector3 = basis * (at[lower][on] as Vector3)
+	var hands: Vector3 = basis * (((at["LeftHand"][on] as Vector3) + (at["RightHand"][on] as Vector3)) * 0.5)
 	var root0 := Vector3(hands.x, foot.y - TOE_OVER_RUNG, foot.z - RUNG_OFFSET)
 	print("  %s faces %+.1f deg off the model's front; the root at %s, %s's rung" % [take.name,
 		rad_to_deg(basis.get_euler().y), root0.snapped(Vector3.ONE * 0.001), lower])
@@ -330,6 +393,43 @@ func _contacts(take: Dictionary, frame: Dictionary, plants: Dictionary, rung: fl
 		out[limb] = off
 		print("  %-9s holds %.3f m over its rung, plants within %.1f cm of the grid" % [limb, off, worst * 100.0])
 	return out
+
+
+## `take` from frame `first` on: its samples cut there, and its clip
+## resampled a frame at a time from that time so it starts at 0.
+func _trimmed(take: Dictionary, first: int) -> Dictionary:
+	var src: Animation = take.anim
+	var from: float = first / FPS
+	var n: int = take.frames - first
+	var anim := Animation.new()
+	anim.length = src.length - from
+	anim.step = 1.0 / FPS
+	for t in src.get_track_count():
+		var kind: Animation.TrackType = src.track_get_type(t)
+		if kind != Animation.TYPE_POSITION_3D and kind != Animation.TYPE_ROTATION_3D and kind != Animation.TYPE_SCALE_3D:
+			continue
+		var copy: int = anim.add_track(kind)
+		anim.track_set_path(copy, src.track_get_path(t))
+		anim.track_set_interpolation_type(copy, src.track_get_interpolation_type(t))
+		for f in n:
+			var time: float = minf(from + f / FPS, src.length)
+			var value: Variant
+			match kind:
+				Animation.TYPE_POSITION_3D:
+					value = src.position_track_interpolate(t, time)
+				Animation.TYPE_ROTATION_3D:
+					value = src.rotation_track_interpolate(t, time)
+				_:
+					value = src.scale_track_interpolate(t, time)
+			anim.track_insert_key(copy, minf(f / FPS, anim.length), value)
+	var at: Dictionary = {}
+	for b: String in take.at:
+		at[b] = (take.at[b] as PackedVector3Array).slice(first)
+	var hips: Array[Transform3D] = []
+	hips.assign((take.hips as Array).slice(first))
+	var parents: Array[Transform3D] = []
+	parents.assign((take.parents as Array).slice(first))
+	return {"name": take.name, "anim": anim, "frames": n, "hips": hips, "parents": parents, "at": at}
 
 
 ## `anim` played backwards, key for key.

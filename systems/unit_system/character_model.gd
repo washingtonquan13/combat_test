@@ -87,6 +87,14 @@ extends Node3D
 ## the climbing loop and the walk there instead.
 @export var climb_off_animation: String = ""
 @export var climb_on_animation: String = ""
+## On at the foot, from the ground beside the ladder up onto its rungs,
+## and off there (the same motion run backwards), in place over the
+## mount's leg (Ladder.climb_waypoints); played at 1x, the unit taking the
+## clip's length over it (UnitMovement.climb_mount_seconds). A body
+## without the clip climbs from the foot. Every body shares the Ladder
+## library's, so these name it by default.
+@export var climb_mount_animation: String = "Ladder/Climb_Mount"
+@export var climb_dismount_animation: String = "Ladder/Climb_Dismount"
 
 @export_group("Death")
 ## How this body falls when it dies (Corpse): one profile per rig, so every

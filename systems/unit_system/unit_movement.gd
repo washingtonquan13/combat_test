@@ -92,8 +92,10 @@ var _after_climb: Dictionary = {}
 ## someone else is on it, and claims it on stepping onto the rungs.
 var _climb_ladder: Ladder = null
 ## Whether the climb goes up the ladder (false: down). With _climb_first
-## it names the legs of Ladder.climb_waypoints: the two over the top
-## edge are the targets at _climb_first + 2 and + 3 either way.
+## it names the legs of Ladder.climb_waypoints (six points, reversed going
+## down): up, the mount is the target at _climb_first + 1, the rungs + 2,
+## over the top + 3 and + 4, the landing + 5; down, the landing + 1, over
+## the top + 2 and + 3, the rungs + 4, the dismount + 5.
 var _climb_up: bool = true
 ## The tolerance a climb point is reached within — tight, because the
 ## points are the corner of the landing, and arriving early cuts it.
@@ -167,7 +169,7 @@ func climbing_ladder() -> Ladder:
 ## when it isn't climbing, is stepping on or off a level leg, or is
 ## climbing over the top edge (climbing_over).
 func climb_direction() -> int:
-	if not is_climbing() or climbing_over() != 0:
+	if not is_climbing() or climbing_over() != 0 or climbing_on() != 0:
 		return 0
 	var rise: float = _current_path[_path_index].y - _owner.global_position.y
 	if absf(rise) < 0.01:
@@ -186,9 +188,42 @@ func climb_speed() -> float:
 ## (Ladder.over_rungs() below the landing) and the step off, which one
 ## clip covers.
 func climbing_over() -> int:
-	if not is_climbing() or (_path_index != _climb_first + 2 and _path_index != _climb_first + 3):
+	var o: int = _climb_first + (3 if _climb_up else 2)
+	if not is_climbing() or (_path_index != o and _path_index != o + 1):
 		return 0
 	return 1 if _climb_up else -1
+
+
+## 1 while mounting the ladder from the ground beside it, -1 while
+## getting off it there, 0 otherwise: the leg between the mount's start
+## and the rung it ends on (Ladder.climb_waypoints), which one clip covers
+## (Climb_Mount; Climb_Dismount, the same reversed). 0 when the climb has
+## no mount (the leg is nothing long).
+func climbing_on() -> int:
+	if not is_climbing():
+		return 0
+	var target: int = _climb_first + (1 if _climb_up else 5)
+	# Going up, the settle onto the mount's start (a frame or two) shows
+	# the mount already, so the body never shows a rung pose in between.
+	var settling: bool = _climb_up and _path_index == _climb_first
+	if (_path_index != target and not settling) or _climb_mount_length() <= 0.01:
+		return 0
+	return 1 if _climb_up else -1
+
+
+## How long the mount (or dismount) takes: its clip's own length
+## (Ladder.mount_seconds), so it plays at 1x, and its leg is walked in it
+## (_climb_step). Without the clip, the leg at climb_speed.
+func climb_mount_seconds() -> float:
+	if _climb_first < 0:
+		return 0.0
+	var own: float = Ladder.mount_seconds()
+	return own if own > 0.0 else _climb_mount_length() / _climb_speed
+
+
+func _climb_mount_length() -> float:
+	var target: int = _climb_first + (1 if _climb_up else 5)
+	return _current_path[target - 1].distance_to(_current_path[target])
 
 
 ## How long the climb over the top edge takes: the clip's own length
@@ -203,7 +238,8 @@ func climb_over_seconds() -> float:
 
 func _climb_over_length() -> float:
 	var p: PackedVector3Array = _current_path
-	return p[_climb_first + 1].distance_to(p[_climb_first + 2]) + p[_climb_first + 2].distance_to(p[_climb_first + 3])
+	var o: int = _climb_first + (2 if _climb_up else 1)
+	return p[o].distance_to(p[o + 1]) + p[o + 1].distance_to(p[o + 2])
 
 
 ## The height the rungs climb end at (Ladder.climb_waypoints' stop):
@@ -212,7 +248,7 @@ func _climb_over_length() -> float:
 func climb_stop_height() -> float:
 	if _climb_first < 0:
 		return _owner.global_position.y
-	return _current_path[_climb_first + (1 if _climb_up else 3)].y
+	return _current_path[_climb_first + (2 if _climb_up else 3)].y
 
 
 ## The route being walked, whole (start to destination, as planned at
@@ -481,21 +517,32 @@ func _preview_ladder_route(route: Dictionary, ignore: Array) -> Dictionary:
 ## {path, cumulative_cost} plus climb_first/climb_last/climb_speed/
 ## climb_facing for _begin_route.
 ##
-## The climb is Ladder.climb_waypoints (reversed for a descent), not a
-## straight near-to-far line — the clipping bug that function's header
-## describes. Its first point is the near end itself, so the unit settles
-## onto the exact foot of the ladder before going up rather than climbing
-## from wherever the walk's arrival_tolerance let it stop. It adds no
-## cost but the ladder's required_move, charged at the far end.
+## The climb is the route's Ladder.waypoints (reversed for a descent), not
+## a straight near-to-far line — the clipping bug climb_waypoints' header
+## describes. Its first point is the near end itself (going up, the
+## mount's start, which the walk comes on to from its approach), so the
+## unit settles onto it exactly before climbing rather than from wherever
+## the walk's arrival_tolerance let it stop. It adds no cost but the
+## ladder's required_move, charged at the far end.
 func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 	var ladder: Ladder = route.ladder
 	var path: PackedVector3Array = route.near_planned.path.duplicate()
 	var cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
 	var walk_cost: float = _route_end_cost(route.near_planned)
 
-	var climb_points: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
+	var climb_points: PackedVector3Array = route.get("points", PackedVector3Array())
+	if climb_points.size() != 6:
+		climb_points = ladder.waypoints(_owner)
+	climb_points = climb_points.duplicate()
 	if not route.going_up:
 		climb_points.reverse()
+	# Going up the walk ends at the mount's approach: its last step, onto
+	# the mount's start, is walked too.
+	elif path.size() > 0 and not path[path.size() - 1].is_equal_approx(climb_points[0]):
+		var last: Vector3 = path[path.size() - 1]
+		walk_cost += Vector2(climb_points[0].x - last.x, climb_points[0].z - last.z).length()
+		path.append(climb_points[0])
+		cost.append(walk_cost)
 	var climb_first: int = path.size()
 	for i in climb_points.size():
 		path.append(climb_points[i])
@@ -906,16 +953,23 @@ func _climb_step(delta: float) -> void:
 	var target: Vector3 = _current_path[_path_index]
 	var to_target: Vector3 = target - _owner.global_position
 	var speed: float = _climb_speed
+	var on: int = climbing_on()
 	if climbing_over() != 0:
 		speed = _climb_over_length() / maxf(climb_over_seconds(), 0.01)
+	elif on != 0:
+		speed = _climb_mount_length() / maxf(climb_mount_seconds(), 0.01)
 	var step: float = speed * delta
 	_owner.velocity = Vector3.ZERO
 	# The level step between the landing's edge and the top is walked
 	# facing the way it goes; the rest faces the ladder.
-	var landing_leg: bool = _path_index == _climb_first + (4 if _climb_up else 1)
+	# The mount's clip turns the body itself (onto the ladder from the way
+	# it walks in), so the unit faces the ladder outright from its start.
+	var landing_leg: bool = _path_index == _climb_first + (5 if _climb_up else 1)
 	var level := Vector3(to_target.x, 0.0, to_target.z)
 	if landing_leg and level.length() > 0.01:
 		_owner.face_direction(level, delta)
+	elif on != 0 and _climb_facing != Vector3.ZERO:
+		_owner.snap_face_direction(_climb_facing)
 	elif _climb_facing != Vector3.ZERO:
 		_owner.face_direction(_climb_facing, delta)
 	if to_target.length() <= step:
