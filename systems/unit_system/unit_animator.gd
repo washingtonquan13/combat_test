@@ -629,6 +629,8 @@ func _on_died(_u: Unit) -> void:
 	unit.posed_status = null
 	_posed_clip = ""
 	unit.visual_state = Unit.VisualState.STANDING
+	if locomotion:
+		locomotion.abandon()
 	_play(death_animation)
 
 
@@ -652,6 +654,8 @@ func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
 		return  # already holding a different pose — see Unit.posed_status's doc comment
 	unit.posed_status = effect
 	unit.visual_state = Unit.VisualState.POSED
+	if locomotion:
+		locomotion.abandon()
 	_posed_clip = pose
 	_base_animation = pose
 	_play(pose)
@@ -706,6 +710,9 @@ func _on_stance_changed(stance: StringName) -> void:
 ## What the ladder is showing: 1 climbing up, -1 down, 2 over the top
 ## edge, -2 getting on there, 0 not climbing.
 var _climb_shown: int = 0
+## Stepped off the rungs with route still to walk: locomotion takes it up
+## once the climb is behind (the level steps on and off are the climb's).
+var _off_ladder: bool = false
 
 
 ## A climb is part of a move, so movement_started has already played the
@@ -713,10 +720,25 @@ var _climb_shown: int = 0
 ## steps on and off. Polled because the route crosses onto the ladder
 ## with no signal of its own.
 func _physics_process(delta: float) -> void:
-	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
+	if unit == null:
 		return
-	if locomotion and not unit.is_moving():
-		locomotion.tick(delta)
+	var taken: bool = _cutscene_claimed or unit.posed_status != null or not unit.is_alive()
+	if locomotion:
+		# A body locomotion does not show lets go of the lean, the lead and
+		# the foot pins (relax); a standing one settles and turns (tick).
+		if taken or (unit.is_moving() and not locomotion.drives()):
+			locomotion.relax(delta)
+		elif not unit.is_moving():
+			locomotion.tick(delta)
+	if taken:
+		_off_ladder = false
+		return
+	if _off_ladder and (not unit.is_moving() or not unit.is_climbing()):
+		_off_ladder = false
+		# Off the ladder on foot: the rest of the route has its start, loop
+		# and stop, as a move on foot does.
+		if unit.is_moving() and not _aloft and not unit.is_flying() and locomotion:
+			locomotion.begin(unit.remaining_distance(), unit.first_leg())
 	_show_turning()
 	var over: int = unit.climbing_over()
 	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
@@ -730,6 +752,7 @@ func _physics_process(delta: float) -> void:
 		if unit.is_moving():
 			_play(_walk(), 0.15)
 			_carry_stance()
+			_off_ladder = locomotion != null
 		return
 	# Hands on the rungs: nothing is carried up a ladder.
 	playback.stop_upper(0.1)

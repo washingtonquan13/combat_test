@@ -212,6 +212,8 @@ var foot_lock: BodyFootLock = null
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
+## A move ordered during a turn in place: it starts as the turn ends.
+var _go_after_turn: bool = false
 
 
 func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: Node3D) -> void:
@@ -248,7 +250,7 @@ func turning() -> bool:
 	return state == State.TURNING
 
 
-func begin(route: float, _first_leg: Vector3) -> void:
+func begin(route: float, first_leg: Vector3) -> void:
 	_route = route
 	if (state == State.STARTING or state == State.MOVING or state == State.STOPPING) and _loop:
 		# An order replaced mid-move: a walk with far to go breaks into the
@@ -260,7 +262,14 @@ func begin(route: float, _first_leg: Vector3) -> void:
 		_last_gap = INF
 		_steer_left = -1.0
 		return
-	# Standing, or turning in place (dropped where it is): under way now.
+	# Turning in place: the turn is aimed at the way and plays out, and the
+	# start follows it (travel() holds the unit still meanwhile). Dropping
+	# it where it was played the start facing sideways.
+	if state == State.TURNING and _clip and first_leg.length_squared() > 0.5:
+		_aim_turn(_unit.yaw_facing(first_leg))
+		_go_after_turn = true
+		return
+	# Standing: under way now.
 	_v = 0.0
 	_start_moving(BLEND_START)
 
@@ -366,7 +375,12 @@ func _break_into_run() -> void:
 func travel(delta: float, left: float) -> float:
 	_ticked = Engine.get_physics_frames()
 	if not _still_showing():
+		# Something else is showing (a climb, a pose): the unit goes at its
+		# own speed, and the lean, the lead and the plants come off.
 		state = State.OFF
+		_go_after_turn = false
+		_speed = 0.0
+		_lean_into(delta, false)
 		return _unit.move_speed * delta
 	if state == State.TURNING:
 		_turning()
@@ -395,6 +409,13 @@ func tick(delta: float) -> void:
 		return
 	_ticked = Engine.get_physics_frames()
 	_speed = 0.0
+	# Still under way with the unit stood still: the move ended without a
+	# word (Unit.force_stop_movement, as area travel does it; then the unit
+	# is put down elsewhere). It ends as a move cut short does.
+	if state == State.STARTING or state == State.MOVING:
+		finish()
+	elif state == State.STOPPING:
+		state = State.SETTLING
 	if state == State.SETTLING or state == State.TURNING:
 		if not _still_showing():
 			state = State.OFF
@@ -409,6 +430,7 @@ func tick(delta: float) -> void:
 ## whether this shows what comes next (the stop's settle, or the idle).
 func finish() -> bool:
 	_v = 0.0
+	_go_after_turn = false
 	match state:
 		State.STOPPING:
 			state = State.SETTLING
@@ -426,10 +448,27 @@ func finish() -> bool:
 	return false
 
 
-## Something else takes the body (a stance, a cast, a cutscene).
+## Something else takes the body (a stance, a cast, a cutscene, a pose,
+## death, a climb). The lean, the lead into the turn and the foot pins come
+## off by relax(), each tick the body is not locomotion's.
 func abandon() -> void:
 	state = State.OFF
 	_v = 0.0
+	_go_after_turn = false
+
+
+## A tick while the body is not locomotion's (UnitAnimator: posed, dead,
+## claimed by a scene, or on a move it does not show): it lets go of the
+## body. The lean comes upright, the head's lead comes back and the feet
+## are unpinned, each at its own rate, rather than left as they were.
+func relax(delta: float) -> void:
+	if _ticked == Engine.get_physics_frames():
+		return
+	_ticked = Engine.get_physics_frames()
+	if state != State.OFF:
+		abandon()
+	_speed = 0.0
+	_lean_into(delta, false)
 
 
 func _still_showing() -> bool:
@@ -488,6 +527,10 @@ func _turning() -> void:
 	if absf(yaw) < absf(_clip.turn) * TURN_DONE and t < _clip.length - BLEND_HAND:
 		return
 	_unit.rotation.y = _turn_from + _clip.turn * _turn_scale
+	if _go_after_turn:
+		_go_after_turn = false
+		_start_moving(BLEND_START)
+		return
 	_playback.play(_set.idle.clip, BLEND_IDLE)
 	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
 	state = State.OFF
@@ -761,7 +804,7 @@ func _pose_gap(a: StringName, at_a: float, b: StringName, at_b: float) -> float:
 
 # --- lean ---------------------------------------------------------------------
 
-func _lean_into(delta: float) -> void:
+func _lean_into(delta: float, plant: bool = true) -> void:
 	if _body == null:
 		return
 	var yaw: float = _unit.rotation.y
@@ -776,7 +819,7 @@ func _lean_into(delta: float) -> void:
 	# Left (a positive turn) tips the head to the body's left, +X.
 	_body.transform = Transform3D(Basis(Vector3.BACK, -_lean), Vector3.ZERO) * _body_rest
 	_lead_into_turn()
-	_plant_feet()
+	_plant_feet(plant)
 
 
 ## Tells the foot lock how planted each foot is in the clip showing: the
@@ -785,8 +828,13 @@ func _lean_into(delta: float) -> void:
 ## a stop or turn plants stay where it planted them (the idle's own stance
 ## is 11-13 cm off the stops'; blending to it would slide them). Nothing
 ## else locks off locomotion (a stance, a cast, the turning loops).
-func _plant_feet() -> void:
+func _plant_feet(plant: bool = true) -> void:
 	if foot_lock == null:
+		return
+	if not plant:
+		foot_lock.left_plant = 0.0
+		foot_lock.right_plant = 0.0
+		foot_lock.stride = 1.0
 		return
 	var clip: LocomotionClip = _loop if state == State.MOVING else _clip
 	if state == State.OFF and _set.idle != null and _playback.current_animation == _set.idle.clip:

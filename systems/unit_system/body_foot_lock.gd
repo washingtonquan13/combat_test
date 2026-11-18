@@ -16,8 +16,16 @@ extends SkeletonModifier3D
 ## while it holds, the ankle is drawn to that point by the weight. As the
 ## weight falls (the heel lifting) the pull eases off with it, so the foot
 ## goes back to the animation smoothly rather than snapping: that is the
-## release. A pin the leg cannot reach, or that the body has left behind
-## (BREAK_AT), lets go at once and the foot shows as animated.
+## release. A pin the body has left behind (BREAK_AT) lets go over
+## BREAK_EASE: the foot eases from where it was held back to the animation,
+## and is not pinned again until its clip lifts it (under LET_GO). A pin
+## further off than SNAP_FROM (a teleport) lets go at once. A pin the leg
+## cannot reach moves to where the foot got to.
+##
+## Plants that nobody sets go stale: when no plant arrives in a physics
+## frame (locomotion is not ticking: the body is posed, dead, claimed or
+## on a move it does not show), the weights ease to 0 and the stride to 1
+## by themselves, so a pin is never left holding a foot in the world.
 ##
 ## The foot keeps its animated orientation; only where it is changes. The
 ## knee bends in the plane the animation gives it (hip, knee, ankle), so the
@@ -37,8 +45,12 @@ const LEGS := [
 ## The weight a foot's pin is taken at, and below which it is let go.
 const PIN_AT := 0.5
 const LET_GO := 0.02
-## How far (m) the pin may be from the animated ankle before it lets go.
+## How far (m) the pin may be from the animated ankle before it lets go,
+## how long (s) the foot takes to come back to the animation then, and how
+## far off a pin is let go at once instead (a teleport, a cut).
 const BREAK_AT := 0.35
+const BREAK_EASE := 0.1
+const SNAP_FROM := 0.7
 ## The leg is never drawn straighter than this share of its length.
 const REACH := 0.995
 ## The stride is warped no shorter or longer than these.
@@ -49,9 +61,18 @@ const STRIDE_MOST := 1.5
 const RATE := 25.0
 const STRIDE_RATE := 20.0
 
-## How planted each foot is, as the playing clip marks it.
-var left_plant: float = 0.0
-var right_plant: float = 0.0
+## How planted each foot is, as the playing clip marks it. Setting one
+## stamps the physics frame (see stale plants, above).
+var left_plant: float = 0.0:
+	set(value):
+		left_plant = value
+		_fed = Engine.get_physics_frames()
+var right_plant: float = 0.0:
+	set(value):
+		right_plant = value
+		_fed = Engine.get_physics_frames()
+## The physics frame the plants were last set on.
+var _fed: int = -1
 ## The stride asked for: the unit's speed over the clip's (1: as animated),
 ## and the way the unit goes, world space.
 var stride: float = 1.0
@@ -64,6 +85,12 @@ var _legs: Array = []
 var _weight := [0.0, 0.0]
 var _pinned := [false, false]
 var _pin := [Vector3.ZERO, Vector3.ZERO]
+## Per leg, after a break: the held foot's offset from the animated ankle
+## (world), what is left of it (1 to 0 over BREAK_EASE), and whether a new
+## pin waits for the weight to fall under LET_GO.
+var _break_off := [Vector3.ZERO, Vector3.ZERO]
+var _break_left := [0.0, 0.0]
+var _held_off := [false, false]
 ## Per leg, how far (m) the shown ankle was from the animated one last frame,
 ## world space, horizontal (for the demo).
 var pull := [0.0, 0.0]
@@ -105,15 +132,22 @@ func release() -> void:
 	right_plant = 0.0
 	_weight = [0.0, 0.0]
 	_pinned = [false, false]
+	_break_left = [0.0, 0.0]
+	_held_off = [false, false]
 	stride = 1.0
 	_stride = 1.0
 
 
 func _process(delta: float) -> void:
+	# Fed this physics frame or the last (frames can draw between steps).
+	var fresh: bool = Engine.get_physics_frames() - _fed <= 1
 	var k: float = 1.0 - exp(-RATE * delta)
-	_weight[0] = lerpf(_weight[0], clampf(left_plant, 0.0, 1.0), k)
-	_weight[1] = lerpf(_weight[1], clampf(right_plant, 0.0, 1.0), k)
-	_stride = lerpf(_stride, clampf(stride, STRIDE_LEAST, STRIDE_MOST), 1.0 - exp(-STRIDE_RATE * delta))
+	_weight[0] = lerpf(_weight[0], clampf(left_plant, 0.0, 1.0) if fresh else 0.0, k)
+	_weight[1] = lerpf(_weight[1], clampf(right_plant, 0.0, 1.0) if fresh else 0.0, k)
+	var want: float = clampf(stride, STRIDE_LEAST, STRIDE_MOST) if fresh else 1.0
+	_stride = lerpf(_stride, want, 1.0 - exp(-STRIDE_RATE * delta))
+	for i in 2:
+		_break_left[i] = maxf(0.0, _break_left[i] - delta / BREAK_EASE)
 
 
 func _process_modification() -> void:
@@ -137,14 +171,23 @@ func _lock(skeleton: Skeleton3D, i: int) -> void:
 	var held: Vector3 = ankle_world
 	if w < LET_GO:
 		_pinned[i] = false
-	elif not _pinned[i] and w >= PIN_AT:
+		_held_off[i] = false
+	elif not _pinned[i] and not _held_off[i] and w >= PIN_AT:
 		_pinned[i] = true
 		_pin[i] = ankle_world
 	if _pinned[i] and (_pin[i] as Vector3).distance_to(ankle_world) > BREAK_AT:
+		# Left behind: the foot eases back from where it was held, and is
+		# not pinned again until the clip lifts it.
 		_pinned[i] = false
+		_held_off[i] = true
+		var off: Vector3 = ((_pin[i] as Vector3) - ankle_world) * w
+		_break_left[i] = 1.0 if off.length() < SNAP_FROM else 0.0
+		_break_off[i] = off
 	if _pinned[i]:
 		held = ankle_world.lerp(_pin[i], w)
-	if not _pinned[i] and absf(_stride - 1.0) < 0.005:
+	elif _break_left[i] > 0.0:
+		held = ankle_world + (_break_off[i] as Vector3) * smoothstep(0.0, 1.0, _break_left[i])
+	if not _pinned[i] and _break_left[i] <= 0.0 and absf(_stride - 1.0) < 0.005:
 		return
 	var target: Vector3 = to_world.affine_inverse() * held
 	_solve(skeleton, bones, target)
