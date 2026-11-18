@@ -1323,6 +1323,10 @@ func climbing_on() -> int:
 	return _movement.climbing_on()
 
 
+func stepping_off_top() -> bool:
+	return _movement.stepping_off_top()
+
+
 func climb_mount_seconds() -> float:
 	return _movement.climb_mount_seconds()
 

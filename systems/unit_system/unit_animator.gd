@@ -734,9 +734,6 @@ func _on_stance_changed(stance: StringName) -> void:
 ## edge, -2 getting on there, 3 mounting at the foot, -3 getting off
 ## there, 0 not climbing.
 var _climb_shown: int = 0
-## Stepped off the rungs with route still to walk: locomotion takes it up
-## once the climb is behind (the level steps on and off are the climb's).
-var _off_ladder: bool = false
 
 ## Holds the planted hands and feet on the rungs (null with no climb clip).
 var grip: LadderGrip
@@ -758,14 +755,7 @@ func _physics_process(delta: float) -> void:
 		elif not unit.is_moving():
 			locomotion.tick(delta)
 	if taken:
-		_off_ladder = false
 		return
-	if _off_ladder and (not unit.is_moving() or not unit.is_climbing()):
-		_off_ladder = false
-		# Off the ladder on foot: the rest of the route has its start, loop
-		# and stop, as a move on foot does.
-		if unit.is_moving() and not _aloft and not unit.is_flying() and locomotion:
-			locomotion.begin(unit.remaining_distance(), unit.first_leg())
 	_show_turning()
 	var over: int = unit.climbing_over()
 	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
@@ -781,10 +771,21 @@ func _physics_process(delta: float) -> void:
 		return
 	_climb_shown = shown
 	if shown == 0:
+		# At the stop between the rungs and the clip over the edge the rung
+		# clip holds: nothing is walked until the step off the top.
+		if unit.is_climbing() and not unit.stepping_off_top():
+			_climb_shown = 99
+			return
 		if unit.is_moving():
-			_play(_walk(), 0.15)
+			# Off the rungs on foot (the level step off the top, or what
+			# follows the dismount): the locomotion set walks it, start, loop
+			# and stop, never the old walk clip (UnitMovement._climb_step
+			# moves the landing leg by its travel).
+			if locomotion and not _aloft and not unit.is_flying():
+				locomotion.begin(unit.remaining_distance(), unit.first_leg())
+			else:
+				_play(_walk(), 0.15)
 			_carry_stance()
-			_off_ladder = locomotion != null
 		return
 	# Hands on the rungs: nothing is carried up a ladder.
 	playback.stop_upper(0.1)

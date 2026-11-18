@@ -194,6 +194,12 @@ func climbing_over() -> int:
 	return 1 if _climb_up else -1
 
 
+## Whether the unit is on the level step off the top going up (the last
+## leg of an up climb, after the clip over the edge): walked on foot.
+func stepping_off_top() -> bool:
+	return is_climbing() and _climb_up and _path_index == _climb_first + 5
+
+
 ## 1 while mounting the ladder from the ground beside it, -1 while
 ## getting off it there, 0 otherwise: the leg between the mount's start
 ## and the rung it ends on (Ladder.climb_waypoints), which one clip covers
@@ -965,6 +971,13 @@ func _climb_step(delta: float) -> void:
 	# The mount's clip turns the body itself (onto the ladder from the way
 	# it walks in), so the unit faces the ladder outright from its start.
 	var landing_leg: bool = _path_index == _climb_first + (5 if _climb_up else 1)
+	# Off the top going up, the locomotion set walks the step (UnitAnimator
+	# begins it as the clip over the edge ends): its own speed, not the
+	# climb's.
+	var animator: UnitAnimator = _owner.animator()
+	var loco: UnitLocomotion = animator.locomotion if animator else null
+	if landing_leg and _climb_up and loco and loco.drives():
+		step = loco.travel(delta, remaining_distance())
 	var level := Vector3(to_target.x, 0.0, to_target.z)
 	if landing_leg and level.length() > 0.01:
 		_owner.face_direction(level, delta)
