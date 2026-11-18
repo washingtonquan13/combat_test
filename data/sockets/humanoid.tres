@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="SocketProfile" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/socket_profile.gd" id="1_ym6pn"]
+[ext_resource type="Script" path="res://systems/unit_system/socket_spec.gd" id="2_8p7q1"]
+
+[sub_resource type="Resource" id="Resource_tm7th"]
+script = ExtResource("2_8p7q1")
+socket = &"main_hand_grip"
+bones = Array[StringName]([&"RightHand"])
+landmark = &""
+bone_frame = true
+axes = Basis(0, 0.94, 0.342, 0, -0.342, 0.94, 1, 0, 0)
+offset = Vector3(0, 0.703001, 0.289471)
+measure_from = &"RightHand"
+measure_to = &"RightMiddleProximal"
+onto_surface = false
+
+[sub_resource type="Resource" id="Resource_830wy"]
+script = ExtResource("2_8p7q1")
+socket = &"off_hand_grip"
+bones = Array[StringName]([&"LeftHand"])
+landmark = &""
+bone_frame = true
+axes = Basis(0, -0.94, -0.342, 0, -0.342, 0.94, -1, 0, 0)
+offset = Vector3(0, 0.703001, 0.289471)
+measure_from = &"LeftHand"
+measure_to = &"LeftMiddleProximal"
+onto_surface = false
+
+[sub_resource type="Resource" id="Resource_2vr71"]
+script = ExtResource("2_8p7q1")
+socket = &"hand_anchor"
+bones = Array[StringName]([&"RightMiddleProximal"])
+landmark = &""
+bone_frame = true
+axes = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
+offset = Vector3(0, 0, 0)
+measure_from = &""
+measure_to = &""
+onto_surface = false
+
+[sub_resource type="Resource" id="Resource_dqavh"]
+script = ExtResource("2_8p7q1")
+socket = &"head_anchor"
+bones = Array[StringName]([&"Head"])
+landmark = &""
+bone_frame = true
+axes = Basis(1, 0, 0, 0, 1, 0, 0, 0, 1)
+offset = Vector3(0, 0, 0)
+measure_from = &""
+measure_to = &""
+onto_surface = false
+
+[sub_resource type="Resource" id="Resource_ka0vd"]
+script = ExtResource("2_8p7q1")
+socket = &"back_sheath_a"
+bones = Array[StringName]([&"UpperChest", &"Chest", &"Spine"])
+landmark = &"Hips"
+bone_frame = false
+axes = Basis(0, -0.45122, 0.892413, 0, 0.892413, 0.45122, -1, 0, 0)
+offset = Vector3(0, 0.509374, -0.175599)
+measure_from = &"Hips"
+measure_to = &"Head"
+onto_surface = true
+
+[sub_resource type="Resource" id="Resource_bvloc"]
+script = ExtResource("2_8p7q1")
+socket = &"back_sheath_b"
+bones = Array[StringName]([&"UpperChest", &"Chest", &"Spine"])
+landmark = &"Hips"
+bone_frame = false
+axes = Basis(0, 0.45122, 0.892413, 0, 0.892413, -0.45122, -1, 0, 0)
+offset = Vector3(0, 0.509374, -0.175599)
+measure_from = &"Hips"
+measure_to = &"Head"
+onto_surface = true
+
+[sub_resource type="Resource" id="Resource_j7npg"]
+script = ExtResource("2_8p7q1")
+socket = &"hip_sheath_main"
+bones = Array[StringName]([&"Hips"])
+landmark = &"Hips"
+bone_frame = false
+axes = Basis(-1, 0, 0, 0, 0.892413, 0.45122, 0, 0.45122, -0.892413)
+offset = Vector3(-0.275089, 0.00504332, 0.0154356)
+measure_from = &"Hips"
+measure_to = &"Head"
+onto_surface = true
+
+[sub_resource type="Resource" id="Resource_j07bv"]
+script = ExtResource("2_8p7q1")
+socket = &"hip_sheath_off"
+bones = Array[StringName]([&"Hips"])
+landmark = &"Hips"
+bone_frame = false
+axes = Basis(1, 0, 0, 0, 0.892413, -0.45122, 0, 0.45122, 0.892413)
+offset = Vector3(0.275089, 0.00504332, 0.0154356)
+measure_from = &"Hips"
+measure_to = &"Head"
+onto_surface = true
+
+[resource]
+script = ExtResource("1_ym6pn")
+sockets = Array[ExtResource("2_8p7q1")]([SubResource("Resource_tm7th"), SubResource("Resource_830wy"), SubResource("Resource_2vr71"), SubResource("Resource_dqavh"), SubResource("Resource_ka0vd"), SubResource("Resource_bvloc"), SubResource("Resource_j7npg"), SubResource("Resource_j07bv")])
+gaze_bone = &"Head"

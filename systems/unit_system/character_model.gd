@@ -228,6 +228,10 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND, MOUTH }
 ## side of the fist and +Z faces the way the knuckles do (WeaponData.
 ## model_scene). Null means this body holds nothing in that hand - a
 ## demon's claws are part of its body.
+##
+## Every anchor, grip and sheath here left unset is built at load from the
+## body's socket profile (socket_profile), on its own landmarks; one set by
+## hand overrules the profile's.
 @export var main_hand_grip: Node3D
 @export var off_hand_grip: Node3D
 
@@ -236,8 +240,8 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND, MOUTH }
 ## origin sits on the body's surface, +X points straight away from the
 ## body, +Y the way a carried item's handle end points (up and over the
 ## shoulder, up out of the belt). UnitWeapons lays the item flat along
-## it. Null builds the socket at runtime on the humanoid bones (see
-## SHEATH_FRAMES); a body that holds nothing (no grips) carries nothing.
+## it. Null builds the socket from the socket profile; a body that holds
+## nothing (no grips) carries nothing.
 enum SheathSocket { BACK_A, BACK_B, HIP_MAIN, HIP_OFF }
 
 @export_group("Sheaths")
@@ -245,6 +249,19 @@ enum SheathSocket { BACK_A, BACK_B, HIP_MAIN, HIP_OFF }
 @export var back_sheath_b: Node3D
 @export var hip_sheath_main: Node3D
 @export var hip_sheath_off: Node3D
+
+@export_group("Sockets")
+## Where this kind of body's grips, casting hand, head and sheaths are, by
+## its landmarks (SocketProfile), built at load for every export above left
+## unset. Null takes the humanoid profile when the skeleton has every bone
+## it names (every rig retargeted to Godot's humanoid profile), and nothing
+## otherwise; an empty profile opts a humanoid out.
+@export var socket_profile: SocketProfile
+
+const HUMANOID_SOCKETS: String = "res://data/sockets/humanoid.tres"
+## How near a vertex must be to a sheath's outward line to count as the
+## skin it is slid onto (SocketSpec.onto_surface).
+const SURFACE_REACH: float = 0.05
 
 @export_group("Gaze")
 ## The bone modifier that turns this body's head toward what it is looking
@@ -258,8 +275,9 @@ enum SheathSocket { BACK_A, BACK_B, HIP_MAIN, HIP_OFF }
 ## header warns against for the same reason.
 @export var look_at_modifier: LookAtModifier3D
 
-## What the fallback drives, when the body has not declared a modifier.
-## The standard name in Godot's humanoid bone profile.
+## What the fallback drives, when the body has not declared a modifier and
+## has no socket profile to name its gaze bone. The standard name in
+## Godot's humanoid bone profile.
 const FALLBACK_GAZE_BONE: StringName = &"Head"
 ## How long the head takes to come around. Handled by the modifier itself
 ## rather than by a Tween here.
@@ -386,42 +404,13 @@ func _held_muzzle() -> Node3D:
 	return hand_anchor
 
 
-## Where a sheath is built when the body declares none, in the skeleton's
-## space - the character's frame, as tools/pose_builder.gd has it: metres,
-## facing +Z, its left +X. Measured off the UAL mannequin (UAL1_Standard
-## .glb): the shoulder blades stand out to z -0.16 between 1.2 and 1.5 m,
-## the pelvis is +-0.16 wide at 0.9 m. Back items cross over the upper
-## back, handle ends toward the shoulders; hip items hang at the side,
-## handle up and forward, tip down and back, behind where the arm hangs.
-## Riding UpperChest and Hips so they move with the torso, not the arms.
-## Right for a humanoid of that build, a guess for anything else -
-## declare the export to overrule it.
-const SHEATH_FRAMES: Dictionary = {
-	SheathSocket.BACK_A: {"bones": [&"UpperChest", &"Chest", &"Spine"],
-		"origin": Vector3(0.0, 1.25, -0.165), "up": Vector3(-0.45, 0.89, 0.0), "out": Vector3(0, 0, -1)},
-	SheathSocket.BACK_B: {"bones": [&"UpperChest", &"Chest", &"Spine"],
-		"origin": Vector3(0.0, 1.25, -0.165), "up": Vector3(0.45, 0.89, 0.0), "out": Vector3(0, 0, -1)},
-	SheathSocket.HIP_MAIN: {"bones": [&"Hips"],
-		"origin": Vector3(-0.18, 0.92, -0.04), "up": Vector3(0.0, 0.89, 0.45), "out": Vector3(-1, 0, 0)},
-	SheathSocket.HIP_OFF: {"bones": [&"Hips"],
-		"origin": Vector3(0.18, 0.92, -0.04), "up": Vector3(0.0, 0.89, 0.45), "out": Vector3(1, 0, 0)},
-}
-
-## SheathSocket -> the socket built for it (or null: this body can't have it).
-var _built_sheaths: Dictionary = {}
-
-
 ## The frame a weapon not in hand is carried on, or null: a body without
 ## grips carries nothing, as it holds nothing.
 func sheath_socket(which: SheathSocket) -> Node3D:
-	var declared: Node3D = _declared_sheath(which)
-	if is_instance_valid(declared):
-		return declared
 	if not is_instance_valid(main_hand_grip) and not is_instance_valid(off_hand_grip):
 		return null
-	if not _built_sheaths.has(which) or (_built_sheaths[which] != null and not is_instance_valid(_built_sheaths[which])):
-		_built_sheaths[which] = _build_sheath(which)
-	return _built_sheaths[which]
+	var declared: Node3D = _declared_sheath(which)
+	return declared if is_instance_valid(declared) else null
 
 
 func _declared_sheath(which: SheathSocket) -> Node3D:
@@ -431,36 +420,6 @@ func _declared_sheath(which: SheathSocket) -> Node3D:
 		SheathSocket.HIP_MAIN: return hip_sheath_main
 		SheathSocket.HIP_OFF: return hip_sheath_off
 	return null
-
-
-## A BoneAttachment3D on the frame's bone, with the socket under it placed
-## so that at the rest pose it sits exactly on the frame. Built at runtime
-## and never saved, like the fallback gaze.
-func _build_sheath(which: SheathSocket) -> Node3D:
-	var skeleton: Skeleton3D = _find_skeleton(self)
-	if skeleton == null:
-		return null
-	var frame: Dictionary = SHEATH_FRAMES[which]
-	var bone: int = -1
-	for bone_name: StringName in frame["bones"]:
-		bone = skeleton.find_bone(bone_name)
-		if bone != -1:
-			break
-	if bone == -1:
-		return null
-	var attachment := BoneAttachment3D.new()
-	attachment.name = "Sheath" + String(SheathSocket.keys()[which]).to_pascal_case()
-	skeleton.add_child(attachment)
-	attachment.bone_name = skeleton.get_bone_name(bone)
-	var socket := Node3D.new()
-	socket.name = "Socket"
-	attachment.add_child(socket)
-	var out: Vector3 = frame["out"]
-	var up_hint: Vector3 = frame["up"]
-	var up: Vector3 = (up_hint - out * out.dot(up_hint)).normalized()
-	var wanted := Transform3D(Basis(out, up, out.cross(up)), frame["origin"])
-	socket.transform = skeleton.get_bone_global_rest(bone).affine_inverse() * wanted
-	return socket
 
 
 func _fallback_ratio(kind: Anchor) -> float:
@@ -565,7 +524,8 @@ func _resolve_gaze_modifier() -> LookAtModifier3D:
 ## overruled by declaring a real modifier.
 func _build_fallback_gaze() -> LookAtModifier3D:
 	var skeleton: Skeleton3D = _find_skeleton(self)
-	if skeleton == null or skeleton.find_bone(FALLBACK_GAZE_BONE) == -1:
+	var gaze_bone: StringName = _gaze_bone(skeleton)
+	if skeleton == null or skeleton.find_bone(gaze_bone) == -1:
 		return null
 	var made := LookAtModifier3D.new()
 	made.name = "FallbackGaze"
@@ -581,7 +541,7 @@ func _build_fallback_gaze() -> LookAtModifier3D:
 	#
 	# The index is nonetheless what gets assigned, because it cannot depend
 	# on that timing at all and it is already in hand from the guard above.
-	made.bone = skeleton.find_bone(FALLBACK_GAZE_BONE)
+	made.bone = skeleton.find_bone(gaze_bone)
 	made.duration = GAZE_TURN_SECONDS
 	# primary is yaw (rotation about Y, the modifier's own default) and
 	# secondary is pitch. symmetry_limitation is already true, so one angle
@@ -598,7 +558,7 @@ func _build_fallback_gaze() -> LookAtModifier3D:
 ## its name, and the index wins on load. A rebake that reorders the bones
 ## (the mixamo rig, 2ad89156) then puts every grip and anchor on some
 ## other bone. The name is the contract, so each attachment is bound again
-## by it here.
+## by it here. Then the sockets the body leaves unset are built.
 func _ready() -> void:
 	var skeleton: Skeleton3D = _find_skeleton(self)
 	if skeleton == null:
@@ -607,6 +567,100 @@ func _ready() -> void:
 		var bone: int = skeleton.find_bone(attachment.bone_name)
 		if bone != -1 and bone != attachment.bone_idx:
 			attachment.bone_idx = bone
+	_build_sockets(skeleton)
+
+
+## The profile this body builds from: its own, else the humanoid one when
+## it fits, else none.
+func _profile(skeleton: Skeleton3D) -> SocketProfile:
+	if socket_profile:
+		return socket_profile
+	if skeleton == null:
+		return null
+	var humanoid := load(HUMANOID_SOCKETS) as SocketProfile
+	return humanoid if humanoid and humanoid.fits(skeleton) else null
+
+
+func _gaze_bone(skeleton: Skeleton3D) -> StringName:
+	var profile: SocketProfile = _profile(skeleton)
+	return profile.gaze_bone if profile and profile.gaze_bone != &"" else FALLBACK_GAZE_BONE
+
+
+## Each socket the profile names whose export is unset: a BoneAttachment3D
+## on its bone, with the socket under it placed so that at rest it sits
+## exactly on the spec's frame. Built at runtime and never saved, like the
+## fallback gaze. A copy of the body (StandIn) takes them along, and its
+## exports with them, so it builds none of its own.
+func _build_sockets(skeleton: Skeleton3D) -> void:
+	var profile: SocketProfile = _profile(skeleton)
+	if profile == null:
+		return
+	for spec: SocketSpec in profile.sockets:
+		if not spec.socket in self or is_instance_valid(get(spec.socket)):
+			continue
+		var placed: Dictionary = spec.place(skeleton)
+		if placed.is_empty():
+			continue
+		var bone: int = placed["bone"]
+		var wanted: Transform3D = placed["wanted"]
+		if spec.onto_surface:
+			wanted.origin = _onto_surface(skeleton, wanted)
+		var attachment := BoneAttachment3D.new()
+		attachment.name = String(spec.socket).to_pascal_case()
+		skeleton.add_child(attachment)
+		attachment.bone_name = skeleton.get_bone_name(bone)
+		var socket := Node3D.new()
+		socket.name = "Socket"
+		attachment.add_child(socket)
+		socket.transform = skeleton.get_bone_global_rest(bone).affine_inverse() * wanted
+		set(spec.socket, socket)
+
+
+## Where the socket's outward line (+X) leaves the body's skin at rest: the
+## outermost vertex within SURFACE_REACH of the line, of every mesh this
+## skeleton skins. Where none is near (a body with no mesh), it stays put.
+func _onto_surface(skeleton: Skeleton3D, wanted: Transform3D) -> Vector3:
+	var out: Vector3 = wanted.basis.x.normalized()
+	var best: float = -INF
+	for vertices: PackedVector3Array in _skin_at_rest(skeleton):
+		for v: Vector3 in vertices:
+			var rel: Vector3 = v - wanted.origin
+			var along: float = rel.dot(out)
+			if along > best and (rel - out * along).length_squared() < SURFACE_REACH * SURFACE_REACH:
+				best = along
+	return wanted.origin if best == -INF else wanted.origin + out * best
+
+
+## Mesh -> its vertices in skeleton space at rest, for every body sharing
+## the mesh: read once, not per unit.
+static var _rest_skin: Dictionary = {}
+
+
+## The vertices of every mesh skinned to `skeleton`, in skeleton space at
+## rest. A skinned vertex is drawn at bone pose * bind pose * vertex, so at
+## rest it is any bone's rest * its bind * vertex: the mesh instance's own
+## transform plays no part.
+func _skin_at_rest(skeleton: Skeleton3D) -> Array[PackedVector3Array]:
+	var found: Array[PackedVector3Array] = []
+	for mesh_instance: MeshInstance3D in find_children("*", "MeshInstance3D", true, false):
+		var mesh: Mesh = mesh_instance.mesh
+		var skin: Skin = mesh_instance.skin
+		if mesh == null or skin == null or skin.get_bind_count() == 0 or mesh_instance.get_node_or_null(mesh_instance.skeleton) != skeleton:
+			continue
+		var key: int = mesh.get_instance_id()
+		if not _rest_skin.has(key):
+			var bind_bone: int = skin.get_bind_bone(0)
+			if bind_bone == -1:
+				bind_bone = skeleton.find_bone(skin.get_bind_name(0))
+			if bind_bone == -1:
+				continue
+			var to_skeleton: Transform3D = skeleton.get_bone_global_rest(bind_bone) * skin.get_bind_pose(0)
+			var vertices := PackedVector3Array()
+			for surface in mesh.get_surface_count():
+				vertices.append_array(to_skeleton * (mesh.surface_get_arrays(surface)[Mesh.ARRAY_VERTEX] as PackedVector3Array))
+			_rest_skin[key] = vertices
+		found.append(_rest_skin[key])
+	return found
 
 
 func _find_skeleton(node: Node) -> Skeleton3D:
