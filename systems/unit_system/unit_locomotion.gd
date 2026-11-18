@@ -122,6 +122,11 @@ const FACING_SLOWEST := 0.05
 const UP_TO_SPEED := 0.98
 ## A clip's motion begins where it first goes this fast, m/s.
 const ONSET_SPEED := 0.3
+## A stop goes on under a new order whose route is no longer than this
+## share of the stop's ground still to cover, and that turns the way no more
+## than STAY_TURN: the stop is scaled onto the new end.
+const STAY_GROUND := 1.35
+const STAY_TURN := deg_to_rad(45.0)
 ## Crossfades: the walk or start from rest, a handover, into a stop, the idle.
 const BLEND_WALK_IN := 0.25
 const BLEND_START := 0.15
@@ -214,6 +219,10 @@ var _speed: float = 0.0
 var _ticked: int = -1
 ## A move ordered during a turn in place: it starts as the turn ends.
 var _go_after_turn: bool = false
+## Where a stop or turn comes to rest, if not the set's idle: called with a
+## blend, it plays the rest itself (a drawn weapon's guard) and returns
+## true, or returns false for the set's idle (UnitAnimator sets it).
+var rest: Callable
 
 
 func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: Node3D) -> void:
@@ -245,6 +254,12 @@ func drives() -> bool:
 	return state == State.TURNING or state == State.STARTING or state == State.MOVING or state == State.STOPPING
 
 
+## Whether a stop is carrying the unit onto its end (UnitMovement arrives
+## on the point itself then, not within its arrival tolerance).
+func lands() -> bool:
+	return state == State.STOPPING
+
+
 ## Whether a turn in place is turning the unit (UnitFacing keeps off it).
 func turning() -> bool:
 	return state == State.TURNING
@@ -257,6 +272,9 @@ func begin(route: float, first_leg: Vector3) -> void:
 		# run; otherwise on at the same gait.
 		if _loop == _set.walk and route >= (HELD_RUN_FROM if held else WALK_UNDER) and _set.jog != null:
 			_break_into_run()
+		elif state == State.STOPPING and _stop_takes(route, first_leg):
+			# Near enough the same end: the stop scales onto it.
+			return
 		elif state == State.STOPPING:
 			_play_loop(_loop, _playback.current_animation, _clip_t)
 		_last_gap = INF
@@ -272,6 +290,24 @@ func begin(route: float, first_leg: Vector3) -> void:
 	# Standing: under way now.
 	_v = 0.0
 	_start_moving(BLEND_START)
+
+
+## Whether the stop playing can land on a new end `route` metres off whose
+## way is `first_leg`: about as near as its own ground still to cover, and
+## about ahead.
+func _stop_takes(route: float, first_leg: Vector3) -> bool:
+	if held or _clip == null:
+		return false
+	var p: PackedFloat32Array = _progress_frames(_clip)
+	var still: float = p[p.size() - 1] * ARRIVED - _progress(_clip, _clip_t)
+	if still <= 1e-3 or route > still * STAY_GROUND:
+		return false
+	var facing: Vector3 = _unit.visual_forward()
+	facing.y = 0.0
+	var way := Vector3(first_leg.x, 0.0, first_leg.z)
+	if route < 0.05 or way.length_squared() < 1e-6 or facing.length_squared() < 1e-6:
+		return true
+	return facing.angle_to(way) <= STAY_TURN
 
 
 ## Standing, a turn of facing to `yaw`: a turn in place if it is TURN_FROM or
@@ -441,8 +477,9 @@ func finish() -> bool:
 			# The turn plays out into the idle.
 			return true
 		State.STARTING, State.MOVING:
-			# Cut short of a stop: back to the idle.
-			_playback.play(StringName(idle_clip()), BLEND_IDLE)
+			# Cut short of a stop: back to the rest.
+			if not _rest(BLEND_IDLE):
+				_playback.play(StringName(idle_clip()), BLEND_IDLE)
 			state = State.OFF
 			return true
 	return false
@@ -513,7 +550,12 @@ func _drops_to_walk(cap: float, v: float) -> bool:
 		return false
 	if not (_run_to_walk or held):
 		return false
-	return cap < _top and v <= (_top + _set.walk.speed) * 0.5
+	# At the geometric middle of the two stride warps' limits: the run
+	# warped no slower than STRIDE_LEAST and the walk no faster than
+	# STRIDE_MOST cannot both hold at any one speed (3.0 m/s and 2.46), so
+	# each is bent by the same ratio past its limit.
+	var hand: float = sqrt(_top * BodyFootLock.STRIDE_LEAST * _set.walk.speed * BodyFootLock.STRIDE_MOST)
+	return cap < _top and v <= hand
 
 
 # --- states -------------------------------------------------------------------
@@ -531,9 +573,7 @@ func _turning() -> void:
 		_go_after_turn = false
 		_start_moving(BLEND_START)
 		return
-	_playback.play(_set.idle.clip, BLEND_IDLE)
-	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
-	state = State.OFF
+	_settle_into_idle(t)
 
 
 ## The start at 1x, the unit going at its own speed on each frame. Up to the
@@ -693,9 +733,23 @@ func _hand_to_idle_near_end() -> void:
 	var t: float = _playback.current_animation_position
 	if t < _clip.length - BLEND_IDLE or _set.idle == null:
 		return
+	_settle_into_idle(t)
+
+
+## A stop or turn `t` seconds in, handed on to the rest: the unit's own (a
+## drawn weapon's guard), else the set's idle on the frame the clip leaves
+## it at.
+func _settle_into_idle(t: float) -> void:
+	state = State.OFF
+	if _rest(BLEND_IDLE) or _set.idle == null:
+		return
 	_playback.play(_set.idle.clip, BLEND_IDLE)
 	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
-	state = State.OFF
+
+
+## The unit's own rest, if it has one other than the set's idle.
+func _rest(blend: float) -> bool:
+	return rest.is_valid() and bool(rest.call(blend))
 
 
 ## A start or stop from `at` seconds, at 1x, timed by _clip_t.
@@ -839,7 +893,11 @@ func _plant_feet(plant: bool = true) -> void:
 	var clip: LocomotionClip = _loop if state == State.MOVING else _clip
 	if state == State.OFF and _set.idle != null and _playback.current_animation == _set.idle.clip:
 		clip = _set.idle
-	foot_lock.forward = _unit.visual_forward()
+	# The stride is warped along the way the unit goes, which leads its
+	# facing as it swings round.
+	var way: Vector3 = _unit.first_leg() if _unit.is_moving() else Vector3.ZERO
+	way.y = 0.0
+	foot_lock.forward = way.normalized() if way.length_squared() > 1e-6 else _unit.visual_forward()
 	# The loop plays at 1x while the unit goes at its own speed: the stride
 	# is warped to it. Starts and stops give the unit their own speed.
 	foot_lock.stride = _speed / _loop.speed if state == State.MOVING and _loop and _loop.speed > 0.1 else 1.0

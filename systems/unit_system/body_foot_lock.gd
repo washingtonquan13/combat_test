@@ -54,6 +54,8 @@ const SNAP_FROM := 0.7
 ## The leg is never drawn straighter than this share of its length.
 const REACH := 0.995
 ## The stride is warped no shorter or longer than these.
+## A pinned foot the leg falls this far short of, metres, is let go.
+const OUT_OF_REACH := 0.01
 const STRIDE_LEAST := 0.7
 const STRIDE_MOST := 1.5
 ## How fast (1/s) a weight comes up to what the clip marks (a cut between
@@ -193,10 +195,15 @@ func _lock(skeleton: Skeleton3D, i: int) -> void:
 	_solve(skeleton, bones, target)
 	var shown: Vector3 = to_world * skeleton.get_bone_global_pose(bones[2]).origin
 	miss[i] = shown.distance_to(held)
-	if _pinned[i] and miss[i] > 0.005:
-		# Out of reach: the pin goes to where the foot got to, so it is let
-		# go from there and does not drag the leg at full stretch.
-		_pin[i] = ankle_world + (shown - ankle_world) / maxf(w, 0.05)
+	if _pinned[i] and miss[i] > OUT_OF_REACH:
+		# Out of reach: let go from where the foot got to, as one left
+		# behind is, rather than the pin riding along with the leg at full
+		# stretch (re-placed there every frame, it slid with the body).
+		_pinned[i] = false
+		_held_off[i] = true
+		var off: Vector3 = shown - ankle_world
+		_break_left[i] = 1.0 if off.length() < SNAP_FROM else 0.0
+		_break_off[i] = off
 	pull[i] = Vector2(shown.x - ankle_world.x, shown.z - ankle_world.z).length()
 
 

@@ -247,6 +247,7 @@ func _ready() -> void:
 	playback = BodyAnimationTree.attach(animation_player)
 	if _locomotion_set:
 		locomotion = UnitLocomotion.new(unit, playback, _locomotion_set, animation_player.get_parent() as Node3D)
+		locomotion.rest = _rest_in_own
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
@@ -362,6 +363,18 @@ func _carry_stance() -> void:
 	playback.play_upper(hold, stance_blend_time)
 
 
+## Where locomotion's stops and turns come to rest (UnitLocomotion.rest):
+## the guard the upper body carries, else the stance's idle. Returns false
+## for the locomotion set's own idle, which locomotion plays on its frame.
+func _rest_in_own(blend: float) -> bool:
+	var clip: String = String(playback.upper_animation)
+	if clip == "" or clip != _armed_hold():
+		clip = _idle()
+	if clip == "" or clip == locomotion.idle_clip():
+		return false
+	return _play(clip, blend)
+
+
 ## The armed stance's held loop, or "" when nothing is armed.
 func _armed_hold() -> String:
 	return _armed_stance_clips[1] if _armed_stance_clips.size() > 1 else ""
@@ -380,14 +393,15 @@ func _on_movement_finished(_u: Unit) -> void:
 		return
 	if unit.posed_status:
 		return
-	# Stopping with the stance carried: the whole body takes the guard.
+	# The stop plays out with the stance carried on the upper body, and
+	# comes to rest in the guard (_rest_in_own).
+	if locomotion and locomotion.finish():
+		return
+	# Stopping with the stance carried and no stop: the whole body takes
+	# the guard.
 	var carried: String = String(playback.upper_animation)
 	if carried != "" and carried == _armed_hold():
-		if locomotion:
-			locomotion.abandon()
 		_play(carried, stance_blend_time)
-		return
-	if locomotion and locomotion.finish():
 		return
 	_play(_idle())
 

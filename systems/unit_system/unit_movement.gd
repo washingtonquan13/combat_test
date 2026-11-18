@@ -98,6 +98,9 @@ var _climb_up: bool = true
 ## The tolerance a climb point is reached within — tight, because the
 ## points are the corner of the landing, and arriving early cuts it.
 const CLIMB_ARRIVAL: float = 0.01
+## The tolerance the end is reached within while a stop lands the unit on
+## it (UnitLocomotion.lands): the stop's own last step puts it there.
+const LANDED: float = 0.005
 ## A surface facing up less than this needs holding on to. Steeper floors
 ## than the walkable limit count, so a crawler never slides off a ramp.
 const CLING_BELOW: float = 0.7
@@ -643,6 +646,10 @@ func _step(delta: float) -> void:
 	# A climb point is reached in 3D and almost exactly (CLIMB_ARRIVAL).
 	# Never onto a ladder someone else is on: the walk holds short.
 	var held: bool = _waiting_for_ladder()
+	# A stop landing the unit on its end (UnitLocomotion.lands) carries it
+	# onto the point itself: arriving within the tolerance cut it short.
+	var animator: UnitAnimator = _owner.animator()
+	var lands: bool = animator != null and animator.locomotion != null and animator.locomotion.lands()
 	while _path_index < _current_path.size():
 		if held and _path_index + 1 >= _climb_first:
 			break
@@ -650,7 +657,12 @@ func _step(delta: float) -> void:
 		var climb_point: bool = _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
 		if not flying and not climb_point and not crawling:
 			to_waypoint.y = 0.0
-		if to_waypoint.length() > (CLIMB_ARRIVAL if climb_point else _owner.arrival_tolerance):
+		var tolerance: float = _owner.arrival_tolerance
+		if climb_point:
+			tolerance = CLIMB_ARRIVAL
+		elif lands and _path_index == _current_path.size() - 1:
+			tolerance = LANDED
+		if to_waypoint.length() > tolerance:
 			break
 		_path_index += 1
 
