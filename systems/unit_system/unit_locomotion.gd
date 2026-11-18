@@ -890,6 +890,7 @@ func _plant_feet(plant: bool = true) -> void:
 		foot_lock.right_plant = 0.0
 		foot_lock.stride = 1.0
 		return
+	foot_lock.ground_y = _unit.global_position.y
 	var clip: LocomotionClip = _loop if state == State.MOVING else _clip
 	if state == State.OFF and _set.idle != null and _playback.current_animation == _set.idle.clip:
 		clip = _set.idle

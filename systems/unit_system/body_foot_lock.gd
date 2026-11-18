@@ -27,9 +27,20 @@ extends SkeletonModifier3D
 ## on a move it does not show), the weights ease to 0 and the stride to 1
 ## by themselves, so a pin is never left holding a foot in the world.
 ##
-## The foot keeps its animated orientation; only where it is changes. The
-## knee bends in the plane the animation gives it (hip, knee, ankle), so the
-## knee points where the clip points it.
+## The foot keeps its animated orientation, tilted onto the ground as it
+## is planted (TILT_MOST at most). The knee bends in the plane the animation
+## gives it (hip, knee, ankle), so the knee points where the clip points it.
+##
+## THE GROUND. The clips are made on flat ground; the unit stands on the
+## ground under its middle (`ground_y`, which UnitLocomotion feeds with the
+## plants). Each physics frame a ray finds the ground under each foot, and
+## the foot is carried up or down by how far that is from `ground_y`: a
+## step keeps its height over the ground it is over, and a pin is taken on
+## the ground the foot comes down on. The hips come down by the lower
+## foot's drop (HIPS_DROP at most), so the downhill leg reaches its ground
+## rather than hanging by stride x slope. A ground further than STEP_MOST
+## off, or steeper than GROUND_STEEPEST, is not stood on and counts as flat.
+## Like the plants, the ground goes stale: unfed, the drops ease back to 0.
 ##
 ## WHERE IT RUNS. After BodyInertia and BodyFlinch, before BodyTurnLead and
 ## the gaze: it pins the pose the body is actually showing, inertia and all,
@@ -62,6 +73,19 @@ const STRIDE_MOST := 1.5
 ## clips does not jerk the leg).
 const RATE := 25.0
 const STRIDE_RATE := 20.0
+## The ground under a foot (see THE GROUND): how far up and down it is
+## looked for and stood on (m), the steepest that counts (cos of the angle
+## off level), how far the hips come down at most (m), how far a planted
+## foot tilts at most (rad), and how fast (1/s) the feet's drops and the
+## hips' follow it (the hips slower, so they settle rather than bob a step).
+const STEP_MOST := 0.45
+const GROUND_STEEPEST := 0.6
+const HIPS_DROP := 0.3
+const TILT_MOST := deg_to_rad(30.0)
+const GROUND_RATE := 18.0
+const HIPS_RATE := 6.0
+## The layer the ground is on (CrawlPose's surfaces).
+const GROUND_MASK: int = CrawlPose.SURFACE_COLLISION_MASK
 
 ## How planted each foot is, as the playing clip marks it. Setting one
 ## stamps the physics frame (see stale plants, above).
@@ -80,6 +104,18 @@ var _fed: int = -1
 var stride: float = 1.0
 var forward: Vector3 = Vector3.FORWARD
 var _stride: float = 1.0
+## The height (world) of the ground the unit stands on, fed with the plants.
+var ground_y: float = NAN
+## Per leg: where the ankle was shown last frame (world; where the next ray
+## looks), the ground's height over ground_y and its normal there as the
+## ray found them, and both eased.
+var _ankle_at := [Vector3.INF, Vector3.INF]
+var _ground_want := [0.0, 0.0]
+var _normal_want := [Vector3.UP, Vector3.UP]
+var _ground := [0.0, 0.0]
+var _normal := [Vector3.UP, Vector3.UP]
+## How far the hips are brought down (m, <= 0), eased.
+var _drop: float = 0.0
 var _hips: int = -1
 ## Per leg: [upper, lower, foot] bone indices (empty on a rig lacking one).
 var _legs: Array = []
@@ -138,6 +174,11 @@ func release() -> void:
 	_held_off = [false, false]
 	stride = 1.0
 	_stride = 1.0
+	_ground = [0.0, 0.0]
+	_ground_want = [0.0, 0.0]
+	_normal = [Vector3.UP, Vector3.UP]
+	_normal_want = [Vector3.UP, Vector3.UP]
+	_drop = 0.0
 
 
 func _process(delta: float) -> void:
@@ -150,12 +191,52 @@ func _process(delta: float) -> void:
 	_stride = lerpf(_stride, want, 1.0 - exp(-STRIDE_RATE * delta))
 	for i in 2:
 		_break_left[i] = maxf(0.0, _break_left[i] - delta / BREAK_EASE)
+	var g: float = 1.0 - exp(-GROUND_RATE * delta)
+	for i in 2:
+		_ground[i] = lerpf(_ground[i], _ground_want[i] if fresh else 0.0, g)
+		_normal[i] = (_normal[i] as Vector3).lerp(_normal_want[i] if fresh else Vector3.UP, g).normalized()
+	var lowest: float = clampf(minf(minf(_ground[0], _ground[1]), 0.0), -HIPS_DROP, 0.0)
+	_drop = lerpf(_drop, lowest, 1.0 - exp(-HIPS_RATE * delta))
+
+
+## The ground under each foot, looked for where it was shown last frame.
+func _physics_process(_delta: float) -> void:
+	var fresh: bool = Engine.get_physics_frames() - _fed <= 1
+	for i in 2:
+		_ground_want[i] = 0.0
+		_normal_want[i] = Vector3.UP
+		if not fresh or is_nan(ground_y) or not (_ankle_at[i] as Vector3).is_finite():
+			continue
+		var at: Vector3 = _ankle_at[i]
+		var hit: Dictionary = _ground_ray(Vector3(at.x, ground_y + STEP_MOST, at.z),
+				Vector3(at.x, ground_y - STEP_MOST, at.z))
+		if hit.is_empty() or (hit.normal as Vector3).y < GROUND_STEEPEST:
+			continue
+		_ground_want[i] = (hit.position as Vector3).y - ground_y
+		_normal_want[i] = hit.normal
+
+
+## The first ground (not a unit) between `from` and `to`.
+func _ground_ray(from: Vector3, to: Vector3) -> Dictionary:
+	if not is_inside_tree():
+		return {}
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, to, GROUND_MASK)
+	var exclude: Array[RID] = []
+	for _try in 4:
+		query.exclude = exclude
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty() or not (hit.collider is Unit):
+			return hit
+		exclude.append(hit.rid)
+	return {}
 
 
 func _process_modification() -> void:
 	var skeleton: Skeleton3D = get_skeleton()
 	if skeleton == null:
 		return
+	_lower_hips(skeleton)
 	for i in 2:
 		pull[i] = 0.0
 		miss[i] = 0.0
@@ -164,12 +245,26 @@ func _process_modification() -> void:
 		_lock(skeleton, i)
 
 
+## The hips brought down by _drop, world up.
+func _lower_hips(skeleton: Skeleton3D) -> void:
+	if _hips == -1 or absf(_drop) < 0.001:
+		return
+	var down: Vector3 = skeleton.global_basis.inverse() * Vector3(0.0, _drop, 0.0)
+	var at: Vector3 = skeleton.get_bone_global_pose(_hips).origin + down
+	var parent: int = skeleton.get_bone_parent(_hips)
+	if parent != -1:
+		at = skeleton.get_bone_global_pose(parent).affine_inverse() * at
+	skeleton.set_bone_pose_position(_hips, at)
+
+
 func _lock(skeleton: Skeleton3D, i: int) -> void:
 	var bones: Array = _legs[i]
 	var w: float = _weight[i]
 	var to_world: Transform3D = skeleton.global_transform
 	var ankle: Vector3 = _warped(skeleton, skeleton.get_bone_global_pose(bones[2]).origin)
-	var ankle_world: Vector3 = to_world * ankle
+	# Onto the ground under the foot: up or down by its height over the
+	# unit's, less the drop the leg already carries from the hips.
+	var ankle_world: Vector3 = to_world * ankle + Vector3(0.0, _ground[i] - _drop, 0.0)
 	var held: Vector3 = ankle_world
 	if w < LET_GO:
 		_pinned[i] = false
@@ -189,11 +284,15 @@ func _lock(skeleton: Skeleton3D, i: int) -> void:
 		held = ankle_world.lerp(_pin[i], w)
 	elif _break_left[i] > 0.0:
 		held = ankle_world + (_break_off[i] as Vector3) * smoothstep(0.0, 1.0, _break_left[i])
-	if not _pinned[i] and _break_left[i] <= 0.0 and absf(_stride - 1.0) < 0.005:
+	var grounded: bool = absf(_ground[i] - _drop) > 0.002 or (_normal[i] as Vector3).y < 0.9995
+	if not _pinned[i] and _break_left[i] <= 0.0 and absf(_stride - 1.0) < 0.005 and not grounded:
+		_ankle_at[i] = ankle_world
 		return
 	var target: Vector3 = to_world.affine_inverse() * held
 	_solve(skeleton, bones, target)
+	_tilt(skeleton, bones, i, w)
 	var shown: Vector3 = to_world * skeleton.get_bone_global_pose(bones[2]).origin
+	_ankle_at[i] = shown
 	miss[i] = shown.distance_to(held)
 	if _pinned[i] and miss[i] > OUT_OF_REACH:
 		# Out of reach: let go from where the foot got to, as one left
@@ -205,6 +304,26 @@ func _lock(skeleton: Skeleton3D, i: int) -> void:
 		_break_left[i] = 1.0 if off.length() < SNAP_FROM else 0.0
 		_break_off[i] = off
 	pull[i] = Vector2(shown.x - ankle_world.x, shown.z - ankle_world.z).length()
+
+
+## The foot `bones[2]` tilted onto the ground's normal by `w` (how planted
+## it is), TILT_MOST at most.
+func _tilt(skeleton: Skeleton3D, bones: Array, i: int, w: float) -> void:
+	var n: Vector3 = _normal[i]
+	if w <= 0.0 or n.y >= 0.9995:
+		return
+	var inv: Basis = skeleton.global_basis.orthonormalized().inverse()
+	var up: Vector3 = (inv * Vector3.UP).normalized()
+	var to: Vector3 = (inv * n).normalized()
+	var angle: float = minf(up.angle_to(to), TILT_MOST) * w
+	var axis: Vector3 = up.cross(to)
+	if axis.length_squared() < 1e-10 or angle < 1e-4:
+		return
+	var foot: int = bones[2]
+	var lower_g: Basis = skeleton.get_bone_global_pose(bones[1]).basis.orthonormalized()
+	var foot_g: Basis = skeleton.get_bone_global_pose(foot).basis.orthonormalized()
+	var tilted := Basis(Quaternion(axis.normalized(), angle)) * foot_g
+	skeleton.set_bone_pose_rotation(foot, (lower_g.inverse() * tilted).get_rotation_quaternion())
 
 
 ## The ankle `at` (skeleton space) with the stride warped: its distance
