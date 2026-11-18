@@ -1,61 +1,66 @@
 extends AiTestCase
-## The city overworld stands on its imported model: the street under the
-## start spawn and an elevated expressway both stop a ray dropped from the
-## sky, and what stops it is the city glb's own collision.
+## The Morrow overworld stands on solid ground: a ray dropped from the sky
+## lands on the floor at the start spawn, on a roof downtown, on a tree in
+## the Greywood, and the map's edge is walled.
 ##
 ## The other overworld suites load this scene but never touch its ground,
-## so they stay green with the city taken out of it. This suite does not.
-## The city is world/city_overworld/city.tscn, its parts city_N.glb, written by
-## tools/blockout/city_gltf.py, made solid by Godot's import through the
-## glTF "-col" and "-colonly" node suffixes.
+## so they stay green with the ground taken out of it. This suite does not.
+## The map is world/morrow_overworld.tscn, written by
+## tools/blockout/morrow_overworld.py. The building and the tree are read
+## from the scene's own collision shapes (not its MultiMeshes, which the
+## headless renderer leaves empty), so a regenerated map needs no new
+## coordinates here.
 
-const SCENE := "res://world/city_overworld.tscn"
-## Above everything in New Orleans.
+const SCENE := "res://world/morrow_overworld.tscn"
+## Above every roof in Morrow.
 const SKY: float = 400.0
-## The street slab under the start spawn is the top of Floor, at y = 0.
-const START_XZ := Vector2(-3071.37, 2443.99)
-## The I-10 motorway at the Pontchartrain Expressway interchange,
-## measured by LiDAR at 13.31 m (way 607711821).
-const DECK_XZ := Vector2(-4630.8, 2956.55)
-const DECK_HEIGHT: float = 13.31
+## The map is lifted clear of the test runner's own floor at y 0.
+const LIFT: float = 100.0
 
 
 func run() -> void:
 	var area: Node3D = load(SCENE).instantiate()
 	# The ground is the subject, not the overworld's avatar and camera.
 	area.set_script(null)
+	area.position.y = LIFT
 	_root.add_child(area)
 	await get_tree().physics_frame
 	await get_tree().physics_frame
-	var city: Node = area.get_node_or_null("CityGeometry")
-	check("the overworld instances the city model", city != null and city.scene_file_path.ends_with("city.tscn"),
-		"CityGeometry is %s" % (city.scene_file_path if city else "missing"))
-	if city == null:
-		area.free()
-		return
-	var bodies := city.find_children("*", "StaticBody3D", true, false)
-	check("the import made the city solid", bodies.size() > 0, "%d static bodies" % bodies.size())
 
-	var street := _drop(area, START_XZ)
-	check("a ray at the start spawn lands on the city", _is_city(city, street), _say(street))
+	var start: Node3D = area.get_node(^"SpawnPoints/Start")
+	var street := _drop(area, start.global_position.x, start.global_position.z)
+	check("a ray at the start spawn lands on the floor", _under(area, ^"Ground", street), _say(street))
 	if not street.is_empty():
-		check("and on the street, at y 0", absf(street.position.y) < 0.6, _say(street))
+		check("and the floor is at y 0", absf(street.position.y - LIFT) < 0.2, _say(street))
 
-	var deck := _drop(area, DECK_XZ)
-	check("a ray at the interchange lands on the city", _is_city(city, deck), _say(deck))
-	if not deck.is_empty():
-		check("and on the deck, at its LiDAR height", absf(deck.position.y - DECK_HEIGHT) < 2.0, _say(deck))
+	var block: CollisionShape3D = area.get_node(^"Buildings/Solid/Box0")
+	var at := block.global_position
+	var roof := _drop(area, at.x, at.z)
+	check("a ray on a building lands on its solid", _under(area, ^"Buildings/Solid", roof), _say(roof))
+	if not roof.is_empty():
+		var top := at.y + (block.shape as BoxShape3D).size.y * 0.5
+		check("at its roof", absf(roof.position.y - top) < 0.5, "%s, roof at %.1f" % [_say(roof), top])
+
+	var tree: Node3D = area.get_node(^"Wilds/TreeTrunks/Trunk0")
+	var trunk := _drop(area, tree.global_position.x, tree.global_position.z)
+	check("a ray on a tree lands on its trunk", _under(area, ^"Wilds/TreeTrunks", trunk), _say(trunk))
+
+	var edge := area.get_node_or_null(^"Edge") as StaticBody3D
+	check("the map's edge is walled", edge != null and edge.get_child_count() == 4,
+		"%d wall(s)" % (edge.get_child_count() if edge else 0))
 	area.free()
 
 
-func _drop(area: Node3D, xz: Vector2) -> Dictionary:
-	var from := Vector3(xz.x, SKY, xz.y)
+func _drop(area: Node3D, x: float, z: float) -> Dictionary:
+	var from := Vector3(x, SKY + LIFT, z)
 	var query := PhysicsRayQueryParameters3D.create(from, from - Vector3(0.0, SKY + 50.0, 0.0))
 	return area.get_world_3d().direct_space_state.intersect_ray(query)
 
 
-func _is_city(city: Node, hit: Dictionary) -> bool:
-	return not hit.is_empty() and city.is_ancestor_of(hit.collider)
+func _under(area: Node3D, path: NodePath, hit: Dictionary) -> bool:
+	var owner_node := area.get_node_or_null(path)
+	return not hit.is_empty() and owner_node != null \
+		and (hit.collider == owner_node or owner_node.is_ancestor_of(hit.collider))
 
 
 func _say(hit: Dictionary) -> String:

@@ -10,38 +10,24 @@ extends AiTestCase
 ## picked a district. The label lives in MainRoot, which tests do not
 ## load, so the same nodes are built here with its script.
 ##
-## The districts are world/city_overworld.tscn's Districts node, written
-## by tools/blockout/districts.py and edited by hand from there.
+## The districts are world/morrow_overworld.tscn's Districts node, written
+## by tools/blockout/morrow_overworld.py: nested squares, smallest wins.
 
 const HOME := &"test_arena"
 const OVERWORLD := &"overworld"
-## Arriving through the overworld's door back to the arena, Congo Square,
-## which the generator gave to the French Quarter.
-const ARRIVAL_NAME := "French Quarter"
-## Inside the CBD, well away from its borders.
-const ELSEWHERE := Vector3(-4238.1, 0.5, 3390.3)
-const ELSEWHERE_NAME := "CBD"
+## Arriving through the overworld's door back to the arena, the Arena Gate
+## just off the town square.
+const ARRIVAL_NAME := "Downtown Morrow"
+## On the north trail, deep in the woods.
+const ELSEWHERE := Vector3(0.0, 0.5, -700.0)
+const ELSEWHERE_NAME := "Greywood"
 
-## A point well inside each district on the live map, from the
-## generator's own districts.json. If the borders are moved by hand,
-## these may need moving with them.
+## A point well inside each district, on a road or trail so nothing stands
+## there. If the generator's district sizes change, these may move with them.
 const INTERIOR := {
-	"French Quarter": Vector3(-3174.8, 0.5, 2131.4),
-	"CBD": Vector3(-4238.1, 0.5, 3390.3),
-	"Marigny and Bywater": Vector3(-1857.2, 0.5, 1339.2),
-	"Garden District": Vector3(-4249.5, 0.5, 5494.2),
-	"Uptown and Audubon": Vector3(-7128.8, 0.5, 4988.1),
-	"Carrollton and Riverbend": Vector3(-7454.1, 0.5, 2401.6),
-	"Mid-City": Vector3(-6123.7, 0.5, 1246.8),
-	"Bayou St. John": Vector3(-4070.2, 0.5, 315.8),
-	"Lakeview": Vector3(-6318.5, 0.5, -3553.3),
-	"Algiers Point": Vector3(-1651.3, 0.5, 4046.3),
-	"Holy Cross": Vector3(59.0, 0.5, 2606.5),
-	"Gentilly": Vector3(-2321.6, 0.5, -3382.4),
-	"Lower Ninth Ward": Vector3(2646.4, 0.5, 861.4),
-	"Lake Forest": Vector3(1836.2, 0.5, -4007.1),
-	"Village de l'Est": Vector3(6445.3, 0.5, -2412.1),
-	"Lower Algiers": Vector3(3617.6, 0.5, 5235.9),
+	"Downtown Morrow": Vector3(0.0, 0.5, 120.0),
+	"Morrow Outskirts": Vector3(0.0, 0.5, 340.0),
+	"Greywood": Vector3(700.0, 0.5, 0.0),
 }
 
 var _host: Control

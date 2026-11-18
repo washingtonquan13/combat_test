@@ -10,6 +10,13 @@
 
 WorldManager internals (residency, focus, teardown) are documented in world.md.
 
+**The overworld map (11-18).** `data/areas/overworld.tres` points at `world/morrow_overworld.tscn`, a grey-box written by `tools/blockout/morrow_overworld.py` (seeded; rerun it rather than hand-editing the scene). The map is 1.6 km square:
+- **Districts** (nested squares, smallest wins in `overworld.gd` `_district_at`): Downtown Morrow, Morrow Outskirts, Greywood.
+- **Doors** (`SpawnPoints/*`, AreaExit children): CathedralSteps → cathedral_of_shadows, ArenaGate → test_arena, MarketHall → test_area_2, OldDocks → test_area_3, OldQuarry → goblin_quarry (in a Greywood clearing).
+- **SafeSpot:** the Inn plate just east of the square. Nothing reads it yet; the rest system will.
+- **Collision:** a floor slab with its top at y 0, one box per building, one cylinder per tree trunk, the lake as a cylinder, and walls at the map edge.
+- The New Orleans map (`world/city_overworld*`, `city_geometry.gd`) is no longer referenced but has not been deleted.
+
 **Autoloads owned:** DebugSpawner (project.godot autoload list).
 
 ## Purpose
