@@ -2,7 +2,9 @@ extends SceneTree
 
 # Lands the Mixamo clips (tools/locomotion/takes/mixamo.glb, made by
 # tools/locomotion/mixamo_retarget.py) in the humanoid locomotion set: the
-# idle (Standing Idle), walk, run, turns in place, walk start and the walk
+# idle (Motifect's idle_neutral since 2026-11-18, from
+# tools/locomotion/takes/motifect.glb, made by the same script with
+# MOTIFECT=1), walk, run, turns in place, walk start and the walk
 # and run stops in assets/locomotion_animations.tres and
 # data/locomotion/humanoid.tres. The stops replace author_gait.gd's (whose
 # clips are taken out of the library); the run start, jog and turning loops
@@ -46,6 +48,8 @@ extends SceneTree
 const ClipScript := preload("res://systems/unit_system/locomotion_clip.gd")
 
 const TAKES := "res://tools/locomotion/takes/mixamo.glb"
+## The idle's take: Motifect's idle_neutral, on the same skeleton.
+const IDLE_TAKES := "res://tools/locomotion/takes/motifect.glb"
 const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
 const LIBRARY_PATH := "res://assets/locomotion_animations.tres"
 const SET_PATH := "res://data/locomotion/humanoid.tres"
@@ -96,9 +100,7 @@ func _land() -> void:
 	_basis = hero.global_transform.basis
 	var takes: Node3D = (load(TAKES) as PackedScene).instantiate()
 	root.add_child(takes)
-	_skeleton = takes.find_child("GeneralSkeleton", true, false)
-	_player = takes.find_children("*", "AnimationPlayer", true, false)[0]
-	_hips = _skeleton.find_bone("Hips")
+	_use(takes)
 	if not _same_rest(hero):
 		quit(1)
 		return
@@ -106,7 +108,14 @@ func _land() -> void:
 	var library: AnimationLibrary = load(LIBRARY_PATH)
 	var set: Resource = load(SET_PATH)
 	print("\nLOOPS")
+	var idle_takes: Node3D = (load(IDLE_TAKES) as PackedScene).instantiate()
+	root.add_child(idle_takes)
+	_use(idle_takes)
+	if not _same_rest(hero):
+		quit(1)
+		return
 	set.idle = _bake(library, "idle", "idle")
+	_use(takes)
 	set.walk = _bake(library, "walk", "straight")
 	set.run = _bake(library, "run", "straight")
 	print("\nTURNS")
@@ -156,6 +165,13 @@ FOOT PLANTS")
 		err = ResourceSaver.save(set, SET_PATH)
 		print("%s: %s" % [SET_PATH, error_string(err)])
 	quit(0 if err == OK else 1)
+
+
+## Bake from `takes`' skeleton and player.
+func _use(takes: Node3D) -> void:
+	_skeleton = takes.find_child("GeneralSkeleton", true, false)
+	_player = takes.find_children("*", "AnimationPlayer", true, false)[0]
+	_hips = _skeleton.find_bone("Hips")
 
 
 func _same_rest(hero: Skeleton3D) -> bool:

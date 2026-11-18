@@ -1,5 +1,5 @@
 extends "res://tools/fog_cloud_demo.gd"
-## Recorded showcase of the hero's locomotion - NOT a test. Standing Idle,
+## Recorded showcase of the hero's locomotion - NOT a test. The idle,
 ## the turns in place standing, a short move behind (under way at once,
 ## swinging round as it steps off), a walk that a click further on breaks
 ## into the run, and a run sent back the other way. Prints how soon each
@@ -24,7 +24,7 @@ func _run() -> void:
 	_follow(4.5)
 	await _wait(1.5)
 
-	_say("Standing Idle")
+	_say("Idle (Motifect idle_neutral)")
 	await _wait(3.0)
 	_say("Turn in place, 90 left (standing)")
 	await _face(-right, 2.5)

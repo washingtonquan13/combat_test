@@ -73,6 +73,33 @@ if LADDER:
         "ladder_top": (LADDER_DIR + "Climbing To Top", False),
     }
 
+# MOTIFECT=1: the Motifect locomotion pack's BVH takes instead (Motifect AI,
+# free for commercial use, raw files not to be redistributed), into their own
+# glb: the game's idle (idle_neutral) since 2026-11-18. Its skeleton rests in a T like Mixamo's but
+# names its bones its own way, so each is renamed to its Mixamo twin on import
+# (MOTIFECT_NAMES) and the retarget below runs unchanged. Its hands have a
+# metacarpal before each finger (Index1..4), which Mixamo has not: the
+# knuckle is its Index2. The jaw, eyes, second neck bone and metacarpals have
+# no Mixamo twin and are left out; the bones below them keep their own turn
+# in the world, so nothing downstream moves.
+MOTIFECT = os.environ.get("MOTIFECT") == "1"
+MOTIFECT_NAMES = {"Hips": "Hips", "Spine1": "Spine", "Spine2": "Spine1", "Chest": "Spine2",
+                  "Neck1": "Neck", "Head": "Head", "HeadEnd": "HeadTop_End"}
+for _s in ("Left", "Right"):
+    MOTIFECT_NAMES.update({_s + n: _s + n for n in ("Shoulder", "Arm", "ForeArm", "Hand", "Foot", "ToeBase")})
+    MOTIFECT_NAMES.update({_s + "Leg": _s + "UpLeg", _s + "Shin": _s + "Leg", _s + "ToeEnd": _s + "Toe_End"})
+    for i in (1, 2, 3):
+        MOTIFECT_NAMES[_s + "HandThumb%d" % i] = _s + "HandThumb%d" % i
+    MOTIFECT_NAMES[_s + "HandThumbEnd"] = _s + "HandThumb4"
+    for fing in ("Index", "Middle", "Ring", "Pinky"):
+        for i in (2, 3, 4):
+            MOTIFECT_NAMES[_s + "Hand%s%d" % (fing, i)] = _s + "Hand%s%d" % (fing, i - 1)
+        MOTIFECT_NAMES[_s + "Hand%sEnd" % fing] = _s + "Hand%s4" % fing
+if MOTIFECT:
+    OUT = os.path.join(HERE, "takes", "motifect.glb")
+    MOTIFECT_DIR = os.environ.get("MOTIFECT_DIR", "D:/ai_motion/motifect/BVH/")
+    CLIPS = {"idle": (MOTIFECT_DIR + "idle_neutral", False)}
+
 P = "mixamorig:"
 # the child that sets a bone's direction where it has several (or none, in the target)
 AIM = {"Hips": "Spine", "Spine2": "Neck", "LeftHand": "LeftHandMiddle1", "RightHand": "RightHandMiddle1",
@@ -132,14 +159,23 @@ FLIP4 = Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
 
 def retarget(fbx, action, mirror=False):
     before, acts = set(bpy.data.objects), set(bpy.data.actions)
-    bpy.ops.import_scene.fbx(filepath=fbx, automatic_bone_orientation=False, ignore_leaf_bones=False)
+    if MOTIFECT:
+        bpy.ops.import_anim.bvh(filepath=fbx, global_scale=0.01, use_fps_scale=False, update_scene_fps=False)
+    else:
+        bpy.ops.import_scene.fbx(filepath=fbx, automatic_bone_orientation=False, ignore_leaf_bones=False)
     new = [o for o in bpy.data.objects if o not in before]
     src = next(o for o in new if o.type == 'ARMATURE')
+    if MOTIFECT:                                 # Mixamo's names; the bones with no twin set apart
+        for b in list(src.data.bones):
+            b.name = P + MOTIFECT_NAMES.get(b.name, "unused_" + b.name)
     s_rest = {b.name: src.matrix_world @ b.matrix_local for b in src.data.bones}
     aim = {b.name: aim_of(b.name, [c.name for c in b.children]) for b in src.data.bones}
     T = laid_rest(s_rest, aim)
     s_inv = {n: m.to_3x3().normalized().inverted() for n, m in s_rest.items()}
-    scale = REST["Hips"].translation.z / s_rest[P + "Hips"].translation.z
+    # A BVH rests its hips at the origin and its feet below it: its leg is
+    # measured down to the toe tip, which a Mixamo T stands on the ground.
+    floor = s_rest[P + "LeftToe_End"].translation.z if MOTIFECT else 0.0
+    scale = REST["Hips"].translation.z / (s_rest[P + "Hips"].translation.z - floor)
     side = s_rest[P + "LeftUpLeg"].translation - s_rest[P + "RightUpLeg"].translation
     assert not mirror or abs(side.x) > 10 * max(abs(side.y), abs(side.z)), "the source's side is not along x"
 
@@ -241,7 +277,7 @@ def measure(out, src_dirs, aim, frames, T):
 
 
 for name, (fbx, mirror) in CLIPS.items():
-    print("CLIP %-11s %s" % (name, retarget(fbx + ".fbx", name, mirror)))
+    print("CLIP %-11s %s" % (name, retarget(fbx + (".bvh" if MOTIFECT else ".fbx"), name, mirror)))
 A.animation_data.action = None
 for b in A.pose.bones:
     b.rotation_quaternion = (1, 0, 0, 0)
