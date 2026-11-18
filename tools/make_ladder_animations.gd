@@ -1,5 +1,8 @@
 extends SceneTree
 
+# SUPERSEDED 2026-11-18 by tools/locomotion/land_ladder.gd (Mixamo's ladder
+# takes, held on the rungs by LadderGrip). Running this overwrites them.
+#
 # Generates assets/ladder_animations.tres: the ladder climb, cut from CMU
 # motion capture (mocap.cs.cmu.edu, subject 14, take 35, "climb ladder").
 # The take is converted ASF/AMC -> BVH -> GLB outside the project and

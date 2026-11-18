@@ -53,11 +53,12 @@ extends Node3D
 @export var required_move: float = 0.0
 
 ## Climbing speed in m/s, along UnitMovement's route (the climb is part
-## of the move, see _ladder_route there). A real climber manages ~0.5,
-## the CMU capture behind the climb clip 0.2; 0.75 is a brisk scramble
-## (the clip at ~3.7x, a rung every 0.36 s) and a 6 m ladder in 8 s. The
-## clip's rate follows this, so any value keeps hands and feet in step.
-@export var climb_speed: float = 0.75
+## of the move, see _ladder_route there). 0, the default, is the climb
+## clip's own pace (natural_climb_speed: the Mixamo take's, ~0.64 m/s, a
+## rung every 0.38 s), so it plays at 1x. The clip's rate follows any other
+## value, so hands and feet stay in step; LadderGrip holds them on the
+## rungs. The climb over the top always plays at 1x (UnitMovement).
+@export var climb_speed: float = 0.0
 
 ## One climber at a time: the last unit to step onto the rungs. Never
 ## released explicitly — a holder that has stepped off, died or been freed
@@ -71,9 +72,8 @@ const WAIT_DISTANCE: float = 1.2
 
 
 ## How far in front of the climb line (the base marker's XZ, where the
-## unit's origin travels) the rungs sit: where the climb clip's toes and
-## leading hand land (tools/make_ladder_animations.gd stands the capture
-## upright so they share one plane), the body upright behind it.
+## unit's origin travels) the rungs sit: where the climb clips' toes stand
+## (tools/locomotion/land_ladder.gd bakes them this far ahead of the root).
 const RUNG_OFFSET: float = 0.15
 ## Half the ladder's width: the clip's trailing hand grips a rail ~0.4
 ## out from the climb line (the captured ladder was wide).
@@ -83,12 +83,15 @@ const RAIL_HALF_SPAN: float = 0.38
 ## through rails.
 const RAIL_ABOVE_TOP: float = 0.0
 ## The rungs end this many below the landing: from there the climb-over
-## (Climb_Over_Top, tools/anim_lab/ladder_blocking.gd) takes the climber
-## up and onto it, hands flat on the floor, a knee over the edge.
+## (Climb_Over_Top) takes the climber up and onto it. The fallback for a
+## clip without its "over_rungs" metadata (over_rungs()); the Mixamo one
+## (tools/locomotion/land_ladder.gd) climbs 6. tools/anim_lab's blocking
+## still reads this one.
 const OVER_RUNGS: float = 3.0
 ## How far onto the landing, from the climb line, the climb-over ends
 ## standing — the clip's root motion runs stop -> elbow -> off
-## (climb_waypoints) and is baked out of its hips to match.
+## (climb_waypoints) and is baked out of its hips to match. The fallback
+## for a clip without its "over_reach" metadata (over_reach()).
 const OVER_REACH: float = 1.0
 
 var _built_key: Array = []
@@ -115,12 +118,67 @@ func facing() -> Vector3:
 	return forward.normalized() if forward.length() > 0.01 else Vector3.FORWARD
 
 
-## Rung spacing is the climb clip's own rise per cycle, so the feet land
-## on rungs at climb_speed (UnitAnimator plays it to that rise).
+## Rung spacing is the climb clip's own: its "rung" metadata, half a
+## cycle's rise (a step of each foot), or a whole rise for a clip that
+## climbs a rung a cycle and says only that. UnitAnimator plays it to the
+## rise, so the feet land on rungs at any climb speed.
 static func rung_spacing() -> float:
+	var clip: Animation = _clip("Climb_Up")
+	if clip == null:
+		return 0.28
+	return float(clip.get_meta("rung", clip.get_meta("rise", 0.28)))
+
+
+## How many rungs below the landing the climb over the top starts.
+static func over_rungs() -> float:
+	var clip: Animation = _clip("Climb_Over_Top")
+	return float(clip.get_meta("over_rungs", OVER_RUNGS)) if clip else OVER_RUNGS
+
+
+## How far onto the landing the climb over the top ends standing.
+static func over_reach() -> float:
+	var clip: Animation = _clip("Climb_Over_Top")
+	return float(clip.get_meta("over_reach", OVER_REACH)) if clip else OVER_REACH
+
+
+## The climb over the top's own length (s): UnitMovement takes its two
+## legs in this, so it plays at 1x.
+static func over_seconds() -> float:
+	var clip: Animation = _clip("Climb_Over_Top")
+	return clip.length if clip else 0.0
+
+
+## The climb clip's own pace (m/s): a cycle's rise in a cycle.
+static func natural_climb_speed() -> float:
+	var clip: Animation = _clip("Climb_Up")
+	if clip == null or clip.length <= 0.0:
+		return 0.75
+	return float(clip.get_meta("rise", 0.3)) / clip.length
+
+
+## The speed this ladder is climbed at (m/s): climb_speed, or the clip's
+## own pace when that is 0.
+func speed() -> float:
+	return climb_speed if climb_speed > 0.0 else natural_climb_speed()
+
+
+## The world heights of the rungs, top first, as _build lays them.
+func rung_heights() -> PackedFloat32Array:
+	var base_node := get_node_or_null(base_marker) as Node3D
+	var top_node := get_node_or_null(top_marker) as Node3D
+	var base_local: Vector3 = base_node.position if base_node else Vector3.ZERO
+	var top_local: Vector3 = top_node.position if top_node else Vector3.UP * 4.0
+	var spacing: float = rung_spacing()
+	var height: float = top_local.y - base_local.y
+	var out := PackedFloat32Array()
+	for i in range(1, floori((height - 0.05) / spacing) + 1):
+		out.append(to_global(Vector3(base_local.x, top_local.y - spacing * i, base_local.z)).y)
+	return out
+
+
+static func _clip(name: String) -> Animation:
 	var library := load("res://assets/ladder_animations.tres") as AnimationLibrary
-	var clip: Animation = library.get_animation("Climb_Up") if library else null
-	return float(clip.get_meta("rise", 0.28)) if clip else 0.28
+	return library.get_animation(name) if library and library.has_animation(name) else null
 
 
 ## Rails and rungs as one mesh, in this node's space, from base to top.
@@ -157,7 +215,8 @@ func _build() -> void:
 		tool.append_from(rail, 0, Transform3D(Basis.IDENTITY, foot + at))
 	var across := Basis(Vector3.BACK, PI * 0.5)
 	# Counted down from the landing, so the rung the climb-over starts
-	# from (OVER_RUNGS below it) is a real rung under the support foot.
+	# from (over_rungs() below it) is a real rung under the support foot.
+	# rung_heights() counts them the same way.
 	var count: int = floori((height - 0.05) / spacing)
 	for i in range(1, count + 1):
 		tool.append_from(rung, 0, Transform3D(across, foot + Vector3.UP * (height - spacing * i)))
@@ -387,9 +446,9 @@ static func _flat(a: Vector3, b: Vector3) -> float:
 ##
 ## Always five points, base-to-top, a leg between each pair:
 ##   0 base
-##   1 stop: OVER_RUNGS rungs below the landing — the rungs end here
+##   1 stop: over_rungs() rungs below the landing — the rungs end here
 ##   2 elbow: base's XZ at top's height
-##   3 off: OVER_REACH onto the landing toward top
+##   3 off: over_reach() onto the landing toward top
 ##   4 top
 ## Legs 1-2 and 2-3 are the climb-over (Climb_Over_Top up, Climb_On_Top
 ## down), the same two legs whichever way the list is walked. A short
@@ -397,9 +456,9 @@ static func _flat(a: Vector3, b: Vector3) -> float:
 ## length; they are kept, so the indices hold, and reached at once.
 static func climb_waypoints(base: Vector3, top: Vector3) -> PackedVector3Array:
 	var elbow := Vector3(base.x, top.y, base.z)
-	var stop := Vector3(base.x, maxf(base.y, top.y - OVER_RUNGS * rung_spacing()), base.z)
+	var stop := Vector3(base.x, maxf(base.y, top.y - over_rungs() * rung_spacing()), base.z)
 	var ahead := Vector3(top.x - base.x, 0.0, top.z - base.z)
-	var off: Vector3 = elbow + ahead.limit_length(OVER_REACH)
+	var off: Vector3 = elbow + ahead.limit_length(over_reach())
 	return PackedVector3Array([base, stop, elbow, off, top])
 
 

@@ -74,13 +74,16 @@ extends Node3D
 @export var land_animation: String = ""
 
 @export_group("Ladder Animation")
-## A one-rung climbing loop, in place, with the height it climbs in its
-## "rise" metadata (tools/make_ladder_animations.gd); played forwards up
-## a ladder and backwards down one. Empty means walking on the rungs.
+## A climbing loop, in place, with the height a cycle climbs in its
+## "rise" metadata and its rung spacing in "rung"
+## (tools/locomotion/land_ladder.gd); played forwards up a ladder and
+## backwards down one, the hands and feet held on the rungs by LadderGrip.
+## Empty means walking on the rungs.
 @export var climb_animation: String = ""
 ## Off the top onto the landing, and on from it (the same motion run
-## backwards), in place over the last Ladder.OVER_RUNGS rungs and the
-## step off; played to fit the unit's time over the edge. Empty means
+## backwards), in place over the last Ladder.over_rungs() rungs and the
+## step off; played at 1x, the unit taking the clip's length over the
+## edge (UnitMovement.climb_over_seconds). Empty means
 ## the climbing loop and the walk there instead.
 @export var climb_off_animation: String = ""
 @export var climb_on_animation: String = ""

@@ -289,7 +289,7 @@ func _lock(skeleton: Skeleton3D, i: int) -> void:
 		_ankle_at[i] = ankle_world
 		return
 	var target: Vector3 = to_world.affine_inverse() * held
-	_solve(skeleton, bones, target)
+	solve(skeleton, bones, target)
 	_tilt(skeleton, bones, i, w)
 	var shown: Vector3 = to_world * skeleton.get_bone_global_pose(bones[2]).origin
 	_ankle_at[i] = shown
@@ -341,9 +341,10 @@ func _warped(skeleton: Skeleton3D, at: Vector3) -> Vector3:
 	return at + way * ahead * (_stride - 1.0)
 
 
-## Bends the leg `bones` (upper, lower, foot) so the ankle reaches `target`,
-## skeleton space, keeping the foot's orientation and the knee's plane.
-func _solve(skeleton: Skeleton3D, bones: Array, target: Vector3) -> void:
+## Bends the limb `bones` (upper, lower, end) so the end bone reaches
+## `target`, skeleton space, keeping the end's orientation and the knee's (or
+## elbow's) plane. A leg here; LadderGrip bends arms with it too.
+static func solve(skeleton: Skeleton3D, bones: Array, target: Vector3) -> void:
 	var upper: int = bones[0]
 	var lower: int = bones[1]
 	var foot: int = bones[2]

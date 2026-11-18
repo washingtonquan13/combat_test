@@ -248,6 +248,11 @@ func _ready() -> void:
 	if _locomotion_set:
 		locomotion = UnitLocomotion.new(unit, playback, _locomotion_set, animation_player.get_parent() as Node3D)
 		locomotion.rest = _rest_in_own
+	# Hands and feet held on the rungs while a climb clip shows.
+	if climb_animation != "" and animation_player.has_animation(climb_animation):
+		var skeletons: Array[Node] = animation_player.get_parent().find_children("*", "Skeleton3D", true, false)
+		if not skeletons.is_empty():
+			grip = LadderGrip.attach(skeletons[0] as Skeleton3D)
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
@@ -728,6 +733,9 @@ var _climb_shown: int = 0
 ## once the climb is behind (the level steps on and off are the climb's).
 var _off_ladder: bool = false
 
+## Holds the planted hands and feet on the rungs (null with no climb clip).
+var grip: LadderGrip
+
 
 ## A climb is part of a move, so movement_started has already played the
 ## walk; this swaps it for the climb on the rungs and back for the level
@@ -759,6 +767,7 @@ func _physics_process(delta: float) -> void:
 	var shown: int = unit.climb_direction()
 	if over != 0:
 		shown = 2 * over if animation_player.has_animation(over_clip) else over
+	_feed_grip(shown)
 	if shown == _climb_shown:
 		return
 	_climb_shown = shown
@@ -785,6 +794,19 @@ func _physics_process(delta: float) -> void:
 	var phase: float = fposmod((unit.global_position.y - unit.climb_stop_height()) / rise, 1.0)
 	playback.play(climb_animation, 0.15, rate * shown)
 	playback.seek(phase * clip.length, true)
+
+
+## While a climb clip shows, the grip is told which and how far in, and
+## where the rungs are; unfed, it lets go by itself.
+func _feed_grip(shown: int) -> void:
+	var ladder: Ladder = unit.climbing_ladder()
+	if grip == null or shown == 0 or ladder == null:
+		return
+	var name: StringName = playback.current_animation
+	if name == &"" or not animation_player.has_animation(name):
+		return
+	grip.feed(animation_player.get_animation(name), playback.current_animation_position,
+			ladder.rung_heights(), Ladder.rung_spacing())
 
 
 ## Faster than this starts a turn, and slower than this ends one, in radians

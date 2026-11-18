@@ -73,7 +73,7 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 ## _climb_first.._climb_last of _current_path are reached by climbing
 ## (see Ladder and _ladder_route), -1 when the route has none. While the
 ## next point is one of them the unit is climbing (is_climbing): no
-## gravity, no move_and_slide, Ladder.climb_speed, facing the ladder.
+## gravity, no move_and_slide, Ladder.speed(), facing the ladder.
 ## The climb costs no move budget (BG3's rule — only the walk to the
 ## near end is paid) and is atomic: an order given mid-climb waits at
 ## the far end (_after_climb) rather than leaving the unit on the rungs.
@@ -175,14 +175,15 @@ func climb_direction() -> int:
 	return 1 if rise > 0.0 else -1
 
 
-## The speed of the climb being made (Ladder.climb_speed), m/s.
+## The speed of the climb on the rungs being made (Ladder.speed()), m/s.
+## The climb over the top goes at its own (climb_over_seconds).
 func climb_speed() -> float:
 	return _climb_speed
 
 
 ## 1 while climbing over the top edge onto the landing, -1 while getting
 ## on from it, 0 otherwise: the two legs between the last rungs
-## (Ladder.OVER_RUNGS below the landing) and the step off, which one
+## (Ladder.over_rungs() below the landing) and the step off, which one
 ## clip covers.
 func climbing_over() -> int:
 	if not is_climbing() or (_path_index != _climb_first + 2 and _path_index != _climb_first + 3):
@@ -190,14 +191,19 @@ func climbing_over() -> int:
 	return 1 if _climb_up else -1
 
 
-## How long the climb over the top edge takes: both its legs at
-## climb_speed. The clip is played to fit it.
+## How long the climb over the top edge takes: the clip's own length
+## (Ladder.over_seconds), so it plays at 1x, and its two legs are walked in
+## it (_climb_step). A clip without one has the legs at climb_speed.
 func climb_over_seconds() -> float:
 	if _climb_first < 0:
 		return 0.0
+	var own: float = Ladder.over_seconds()
+	return own if own > 0.0 else _climb_over_length() / _climb_speed
+
+
+func _climb_over_length() -> float:
 	var p: PackedVector3Array = _current_path
-	var length: float = p[_climb_first + 1].distance_to(p[_climb_first + 2]) 			+ p[_climb_first + 2].distance_to(p[_climb_first + 3])
-	return length / _climb_speed
+	return p[_climb_first + 1].distance_to(p[_climb_first + 2]) + p[_climb_first + 2].distance_to(p[_climb_first + 3])
 
 
 ## The height the rungs climb end at (Ladder.climb_waypoints' stop):
@@ -512,7 +518,7 @@ func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 		"cumulative_cost": cost,
 		"climb_first": climb_first,
 		"climb_last": climb_last,
-		"climb_speed": ladder.climb_speed,
+		"climb_speed": ladder.speed(),
 		"climb_facing": ladder.facing(),
 		"climb_up": route.going_up,
 		"ladder": ladder,
@@ -891,14 +897,18 @@ func _hold(delta: float) -> void:
 
 
 ## One frame on the ladder: straight at the next climb point at
-## climb_speed, placed directly — no gravity, no move_and_slide, since the
+## climb_speed (over the top edge, at the pace that fits its legs in
+## climb_over_seconds), placed directly — no gravity, no move_and_slide, since the
 ## climb runs along the landing's own edge (Ladder.climb_waypoints) where
 ## collision would only snag. Already-validated geometry: Ladder.find_route
 ## checked this path before the move was allowed.
 func _climb_step(delta: float) -> void:
 	var target: Vector3 = _current_path[_path_index]
 	var to_target: Vector3 = target - _owner.global_position
-	var step: float = _climb_speed * delta
+	var speed: float = _climb_speed
+	if climbing_over() != 0:
+		speed = _climb_over_length() / maxf(climb_over_seconds(), 0.01)
+	var step: float = speed * delta
 	_owner.velocity = Vector3.ZERO
 	# The level step between the landing's edge and the top is walked
 	# facing the way it goes; the rest faces the ladder.

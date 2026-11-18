@@ -59,6 +59,19 @@ CLIPS = {
     "run_stop_a": (STARTS + "run to stop", False),
     "run_stop_b": (STARTS + "run to stop", True),
 }
+# LADDER=1: the three ladder takes instead (Mixamo "Start Climbing Ladder",
+# "Climbing Ladder", "Climbing To Top"), into their own glb for
+# tools/locomotion/land_ladder.gd. Its baking finds the rungs from the hands
+# and feet, so the first-frame drop below does not matter to it.
+LADDER = os.environ.get("LADDER") == "1"
+if LADDER:
+    OUT = os.path.join(HERE, "takes", "mixamo_ladder.glb")
+    LADDER_DIR = os.environ.get("LADDER_DIR", "D:/BrowserDownloads/")
+    CLIPS = {
+        "ladder_start": (LADDER_DIR + "Start Climbing Ladder", False),
+        "ladder_up": (LADDER_DIR + "Climbing Ladder", False),
+        "ladder_top": (LADDER_DIR + "Climbing To Top", False),
+    }
 
 P = "mixamorig:"
 # the child that sets a bone's direction where it has several (or none, in the target)

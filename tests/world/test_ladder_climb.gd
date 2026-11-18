@@ -1,7 +1,7 @@
 extends AiTestCase
 ## A ladder climb is part of the one walked route (unit_movement.gd's
 ## _ladder_route): no cost accrues on it (BG3's rule), it takes time at
-## Ladder.climb_speed rather than snapping, and a stop ordered mid-climb
+## the ladder's speed() rather than snapping, and a stop ordered mid-climb
 ## takes effect at the far end, so no unit is ever left on the rungs. A
 ## destination anywhere routes by the ladder when that is the cheaper way.
 ##
@@ -73,10 +73,30 @@ func run() -> void:
 		"faces %s, ladder %s" % [walker.visual_forward(), ladder.facing()])
 	walker.stop_moving()
 	check("a stop mid-climb does not leave it on the rungs", walker.is_moving() and walker.is_climbing())
+	# The grip (LadderGrip) holds planted hands and feet on the rungs.
+	var grip: LadderGrip = walker.animator().grip
+	var held: int = 0
+	var worst_miss: float = 0.0
+	var worst_rung: float = 0.0
+	var rungs: PackedFloat32Array = ladder.rung_heights()
 	guard = 0
 	while walker.is_moving() and guard < 1200:
 		await get_tree().physics_frame
 		guard += 1
+		if grip == null or walker.climb_direction() == 0:
+			continue
+		for i in 4:
+			if grip._pinned[i] and grip._weight[i] > 0.9:
+				held += 1
+				worst_miss = maxf(worst_miss, grip.miss[i])
+				var y: float = (grip._pin[i] as Vector3).y - grip._contact[i]
+				var near: float = INF
+				for h: float in rungs:
+					near = minf(near, absf(y - h))
+				worst_rung = maxf(worst_rung, near)
+	print("  grip: %d limb-frames held, worst miss %.1f cm, worst off a rung %.1f cm" % [held, worst_miss * 100.0, worst_rung * 100.0])
+	check("planted hands and feet hold their rungs on the way down", held > 60 and worst_miss < 0.02 and worst_rung < 0.01,
+			"%d held, missed %.3f, off a rung %.3f" % [held, worst_miss, worst_rung])
 	var seconds: float = float(Engine.get_physics_frames() - climb_frame) / Engine.physics_ticks_per_second
 	var climb_length: float = 0.0
 	var climb: PackedVector3Array = Ladder.climb_waypoints(base, top)
@@ -85,7 +105,7 @@ func run() -> void:
 	check("it finishes the climb at the base", walker.global_position.distance_to(base) < 0.6,
 		"ended %s, base %s" % [walker.global_position, base])
 	check("at climb speed, not a snap (%.1fs for %.1fm)" % [seconds, climb_length],
-		seconds > 0.7 * climb_length / ladder.climb_speed)
+		seconds > 0.7 * climb_length / ladder.speed())
 
 	var enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], base - ladder.facing() * 8.0)
 	await get_tree().physics_frame
