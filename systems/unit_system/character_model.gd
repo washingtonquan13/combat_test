@@ -594,6 +594,21 @@ func _build_fallback_gaze() -> LookAtModifier3D:
 	return made
 
 
+## A BoneAttachment3D saved in a scene stores its bone's index as well as
+## its name, and the index wins on load. A rebake that reorders the bones
+## (the mixamo rig, 2ad89156) then puts every grip and anchor on some
+## other bone. The name is the contract, so each attachment is bound again
+## by it here.
+func _ready() -> void:
+	var skeleton: Skeleton3D = _find_skeleton(self)
+	if skeleton == null:
+		return
+	for attachment: BoneAttachment3D in skeleton.find_children("*", "BoneAttachment3D", false, false):
+		var bone: int = skeleton.find_bone(attachment.bone_name)
+		if bone != -1 and bone != attachment.bone_idx:
+			attachment.bone_idx = bone
+
+
 func _find_skeleton(node: Node) -> Skeleton3D:
 	for child in node.get_children():
 		if child is Skeleton3D:

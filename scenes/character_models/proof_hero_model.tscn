@@ -54,22 +54,22 @@ off_hand_grip = NodePath("Body/Armature/GeneralSkeleton/OffHand/Grip")
 
 [node name="HeadAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="0"]
 bone_name = "Head"
-bone_idx = 44
+bone_idx = 38
 
 [node name="HandAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="1"]
 bone_name = "RightMiddleProximal"
-bone_idx = 31
+bone_idx = 53
 
 [node name="MainHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="2"]
 bone_name = "RightHand"
-bone_idx = 27
+bone_idx = 49
 
 [node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/MainHand"]
 transform = Transform3D(0, 0.94, 0.342, 0, -0.342, 0.94, 1, 0, 0, 0, 0.085, 0.035)
 
 [node name="OffHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="3"]
 bone_name = "LeftHand"
-bone_idx = 8
+bone_idx = 21
 
 [node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/OffHand"]
 transform = Transform3D(0, -0.94, -0.342, 0, -0.342, 0.94, -1, 0, 0, 0, 0.085, 0.035)
