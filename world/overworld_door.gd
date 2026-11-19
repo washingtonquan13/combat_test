@@ -23,8 +23,11 @@ extends Area3D
 ## a nested child does.
 
 const PROMPT_GROUP: StringName = &"interact_prompt"
+## Seconds the marker takes to brighten or dim as the avatar steps in or out.
+const HOT_TIME := 0.25
 
 var _prompt: Node
+var _hot_tween: Tween
 
 
 func _ready() -> void:
@@ -50,16 +53,33 @@ func _on_body_entered(body: Node3D) -> void:
 	# a door the player is nowhere near.
 	if not body is OverworldAvatar or not (body as OverworldAvatar).active:
 		return
+	_set_hot(true)
 	_prompt = get_tree().get_first_node_in_group(PROMPT_GROUP)
 	if _prompt:
 		_prompt.register(self, _prompt_text())
 
 
 func _on_body_exited(body: Node3D) -> void:
-	if not body is OverworldAvatar or not _prompt:
+	if not body is OverworldAvatar:
+		return
+	_set_hot(false)
+	if not _prompt:
 		return
 	_prompt.unregister(self)
 	_prompt = null
+
+
+## The corona (overworld_door.gdshader) brightens while the commanded
+## avatar stands in it: the door the prompt is offering.
+func _set_hot(on: bool) -> void:
+	if _hot_tween:
+		_hot_tween.kill()
+	_hot_tween = create_tween().set_parallel()
+	for part in [$Ring, $Column]:
+		var mesh: GeometryInstance3D = part
+		var now: Variant = mesh.get_instance_shader_parameter(&"hot")
+		_hot_tween.tween_method(func(v: float) -> void: mesh.set_instance_shader_parameter(&"hot", v),
+			float(now) if now != null else 0.0, 1.0 if on else 0.0, HOT_TIME)
 
 
 ## Called by interact_prompt.gd when this door is the current candidate
