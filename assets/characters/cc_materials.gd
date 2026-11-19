@@ -619,10 +619,9 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 			l.ao_enabled = true
 			l.ao_texture = ao
 		return l
-	if shader == "" and m.get("Material Type", "") == "Pbr" and not mat_name.begins_with("Std_"):
-		return _pbr(mat_name, m, files, base, normal)
 	var sm := ShaderMaterial.new()
 	sm.resource_name = mat_name
+	# Before the garments' Pbr: the cap is Pbr with no CC shader too.
 	if shader == "" and m.get("Node Type", "") == "Hair":
 		# The scalp cap under the hair cards: colour and opacity, no CC shader.
 		if base == null:
@@ -632,6 +631,8 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 		sm.set_shader_parameter("opacity_map", _tex(files, tex.get("Opacity")))
 		sm.render_priority = -1
 		return sm
+	if shader == "" and m.get("Material Type", "") == "Pbr" and not mat_name.begins_with("Std_"):
+		return _pbr(mat_name, m, files, base, normal)
 	match shader:
 		"RLHair":
 			sm.shader = load(SHADERS + "cc_hair.gdshader")
