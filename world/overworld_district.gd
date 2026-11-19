@@ -14,7 +14,7 @@ extends Area3D
 @export_group("Random encounters")
 ## Chance, per metre the party walks here, that a red avatar appears and
 ## gives chase; 0 for a district where nothing ever does. Also what a
-## short rest here is ambushed against. See overworld_encounters.gd.
+## camp made here is ambushed against. See overworld_encounters.gd.
 @export_range(0.0, 0.05, 0.0001) var danger: float = 0.0
 ## Who you fight, one line picked by weight per encounter.
 @export var encounters: Array[EncounterGroup] = []

@@ -1,8 +1,10 @@
 extends AiTestCase
-## Resting (docs/systems/rest.md): a short rest gives back half and leaves
-## the Downed down; a full rest spends one Camp Supplies, fills everyone
-## and picks the Downed up, and refuses with none; both empty the
-## overworld's cleared encounter counts.
+## Resting (docs/systems/rest.md): an inn is free and fills everyone, the
+## Downed included; making camp spends one Camp Supplies if there is one,
+## and the night there fills everyone with it and gives back half
+## without, once; every rest empties the overworld's cleared encounter
+## counts. The trip to the camp and its ambush are the random encounter
+## suite's (test_a_random_encounter_is_fought.gd).
 
 
 func wants_world() -> bool:
@@ -28,22 +30,35 @@ func run() -> void:
 	b.set_pool(StatIds.HP, -3)
 	b.apply_status(UnitCombat.downed_status())
 	FlagManager.set_flag(OverworldEncounters.CLEARED_PREFIX + "TestWilds", 2)
-	check("a short rest is taken", Rest.short_rest())
-	check("and gives back half", a.get_pool(StatIds.HP) == 12, "%d" % a.get_pool(StatIds.HP))
-	check("but leaves the Downed down", b.is_downed() and b.get_pool(StatIds.HP) == -3)
-	check("and the wilds fill again", OverworldEncounters.cleared_in("TestWilds") == 0)
-
-	check("no supplies, no full rest", not Rest.full_rest() and b.is_downed())
-	var supplies := ItemInstance.new(Rest.SUPPLIES)
-	supplies.count = 2
-	PartyManager.inventory.add(supplies)
-	FlagManager.set_flag(OverworldEncounters.CLEARED_PREFIX + "TestWilds", 2)
-	check("with supplies, a full rest is taken", Rest.full_rest())
-	check("and costs one", Rest.supplies_count() == 1, "%d" % Rest.supplies_count())
+	check("an inn rest is taken, with no supplies", Rest.inn_rest())
 	check("and fills everyone", a.get_pool(StatIds.HP) == 20 and b.get_pool(StatIds.HP) == 20,
 		"%d, %d" % [a.get_pool(StatIds.HP), b.get_pool(StatIds.HP)])
 	check("and picks the Downed up", not b.is_downed())
 	check("and the wilds fill again", OverworldEncounters.cleared_in("TestWilds") == 0)
+
+	a.set_pool(StatIds.HP, 2)
+	b.set_pool(StatIds.HP, -3)
+	b.apply_status(UnitCombat.downed_status())
+	var plan := Rest.plan_camp()
+	check("camp without supplies is still made", not plan.is_empty() and not plan.supplied)
+	FlagManager.set_flag(OverworldEncounters.CLEARED_PREFIX + "TestWilds", 2)
+	Rest.rest_at_camp()
+	check("and gives back half", a.get_pool(StatIds.HP) == 12, "%d" % a.get_pool(StatIds.HP))
+	check("to the Downed too, who get up", not b.is_downed() and b.get_pool(StatIds.HP) == 7,
+		"%d" % b.get_pool(StatIds.HP))
+	check("and the wilds fill again", OverworldEncounters.cleared_in("TestWilds") == 0)
+	Rest.rest_at_camp()
+	check("one night per camp", a.get_pool(StatIds.HP) == 12, "%d" % a.get_pool(StatIds.HP))
+
+	var supplies := ItemInstance.new(Rest.SUPPLIES)
+	supplies.count = 2
+	PartyManager.inventory.add(supplies)
+	plan = Rest.plan_camp()
+	check("camp with supplies spends one", plan.supplied and Rest.supplies_count() == 1,
+		"%d" % Rest.supplies_count())
+	Rest.rest_at_camp()
+	check("and the night fills everyone", a.get_pool(StatIds.HP) == 20 and b.get_pool(StatIds.HP) == 20,
+		"%d, %d" % [a.get_pool(StatIds.HP), b.get_pool(StatIds.HP)])
 
 	PartyManager.groups = saved_groups
 	PartyManager.active_group = saved_active

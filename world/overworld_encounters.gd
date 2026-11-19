@@ -124,13 +124,12 @@ func can_fight(district: OverworldDistrict) -> bool:
 		and (district.encounter_limit <= 0 or cleared_in(district.name) < district.encounter_limit)
 
 
-## A red avatar for `district`, spawn_distance away from `avatar`, or on
-## top of it for an ambush, where the fight starts as it finishes
-## growing. False when the district has nothing left or nowhere to put it.
-func start(district: OverworldDistrict, avatar: OverworldAvatar, ambush: bool = false) -> bool:
+## A red avatar for `district`, spawn_distance away from `avatar`. False
+## when the district has nothing left or nowhere to put it.
+func start(district: OverworldDistrict, avatar: OverworldAvatar) -> bool:
 	if chaser() or not can_fight(district):
 		return false
-	var at := avatar.global_position if ambush else _spawn_spot(avatar.global_position)
+	var at := _spawn_spot(avatar.global_position)
 	if at == Vector3.INF:
 		return false
 	_chaser = overworld.AVATAR_SCENE.instantiate()
@@ -144,10 +143,7 @@ func start(district: OverworldDistrict, avatar: OverworldAvatar, ambush: bool = 
 	_chaser.set_view_scale(overworld._icon_view_scale())
 	_chaser.add_collision_exception_with(avatar)
 	avatar.add_collision_exception_with(_chaser)
-	if ambush:
-		_chaser.appear(func() -> void: _catch(avatar))
-	else:
-		_chaser.appear()
+	_chaser.appear()
 	return true
 
 
@@ -169,12 +165,21 @@ func _chase(avatar: OverworldAvatar) -> void:
 		_chaser.steer = to / gap
 
 
+## The fight `district` would throw at you now, as PENDING_FLAG's value,
+## or {} when it has none left. For an ambush that is not a chase (a camp
+## found in the night; overworld.gd's rest_ambush).
+func pick_fight(district: OverworldDistrict) -> Dictionary:
+	if not can_fight(district):
+		return {}
+	var group: EncounterGroup = district.encounters[_pick(district.encounters)]
+	return {"group": group.resource_path, "district": String(district.name)}
+
+
 ## Both shrink where they stand, then the district's battle area loads
 ## behind the black.
 func _catch(avatar: OverworldAvatar) -> void:
 	var district := _chaser_district
-	var group: EncounterGroup = district.encounters[_pick(district.encounters)]
-	FlagManager.set_flag(PENDING_FLAG, {"group": group.resource_path, "district": String(district.name)})
+	FlagManager.set_flag(PENDING_FLAG, pick_fight(district))
 	_chaser.steer = Vector3.ZERO
 	_chaser.vanish()
 	avatar.enter(avatar.global_position, func() -> void:

@@ -27,11 +27,18 @@ func _on_world_focused(world: Node) -> void:
 
 
 func _begin() -> void:
+	if not _start_pending():
+		_leave()
+
+
+## Spawns the pending fight's enemies and starts it; false with no fight
+## pending or nobody here to fight it. The camp (camp.gd) starts its
+## ambushes through this too.
+func _start_pending() -> bool:
 	var fight := OverworldEncounters.pending()
 	var group: EncounterGroup = load(fight.group) if fight.has("group") and ResourceLoader.exists(fight.group) else null
 	if group == null or group.units.is_empty():
-		_leave()
-		return
+		return false
 
 	var party: Array[Unit] = []
 	var context := WorldManager.context_for(self)
@@ -41,8 +48,7 @@ func _begin() -> void:
 	# Nobody here to fight it (a load into this area with the party
 	# elsewhere): not a fight of the enemies alone.
 	if party.is_empty():
-		_leave()
-		return
+		return false
 
 	var spots: Array[Node] = get_node(^"EnemySpawns").get_children()
 	var roster: Array[Unit] = party.duplicate()
@@ -52,6 +58,7 @@ func _begin() -> void:
 		var back := Vector3(0.0, 0.0, 2.0 * (i / spots.size()))
 		roster.append(_spawn(group.units[i], spot.global_position + spot.global_basis * back))
 	_encounter = CombatManager.start_combat(roster)
+	return _encounter != null
 
 
 func _spawn(definition: UnitDefinition, at: Vector3) -> Unit:
@@ -74,6 +81,11 @@ func _on_encounter_finished(encounter: Encounter, winning_faction: StringName) -
 	if winning_faction == &"enemy":
 		return
 	OverworldEncounters.finish_pending()
+	_won()
+
+
+## After a fight here is won: back to the overworld. The camp stays.
+func _won() -> void:
 	await get_tree().create_timer(return_delay).timeout
 	if is_inside_tree() and WorldManager.current_world() == self:
 		_leave()

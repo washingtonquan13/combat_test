@@ -1,0 +1,51 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/rest_system/rest_spot.gd" id="1_spot"]
+[ext_resource type="Shader" path="res://world/overworld_door.gdshader" id="2_shader"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_trigger"]
+size = Vector3(7, 4, 7)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_column"]
+render_priority = 1
+shader = ExtResource("2_shader")
+shader_parameter/tint = Color(0.35, 0.75, 1, 1)
+shader_parameter/part = 0
+shader_parameter/column_height = 10.0
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_column"]
+top_radius = 3.6
+bottom_radius = 3.6
+height = 10.0
+radial_segments = 64
+rings = 1
+cap_top = false
+cap_bottom = false
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ring"]
+shader = ExtResource("2_shader")
+shader_parameter/tint = Color(0.35, 0.75, 1, 1)
+shader_parameter/part = 1
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_ring"]
+size = Vector2(7.6, 7.6)
+
+[node name="InnRestSpot" type="Area3D"]
+collision_layer = 0
+script = ExtResource("1_spot")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+shape = SubResource("BoxShape3D_trigger")
+
+[node name="Ring" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+cast_shadow = 0
+material_override = SubResource("ShaderMaterial_ring")
+mesh = SubResource("PlaneMesh_ring")
+
+[node name="Column" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 0)
+cast_shadow = 0
+material_override = SubResource("ShaderMaterial_column")
+mesh = SubResource("CylinderMesh_column")

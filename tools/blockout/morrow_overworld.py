@@ -35,7 +35,7 @@ DOORS = [
     ("OldQuarry", "goblin_quarry", (-640.0, 40.0), 0.0),
 ]
 START = (0.0, 20.0)
-SAFE_SPOT = (55.0, 30.0)   # the inn on the square: full rests (rest_spot.gd)
+SAFE_SPOT = (55.0, 30.0)   # the inn on the square: free rests (rest_spot.gd)
 
 # Districts, smallest wins where they overlap: name, half-extent of a square,
 # then its random encounters (see world/overworld_encounters.gd): danger is
@@ -293,7 +293,7 @@ def build():
     door = sc.ext_res("PackedScene", "res://world/overworld_door.tscn", "uid://b826s0f7pql2r")
     exit_script = sc.ext_res("Script", "res://systems/world_system/area_exit.gd", "uid://d1ity5hrprjde")
     district = sc.ext_res("Script", "res://world/overworld_district.gd")
-    rest_spot = sc.ext_res("Script", "res://systems/rest_system/rest_spot.gd")
+    rest_spot = sc.ext_res("PackedScene", "res://world/inn_rest_spot.tscn")
 
     env = sc.sub_res("Environment", {
         "background_mode": "1", "background_color": color(0.62, 0.68, 0.72),
@@ -315,8 +315,6 @@ def build():
     rock = material(sc, (0.48, 0.46, 0.43))
     water = material(sc, (0.18, 0.3, 0.38), 0.15)
     inn = material(sc, (0.6, 0.42, 0.28))
-    safe = sc.sub_res("StandardMaterial3D", {"albedo_color": color(0.3, 0.6, 1.0), "emission_enabled": "true",
-                                             "emission": color(0.3, 0.6, 1.0), "emission_energy_multiplier": "1.5"})
 
     sc.node("MorrowOverworld", "Node3D", None, {
         "script": overworld, "avatar_speed_scale": "4.0", "avatar_icon_scale": "5.0",
@@ -374,14 +372,9 @@ def build():
     sc.node("House", "MeshInstance3D", "Inn", {"transform": xform(0, 4.5, -12), "mesh": inn_box,
                                                "material_override": inn})
     static_boxes(sc, "Solid", "Inn", [(0, 4.5, -12, 16, 9, 12)])
-    # Stand on the plate and press interact: a full rest (rest_spot.gd).
-    sc.node("SafeSpot", "Area3D", "Inn", {"script": rest_spot, "collision_layer": "0"})
-    plate = sc.sub_res("BoxMesh", {"size": "Vector3(7, 0.2, 7)"})
-    sc.node("Plate", "MeshInstance3D", "Inn/SafeSpot", {"transform": xform(0, 0.1, 0), "mesh": plate,
-                                                         "material_override": safe, "cast_shadow": "0"})
-    trigger = sc.sub_res("BoxShape3D", {"size": "Vector3(7, 4, 7)"})
-    sc.node("CollisionShape3D", "CollisionShape3D", "Inn/SafeSpot", {"transform": xform(0, 2, 0),
-                                                                      "shape": trigger})
+    # Stand in the blue corona and press interact: a free rest at the inn
+    # (rest_spot.gd, world/inn_rest_spot.tscn).
+    sc.node("SafeSpot", None, "Inn", {}, instance=rest_spot)
 
     # The wilderness.
     sc.node("Wilds", "Node3D", ".")

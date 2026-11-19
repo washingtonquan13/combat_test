@@ -40,8 +40,8 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 ## label changes, so walking along a border does not flicker the name.
 @export var district_settle_time: float = 1.0
 
-## How many metres of walking a short rest is as risky as; see
-## roll_rest_ambush().
+## How many metres of walking a night's camp is as risky as; see
+## rest_ambush().
 @export var rest_ambush_metres: float = 150.0
 
 ## How often the avatar's district is looked up, in seconds.
@@ -184,23 +184,24 @@ func _district_at(p: Vector3) -> OverworldDistrict:
 	return best
 
 
-## A short rest (Rest.short_rest) asks the world it is taken in whether
-## the party is set upon. Here, the overworld rolls the district's danger
-## times rest_ambush_metres (a rest is as risky as walking that far), and
-## a hit grows a red avatar on top of the party, the fight starting with
-## no chase. A cleared district, or a safe one, never ambushes. The roll
-## is the overworld's; the rest itself is the rest system's (see
+## Making camp (Rest.plan_camp) asks the world it is made in whether the
+## camp is found in the night. Here, the overworld rolls the district's
+## danger times rest_ambush_metres (a night is as risky as walking that
+## far), capped at 0.9, and a hit is the fight that walks into the camp,
+## as OverworldEncounters.PENDING_FLAG's value; {} for a quiet night. A
+## cleared district, or a safe one, never ambushes. The roll is the
+## overworld's; the rest and the camp are the rest system's (see
 ## docs/systems/rest.md).
-func roll_rest_ambush() -> bool:
+func rest_ambush() -> Dictionary:
 	var avatar := _active_avatar()
 	if avatar == null:
-		return false
+		return {}
 	var district := _district_at(avatar.global_position)
 	if not encounters.can_fight(district):
-		return false
+		return {}
 	if encounters.rng.randf() >= minf(district.danger * rest_ambush_metres, 0.9):
-		return false
-	return encounters.start(district, avatar, true)
+		return {}
+	return encounters.pick_fight(district)
 
 
 func get_base_mode() -> GameMode.Mode:

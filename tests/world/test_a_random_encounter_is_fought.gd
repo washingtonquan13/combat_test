@@ -33,7 +33,8 @@ func run() -> void:
 	_appears()
 	await _grows()
 	_limit()
-	await _battle()
+	if await _battle():
+		await _camp()
 	_restore()
 
 
@@ -85,7 +86,9 @@ func _limit() -> void:
 	district.free()
 
 
-func _battle() -> void:
+## True when the world host is set up and the party is fighting fit, for
+## _camp to reuse.
+func _battle() -> bool:
 	_saved_host = WorldManager._world_host
 	_saved_attention = WorldManager._attention_nodes.duplicate()
 	_host = Control.new()
@@ -95,7 +98,7 @@ func _battle() -> void:
 	WorldManager.register_attention_nodes(none)
 	if not WorldManager.can_travel():
 		check("SETUP: synthetic world host installed", false)
-		return
+		return false
 	# The fight's autosave writes the player's real Retry slot.
 	_autosave_path = SaveManager.slot_path(SaveManager.FIGHT_AUTOSAVE)
 	if _autosave_path != "":
@@ -112,7 +115,7 @@ func _battle() -> void:
 			members.append(unit)
 	if members.is_empty():
 		check("SETUP: a party to fight with", false)
-		return
+		return false
 	FlagManager.set_flag(OverworldEncounters.PENDING_FLAG, {"group": WOLVES, "district": "TestWilds"})
 	WorldManager.load_area(BATTLE, &"", members)
 	await get_tree().process_frame
@@ -123,13 +126,13 @@ func _battle() -> void:
 	check("the battle area loads as a BattleField", field is BattleField,
 		"focused %s" % (field.name if field else "nothing"))
 	if not field is BattleField:
-		return
+		return false
 	var encounter: Encounter = field._encounter
 	check("the fight starts on arrival", encounter != null, "pending %s, %d member(s), context %s, combat running %s" % [
 		OverworldEncounters.pending(), PartyManager.members.size(), WorldManager.context_for(field),
 		CombatManager.any_combat_running()])
 	if encounter == null:
-		return
+		return false
 	var wolves := 0
 	var party := 0
 	for unit: Unit in encounter.turn_order:
@@ -143,6 +146,41 @@ func _battle() -> void:
 	await get_tree().process_frame
 	check("won, it counts against the district", OverworldEncounters.cleared_in("TestWilds") == 1)
 	check("and is no longer pending", OverworldEncounters.pending().is_empty())
+	return true
+
+
+## A camp found in the night: the rest is taken, then the fight walks in,
+## and won, the party is still at camp. See docs/systems/rest.md.
+func _camp() -> void:
+	var members: Array[Unit] = []
+	for unit in PartyManager.members:
+		if is_instance_valid(unit) and unit.is_alive():
+			members.append(unit)
+	var hurt: Unit = members[0]
+	hurt.set_pool(StatIds.HP, 1)
+	FlagManager.set_flag(Rest.CAMP_FLAG, {"from": "", "supplied": true,
+		"ambush": {"group": WOLVES, "district": "TestWilds"}, "rested": false})
+	WorldManager.load_area(Rest.CAMP_AREA, &"", members)
+	var camp := WorldManager.current_world()
+	check("the camp loads as a Camp", camp is Camp, "focused %s" % (camp.name if camp else "nothing"))
+	if not camp is Camp:
+		return
+	camp.ambush_delay = 0.05
+	await get_tree().process_frame
+	await get_tree().process_frame
+	check("the night's rest is taken on arrival", hurt.get_pool(StatIds.HP) == floori(hurt.get_stat(StatIds.HP)),
+		"%d" % hurt.get_pool(StatIds.HP))
+	await get_tree().create_timer(0.3).timeout
+	var encounter: Encounter = camp._encounter
+	check("then the ambush walks in", encounter != null)
+	if encounter == null:
+		return
+	var wolves := encounter.turn_order.filter(func(u: Unit) -> bool: return u.faction == &"enemy").size()
+	check("with the pack's three wolves", wolves == 3, "%d" % wolves)
+	CombatManager.end_combat(&"player", encounter)
+	await get_tree().create_timer(camp.return_delay + 0.3).timeout
+	check("won, the party is still at camp", WorldManager.current_world() == camp)
+	check("and nothing is pending", OverworldEncounters.pending().is_empty())
 
 
 func _restore() -> void:
