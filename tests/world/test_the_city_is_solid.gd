@@ -1,6 +1,6 @@
 extends AiTestCase
 ## The Morrow overworld stands on solid ground: a ray dropped from the sky
-## lands on the floor at the start spawn, on a roof downtown, on a tree in
+## lands on the terrain at the start spawn, on a roof downtown, on a tree in
 ## the Greywood, and the map's edge is walled.
 ##
 ## The other overworld suites load this scene but never touch its ground,
@@ -31,7 +31,9 @@ func run() -> void:
 	var street := _drop(area, start.global_position.x, start.global_position.z)
 	check("a ray at the start spawn lands on the floor", _under(area, ^"Ground", street), _say(street))
 	if not street.is_empty():
-		check("and the floor is at y 0", absf(street.position.y - LIFT) < 0.2, _say(street))
+		# Start stands half a metre over the terrain (morrow_overworld.py).
+		check("and the ground is just under the start", absf(street.position.y - (start.global_position.y - 0.5)) < 0.2,
+			_say(street))
 
 	var block: CollisionShape3D = area.get_node(^"Buildings/Solid/Box0")
 	var at := block.global_position

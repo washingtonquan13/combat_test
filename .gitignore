@@ -45,3 +45,6 @@ renders/
 /*.mp4
 __pycache__/
 tools/blockout/*.pkl
+
+# Procedural generator previews and caches (tools/blockout/*.py stages).
+tools/blockout/build/

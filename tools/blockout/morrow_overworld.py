@@ -3,10 +3,12 @@ the New Orleans map. One compact downtown (Morrow) on a street grid round
 a central square, a ring of low outskirts, and the Greywood wilderness out
 to the map's edge, with a dirt road west to the Old Quarry.
 
-Grey-box only: boxes for buildings, cylinders and cones for trees, flat
-ground. Everything is seeded, so running it again writes the same map.
+Grey-box only: boxes for buildings, cylinders and cones for trees. The
+ground is stage 1's (morrow_terrain.py, run it first): everything here
+stands on its heights. Everything is seeded, so running it again writes
+the same map.
 
-    python -I tools/blockout/morrow_overworld.py
+    python tools/blockout/morrow_overworld.py
 
 Hand edits to the .tscn are lost on the next run; move a door or a
 district by changing the tables below instead.
@@ -14,28 +16,16 @@ district by changing the tables below instead.
 import math
 import os
 import random
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from morrow_layout import (DOOR_SCALE, DOORS, DOWNTOWN, HALF, INN_HOUSE, LAKE, OUTSKIRTS,  # noqa: E402
+                           QUARRY_CLEARING, RIVER, ROAD, SAFE_SPOT, SQUARE, START, STREET, street_lines)
+from morrow_terrain import Terrain, polyline  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "morrow_overworld.tscn")
 SEED = 7
-
-HALF = 800.0           # the map is 1600 m square
-STREET = 80.0          # street pitch downtown
-ROAD = 20.0            # street width
-DOWNTOWN = 240.0       # downtown streets run from -240 to 240
-OUTSKIRTS = 440.0      # houses thin out into the woods past this
-SQUARE = 70.0          # half-size of the open central square
-DOOR_SCALE = 4.0
-
-# Doors: name, area id, position (x, z), yaw in degrees.
-DOORS = [
-    ("CathedralSteps", "cathedral_of_shadows", (0.0, -60.0), 0.0),
-    ("ArenaGate", "test_arena", (-55.0, 30.0), 0.0),
-    ("MarketHall", "test_area_2", (160.0, 120.0), 0.0),
-    ("OldDocks", "test_area_3", (-160.0, -200.0), 0.0),
-    ("OldQuarry", "goblin_quarry", (-640.0, 40.0), 0.0),
-]
-START = (0.0, 20.0)
-SAFE_SPOT = (55.0, 30.0)   # the inn on the square: free rests (rest_spot.gd)
+TEX = "res://assets/level/"
 
 # Districts, smallest wins where they overlap: name, half-extent of a square,
 # then its random encounters (see world/overworld_encounters.gd): danger is
@@ -157,15 +147,23 @@ def static_cylinders(sc, name, parent, cylinders, radius, height):
     sc.node(name, "StaticBody3D", parent)
     path = name if parent == "." else parent + "/" + name
     shape = sc.sub_res("CylinderShape3D", {"height": f(height), "radius": f(radius)})
-    for i, (x, z) in enumerate(cylinders):
-        sc.node("Trunk%d" % i, "CollisionShape3D", path, {"transform": xform(x, height * 0.5, z), "shape": shape})
+    for i, (x, y, z) in enumerate(cylinders):
+        sc.node("Trunk%d" % i, "CollisionShape3D", path, {"transform": xform(x, y + height * 0.5 - 1.0, z),
+                                                          "shape": shape})
 
 
 # ---------------------------------------------------------------- layout
 
-def street_lines():
-    n = int(DOWNTOWN // STREET)
-    return [i * STREET for i in range(-n, n + 1)]
+ground = Terrain()
+
+
+def on_ground(box, sink=0.5):
+    """A box (x, _, z, sx, h, sz) standing on the terrain: from below its
+    lowest corner to h above its highest."""
+    x, _, z, sx, h, sz = box
+    lo, hi = ground.span(x - sx * 0.5, x + sx * 0.5, z - sz * 0.5, z + sz * 0.5)
+    base, top = lo - sink, hi + h
+    return (x, (base + top) * 0.5, z, sx, top - base, sz)
 
 
 def downtown_buildings():
@@ -212,11 +210,9 @@ def clear_of_roads(x, z, margin):
         return False
     if math.hypot(x - LAKE[0], z - LAKE[1]) < LAKE[2] + margin + 10.0:
         return False
+    if polyline(x, z, RIVER)[0] < 40.0 + margin:
+        return False
     return True
-
-
-QUARRY_CLEARING = (-640.0, 40.0)
-LAKE = (520.0, -480.0, 110.0)   # x, z, radius
 
 
 def outskirts_houses():
@@ -232,6 +228,9 @@ def outskirts_houses():
             continue
         w, d, h = rng.uniform(10, 18), rng.uniform(10, 18), rng.uniform(5, 10)
         if any(abs(x - o[0]) < (w + o[3]) * 0.5 + 8 and abs(z - o[2]) < (d + o[5]) * 0.5 + 8 for o in out):
+            continue
+        lo, hi = ground.span(x - w * 0.5, x + w * 0.5, z - d * 0.5, z + d * 0.5)
+        if hi - lo > 3.0:
             continue
         out.append((x, h * 0.5, z, w, h, d))
     return out
@@ -260,7 +259,7 @@ def trees():
             continue
         if any(abs(x - t[0]) < 9 and abs(z - t[1]) < 9 for t in out[-60:]):
             continue
-        out.append((x, z, rng.uniform(0.8, 1.4)))
+        out.append((x, z, rng.uniform(0.8, 1.4), ground.at(x, z)))
     return out
 
 
@@ -304,11 +303,6 @@ def build():
         "fog_density": "1.0", "fog_depth_curve": "1.6", "fog_depth_begin": "350.0", "fog_depth_end": "1400.0",
     })
 
-    grass = material(sc, (0.34, 0.42, 0.28))
-    paving = material(sc, (0.55, 0.55, 0.53), 0.95)
-    asphalt = material(sc, (0.3, 0.3, 0.32), 0.95)
-    dirt = material(sc, (0.52, 0.44, 0.32))
-    plaza = material(sc, (0.66, 0.62, 0.55), 0.9)
     stone = material(sc, (1, 1, 1), 0.85, vertex=True)
     bark = material(sc, (0.32, 0.24, 0.17))
     leaves = material(sc, (1, 1, 1), 0.9, vertex=True)
@@ -320,39 +314,37 @@ def build():
         "script": overworld, "avatar_speed_scale": "4.0", "avatar_icon_scale": "5.0",
         "deck_cutaway_radius": "0.0"})
 
-    # Ground: one slab whose top is y = 0, painted with flat decals above it.
+    # Ground: stage 1's terrain, built on load (morrow_terrain.gd).
     sc.node("Ground", "Node3D", ".")
-    static_boxes(sc, "Floor", "Ground", [(0, -1.0, 0, HALF * 2 + 200, 2.0, HALF * 2 + 200)])
-    ground_plane = sc.sub_res("PlaneMesh", {"size": "Vector2(%s, %s)" % (f(HALF * 2 + 400), f(HALF * 2 + 400))})
-    sc.node("Grass", "MeshInstance3D", "Ground", {"mesh": ground_plane, "material_override": grass})
-
-    def decal(name, x, z, sx, sz, mat, y):
-        m = sc.sub_res("PlaneMesh", {"size": "Vector2(%s, %s)" % (f(sx), f(sz))})
-        sc.node(name, "MeshInstance3D", "Ground", {"transform": xform(x, y, z), "mesh": m,
-                                                  "material_override": mat, "cast_shadow": "0"})
-
-    town = (DOWNTOWN + ROAD) * 2
-    decal("Paving", 0, 0, town, town, paving, 0.02)
-    for k, line in enumerate(street_lines()):
-        decal("StreetX%d" % k, line, 0, ROAD, town, asphalt, 0.04)
-        decal("StreetZ%d" % k, 0, line, town, ROAD, asphalt, 0.04)
-    decal("Square", 0, 0, SQUARE * 2 + ROAD, SQUARE * 2 + ROAD, plaza, 0.06)
-    # The two main roads out of town, paved through the outskirts, dirt beyond.
-    for k, sgn in enumerate((-1, 1)):
-        mid = sgn * (DOWNTOWN + OUTSKIRTS) * 0.5
-        span = OUTSKIRTS - DOWNTOWN
-        decal("RoadX%d" % k, mid, 0, span, ROAD, asphalt, 0.04)
-        decal("RoadZ%d" % k, 0, mid, ROAD, span, asphalt, 0.04)
-        far = sgn * (OUTSKIRTS + HALF) * 0.5
-        decal("TrailX%d" % k, far, 0, HALF - OUTSKIRTS, ROAD * 0.7, dirt, 0.04)
-        decal("TrailZ%d" % k, 0, far, ROAD * 0.7, HALF - OUTSKIRTS, dirt, 0.04)
-    decal("QuarryClearing", QUARRY_CLEARING[0], QUARRY_CLEARING[1], 170, 170, dirt, 0.05)
+    terrain_script = sc.ext_res("Script", "res://world/morrow/morrow_terrain.gd")
+    shader = sc.ext_res("Shader", "res://world/morrow/morrow_ground.gdshader")
+    noise = sc.sub_res("FastNoiseLite", {"noise_type": "1", "frequency": "0.02", "fractal_octaves": "4"})
+    variation = sc.sub_res("NoiseTexture2D", {"width": "256", "height": "256", "seamless": "true",
+                                              "generate_mipmaps": "true", "noise": noise})
+    params = {"shader": shader, "shader_parameter/variation": variation}
+    layers = [("grass", "quarry/textures/grass_path_2"), ("soil", "quarry/textures/forest_ground_04"),
+              ("rock", "quarry/textures/rock_face_03"), ("dirt", "quarry/textures/dirt_floor"),
+              ("asphalt", "morrow/textures/asphalt_02"), ("paving", "morrow/textures/concrete_pavement"),
+              ("cobble", "morrow/textures/cobblestone_floor_08")]
+    for name, stem in layers:
+        params["shader_parameter/%s_albedo" % name] = sc.ext_res("Texture2D", TEX + stem + "_diff_2k.jpg")
+        params["shader_parameter/%s_normal" % name] = sc.ext_res("Texture2D", TEX + stem + "_nor_gl_2k.jpg")
+    params["shader_parameter/nature_mask"] = sc.ext_res("Texture2D", "res://world/morrow/ground_nature.png")
+    params["shader_parameter/town_mask"] = sc.ext_res("Texture2D", "res://world/morrow/ground_town.png")
+    span = ground.meta["paint_size"]
+    px0 = ground.meta["paint_x0"]
+    params["shader_parameter/mask_rect"] = "Vector4(%s, %s, %r, %r)" % (f(px0), f(px0), 1.0 / span, 1.0 / span)
+    ground_mat = sc.sub_res("ShaderMaterial", params)
+    river_water = sc.sub_res("StandardMaterial3D", {"albedo_color": color(0.18, 0.3, 0.38), "roughness": "0.15",
+                                                    "cull_mode": "2"})
+    sc.node("Terrain", "Node3D", "Ground", {"script": terrain_script, "material": ground_mat,
+                                            "water_material": river_water})
 
     unit_box = sc.sub_res("BoxMesh", {"size": "Vector3(1, 1, 1)"})
 
     # Downtown and the outskirts.
-    town_boxes = downtown_buildings()
-    houses = outskirts_houses()
+    town_boxes = [on_ground(b) for b in downtown_buildings()]
+    houses = [on_ground(b) for b in outskirts_houses()]
     sc.node("Buildings", "Node3D", ".")
     shades = []
     for (_, _, _, _, h, _) in town_boxes:
@@ -367,11 +359,12 @@ def build():
 
     # The inn on the square: where a full rest will be taken.
     sx, sz = SAFE_SPOT
-    sc.node("Inn", "Node3D", ".", {"transform": xform(sx, 0, sz)})
+    sc.node("Inn", "Node3D", ".", {"transform": xform(sx, ground.at(sx, sz), sz)})
     inn_box = sc.sub_res("BoxMesh", {"size": "Vector3(16, 9, 12)"})
-    sc.node("House", "MeshInstance3D", "Inn", {"transform": xform(0, 4.5, -12), "mesh": inn_box,
+    ix, iz = INN_HOUSE
+    sc.node("House", "MeshInstance3D", "Inn", {"transform": xform(ix, 4.5, iz), "mesh": inn_box,
                                                "material_override": inn})
-    static_boxes(sc, "Solid", "Inn", [(0, 4.5, -12, 16, 9, 12)])
+    static_boxes(sc, "Solid", "Inn", [(ix, 4.5, iz, 16, 9, 12)])
     # Stand in the blue corona and press interact: a free rest at the inn
     # (rest_spot.gd, world/inn_rest_spot.tscn).
     sc.node("SafeSpot", None, "Inn", {}, instance=rest_spot)
@@ -383,35 +376,36 @@ def build():
                                         "material": bark, "radial_segments": "6", "rings": "1"})
     crown = sc.sub_res("CylinderMesh", {"top_radius": "0.0", "bottom_radius": "1.0", "height": "1.0",
                                         "material": leaves, "radial_segments": "7", "rings": "1"})
-    multimesh(sc, "Trunks", "Wilds", trunk, [(x, 2.5 * s, z, 1.6 * s, 5 * s, 1.6 * s) for (x, z, s) in tr])
+    multimesh(sc, "Trunks", "Wilds", trunk, [(x, y + 2.5 * s - 0.5, z, 1.6 * s, 5 * s + 1, 1.6 * s) for (x, z, s, y) in tr])
     greens = [(rng.uniform(0.16, 0.26), rng.uniform(0.3, 0.42), rng.uniform(0.15, 0.22), 1.0) for _ in tr]
-    multimesh(sc, "Crowns", "Wilds", crown, [(x, 11 * s, z, 7 * s, 14 * s, 7 * s) for (x, z, s) in tr], greens)
-    static_cylinders(sc, "TreeTrunks", "Wilds", [(x, z) for (x, z, _) in tr], 1.6, 8.0)
+    multimesh(sc, "Crowns", "Wilds", crown, [(x, y + 11 * s, z, 7 * s, 14 * s, 7 * s) for (x, z, s, y) in tr], greens)
+    static_cylinders(sc, "TreeTrunks", "Wilds", [(x, y, z) for (x, z, _, y) in tr], 1.6, 8.0)
 
-    rk = rocks()
+    rk = [on_ground(r, 1.0) for r in rocks()]
     unit_rock = sc.sub_res("BoxMesh", {"size": "Vector3(1, 1, 1)", "material": rock})
     multimesh(sc, "Outcrops", "Wilds", unit_rock, rk)
     static_boxes(sc, "Rock", "Wilds", rk)
 
     lx, lz, lr = LAKE
+    lake_water = ground.meta["lake"]["water"]
     lake = sc.sub_res("CylinderMesh", {"top_radius": f(lr), "bottom_radius": f(lr), "height": "0.2",
                                        "radial_segments": "48", "rings": "1"})
-    sc.node("Lake", "MeshInstance3D", "Wilds", {"transform": xform(lx, 0.08, lz), "mesh": lake,
+    sc.node("Lake", "MeshInstance3D", "Wilds", {"transform": xform(lx, lake_water, lz), "mesh": lake,
                                                "material_override": water, "cast_shadow": "0"})
     shore = sc.sub_res("CylinderShape3D", {"height": "20.0", "radius": f(lr - 4)})
     sc.node("LakeShore", "StaticBody3D", "Wilds")
-    sc.node("Shape", "CollisionShape3D", "Wilds/LakeShore", {"transform": xform(lx, 10, lz), "shape": shore})
+    sc.node("Shape", "CollisionShape3D", "Wilds/LakeShore", {"transform": xform(lx, lake_water + 10, lz), "shape": shore})
 
     # The edge of the world: walls behind the tree belt.
     e = HALF
-    static_boxes(sc, "Edge", ".", [(0, 20, -e - 5, e * 2 + 20, 40, 10), (0, 20, e + 5, e * 2 + 20, 40, 10),
-                                   (-e - 5, 20, 0, 10, 40, e * 2 + 20), (e + 5, 20, 0, 10, 40, e * 2 + 20)])
+    static_boxes(sc, "Edge", ".", [(0, 50, -e - 5, e * 2 + 20, 300, 10), (0, 50, e + 5, e * 2 + 20, 300, 10),
+                                   (-e - 5, 50, 0, 10, 300, e * 2 + 20), (e + 5, 50, 0, 10, 300, e * 2 + 20)])
 
     # Spawn points and doors.
     sc.node("SpawnPoints", "Node3D", ".")
-    sc.node("Start", "Marker3D", "SpawnPoints", {"transform": xform(START[0], 0.5, START[1])})
+    sc.node("Start", "Marker3D", "SpawnPoints", {"transform": xform(START[0], ground.at(*START) + 0.5, START[1])})
     for name, area, (x, z), yaw in DOORS:
-        sc.node(name, None, "SpawnPoints", {"transform": xform(x, 0, z, DOOR_SCALE, DOOR_SCALE, DOOR_SCALE, yaw)},
+        sc.node(name, None, "SpawnPoints", {"transform": xform(x, ground.at(x, z), z, DOOR_SCALE, DOOR_SCALE, DOOR_SCALE, yaw)},
                 instance=door)
         sc.node("AreaExit", "Node", "SpawnPoints/" + name, {"script": exit_script, "target_area": '&"%s"' % area})
 
