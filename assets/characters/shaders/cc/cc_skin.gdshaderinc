@@ -37,7 +37,8 @@ uniform float sss_strength = 1.0;
 uniform float transmission_strength = 0.2;
 
 // The character's skin tint, per instance so one material serves everyone.
-instance uniform vec3 skin_tint : source_color = vec3(1.0);
+// Slot 1: slot 0 is the outline pass's outline_color (outline_pass.gdshader).
+instance uniform vec3 skin_tint : source_color, instance_index(1) = vec3(1.0);
 
 #ifdef CC_HEAD
 uniform sampler2D spec_mask : hint_default_white, filter_linear_mipmap;

@@ -10,6 +10,9 @@ extends Node
 ## the right name follows it, so a blink takes the lids AND the lashes and
 ## an open jaw takes the teeth and tongue along.
 ##
+## A rig that names its shapes otherwise (Character Creator: Eye_Blink_L,
+## V_Open...) says so with shape_names; one name may drive several shapes.
+##
 ## The mouth is read from the TEXT, letter by letter, not from audio: there
 ## is no voice to listen to yet. That is enough to make a line look spoken
 ## rather than mimed, and talk() is the one place a real lip-sync track
@@ -59,6 +62,8 @@ const LETTERS: Dictionary = {
 ## How fast every shape chases where it is meant to be, per second. Higher
 ## snaps; lower slurs one sound into the next.
 @export_range(1.0, 60.0, 0.5) var follow_rate: float = 22.0
+## This rig's names for the shapes above; null for ARKit and Meta names.
+@export var shape_names: FaceShapeNames
 @export var blinks: bool = true
 @export_range(0.5, 10.0, 0.1, "suffix:s") var blink_every_min: float = 2.2
 @export_range(0.5, 10.0, 0.1, "suffix:s") var blink_every_max: float = 5.5
@@ -97,9 +102,17 @@ func _ready() -> void:
 		var array_mesh := instance.mesh as ArrayMesh
 		if array_mesh == null or array_mesh.get_blend_shape_count() == 0:
 			continue
+		# Name -> the shape indices it drives.
 		var shapes: Dictionary = {}
 		for i in array_mesh.get_blend_shape_count():
-			shapes[String(array_mesh.get_blend_shape_name(i))] = i
+			shapes[String(array_mesh.get_blend_shape_name(i))] = [i]
+		if shape_names:
+			for name in shape_names.names:
+				var indices: Array = []
+				for own in shape_names.names[name]:
+					indices.append_array(shapes.get(own, []))
+				if not indices.is_empty():
+					shapes[name] = indices
 		_shape_index[instance] = shapes
 	_blink_in = randf_range(blink_every_min, blink_every_max)
 	set_process(not _shape_index.is_empty())
@@ -167,8 +180,9 @@ func _process(delta: float) -> void:
 
 func _apply(shape: String, weight: float) -> void:
 	for mesh in _shape_index:
-		var index: int = _shape_index[mesh].get(shape, -1)
-		if index >= 0 and is_instance_valid(mesh):
+		if not is_instance_valid(mesh):
+			continue
+		for index: int in _shape_index[mesh].get(shape, []):
 			(mesh as MeshInstance3D).set_blend_shape_value(index, weight)
 
 

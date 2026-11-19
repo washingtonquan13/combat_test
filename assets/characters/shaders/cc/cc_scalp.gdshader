@@ -9,7 +9,8 @@ uniform sampler2D base_map : source_color, filter_linear_mipmap_anisotropic;
 uniform sampler2D opacity_map : hint_default_white, filter_linear_mipmap;
 
 // The hair's colour override (see cc_hair.gdshaderinc), applied the same way.
-instance uniform vec4 hair_color = vec4(0.0);
+// Slot 1: slot 0 is the outline pass's outline_color (outline_pass.gdshader).
+instance uniform vec4 hair_color : instance_index(1) = vec4(0.0);
 uniform vec3 ref_color : source_color = vec3(0.3, 0.25, 0.22);
 
 void fragment() {

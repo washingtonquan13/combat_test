@@ -39,7 +39,8 @@ uniform float cornea_coat_roughness = 0.03;
 // Flips the refraction if a mesh's tangents run the other way.
 uniform float parallax_sign = 1.0;
 
-instance uniform vec3 iris_tint : source_color = vec3(1.0);
+// Slot 1: slot 0 is the outline pass's outline_color (outline_pass.gdshader).
+instance uniform vec3 iris_tint : source_color, instance_index(1) = vec3(1.0);
 
 vec3 unpack_n(vec4 t) {
 	vec2 xy = t.xy * 2.0 - 1.0;

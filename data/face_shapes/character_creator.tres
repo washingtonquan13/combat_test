@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="FaceShapeNames" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/face_shape_names.gd" id="1_names"]
+
+[resource]
+script = ExtResource("1_names")
+names = Dictionary[String, PackedStringArray]({
+"eyeBlinkLeft": PackedStringArray("Eye_Blink_L"),
+"eyeBlinkRight": PackedStringArray("Eye_Blink_R"),
+"eyeSquintLeft": PackedStringArray("Eye_Squint_L"),
+"eyeSquintRight": PackedStringArray("Eye_Squint_R"),
+"eyeWideLeft": PackedStringArray("Eye_Wide_L"),
+"eyeWideRight": PackedStringArray("Eye_Wide_R"),
+"browInnerUp": PackedStringArray("Brow_Raise_Inner_L", "Brow_Raise_Inner_R"),
+"browOuterUpLeft": PackedStringArray("Brow_Raise_Outer_L"),
+"browOuterUpRight": PackedStringArray("Brow_Raise_Outer_R"),
+"browDownLeft": PackedStringArray("Brow_Drop_L"),
+"browDownRight": PackedStringArray("Brow_Drop_R"),
+"cheekSquintLeft": PackedStringArray("Cheek_Raise_L"),
+"cheekSquintRight": PackedStringArray("Cheek_Raise_R"),
+"noseSneerLeft": PackedStringArray("Nose_Sneer_L"),
+"noseSneerRight": PackedStringArray("Nose_Sneer_R"),
+"mouthSmileLeft": PackedStringArray("Mouth_Smile_L"),
+"mouthSmileRight": PackedStringArray("Mouth_Smile_R"),
+"mouthFrownLeft": PackedStringArray("Mouth_Frown_L"),
+"mouthFrownRight": PackedStringArray("Mouth_Frown_R"),
+"mouthPressLeft": PackedStringArray("Mouth_Press_L"),
+"mouthPressRight": PackedStringArray("Mouth_Press_R"),
+"jawOpen": PackedStringArray("Jaw_Open"),
+"viseme_aa": PackedStringArray("V_Open"),
+"viseme_E": PackedStringArray("V_Wide"),
+"viseme_I": PackedStringArray("V_Wide"),
+"viseme_O": PackedStringArray("V_Tight_O"),
+"viseme_U": PackedStringArray("V_Tight"),
+"viseme_PP": PackedStringArray("V_Explosive"),
+"viseme_FF": PackedStringArray("V_Dental_Lip"),
+"viseme_TH": PackedStringArray("V_Lip_Open"),
+"viseme_DD": PackedStringArray("V_Lip_Open"),
+"viseme_kk": PackedStringArray("V_Lip_Open"),
+"viseme_CH": PackedStringArray("V_Affricate"),
+"viseme_SS": PackedStringArray("V_Affricate"),
+"viseme_nn": PackedStringArray("V_Lip_Open"),
+"viseme_RR": PackedStringArray("V_Tight_O")
+})

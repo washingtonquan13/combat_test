@@ -11,6 +11,11 @@ shader_type spatial;
 // shared pass serves every unit and shared materials outline only the mesh
 // that is lit. Alpha 0, the default, is off: every vertex lands on one
 // point outside the view and nothing is rasterised.
+//
+// outline_color holds instance-uniform slot 0 of every mesh it is appended
+// to: two instance uniforms at one index in one instance's materials are
+// one value. Body shaders' own instance uniforms take instance_index(1) and
+// up (the CC shaders do), or clearing the outline overwrites them.
 render_mode unshaded, cull_front;
 
 instance uniform vec4 outline_color : source_color = vec4(0.0);

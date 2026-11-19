@@ -96,7 +96,8 @@ uniform float secondary_shift = -0.1;
 
 // This character's hair colour. Alpha 0 keeps CC's colours; above 0 the
 // hair takes this colour, keeping its strand-to-strand light and dark.
-instance uniform vec4 hair_color = vec4(0.0);
+// Slot 1: slot 0 is the outline pass's outline_color (outline_pass.gdshader).
+instance uniform vec4 hair_color : instance_index(1) = vec4(0.0);
 
 varying vec3 v_strand;
 varying float v_shift;

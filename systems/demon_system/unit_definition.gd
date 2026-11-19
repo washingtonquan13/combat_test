@@ -96,6 +96,10 @@ extends Resource
 ## the only thing that actually differs is the body. One unit, many
 ## bodies. See CharacterModel.
 @export var model_scene: PackedScene
+## A Character Creator human to wear instead of model_scene (see
+## CharacterPreset). When its files are missing the unit wears model_scene,
+## so model_scene stays the fallback body. Null wears model_scene.
+@export var look: CharacterPreset
 @export var abilities: Array[Ability] = []
 ## Attacks this species' body makes — claws, teeth, horns (data/attacks/).
 ## Each is a row like a weapon's (see AttackRow) and shows up as its own

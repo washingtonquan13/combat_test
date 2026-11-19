@@ -27,7 +27,7 @@ extends CharacterBody3D
 			# SILENTLY — a bodiless unit still walks, fights and dies — so
 			# it says so here instead. Assign the definition before
 			# add_child(), the way debug_spawn_panel and PartyManager do.
-			if _model_adopted and definition.model_scene and not Engine.is_editor_hint():
+			if _model_adopted and (definition.model_scene or definition.look) and not Engine.is_editor_hint():
 				push_warning(("Unit '%s': definition assigned after it entered the tree, " +
 					"so its body was never adopted. Set definition before add_child().") % name)
 			display_name = definition.display_name
@@ -647,7 +647,10 @@ func _enter_tree() -> void:
 	if _model_adopted:
 		return
 	_model_adopted = true
-	if definition and definition.model_scene:
+	var worn: CharacterModel = definition.look.make_body() if definition and definition.look else null
+	if worn:
+		_wear_model(worn)
+	elif definition and definition.model_scene:
 		_swap_model(definition.model_scene)
 	# Bound either way. unit.tscn's own body is a CharacterModel too now,
 	# so there is ONE path here rather than an authored case wired by
@@ -670,7 +673,10 @@ func _swap_model(scene: PackedScene) -> void:
 			name, scene.resource_path])
 		model.queue_free()
 		return
+	_wear_model(model)
 
+
+func _wear_model(model: CharacterModel) -> void:
 	for outgoing in [get_node_or_null("CharacterModel"), highlight_mesh]:
 		if is_instance_valid(outgoing):
 			remove_child(outgoing)
