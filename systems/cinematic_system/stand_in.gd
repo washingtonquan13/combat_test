@@ -251,7 +251,7 @@ func _stand_idle(original: CharacterModel, copy: CharacterModel) -> void:
 	var player: BodyAnimationTree = BodyAnimationTree.of(copy)
 	if player == null:
 		return
-	var clip: String = copy.idle_animation
+	var clip: String = copy.standing_clip()
 	var source: Object = _shown_by(original)
 	if not player.has_animation(clip):
 		clip = source.assigned_animation if source else ""

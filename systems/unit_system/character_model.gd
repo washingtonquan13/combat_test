@@ -63,6 +63,25 @@ extends Node3D
 ## Null walks the walk_animation at move_speed, as before.
 @export var locomotion: LocomotionSet
 
+
+## The clip this body stands in: its LocomotionSet's idle, else
+## idle_animation. Gameplay, stand-ins and cutscene beats all ask here, so a
+## cutscene stands the way play does.
+func standing_clip() -> String:
+	if locomotion and locomotion.idle:
+		return String(locomotion.idle.clip)
+	return idle_animation
+
+
+## The loop a cutscene walks this body on (WalkToBeat, WalkPathBeat): its
+## LocomotionSet's jog, else its walk, else walk_animation.
+func walking_clip() -> String:
+	if locomotion:
+		for clip: LocomotionClip in [locomotion.jog, locomotion.walk]:
+			if clip:
+				return String(clip.clip)
+	return walk_animation
+
 @export_group("Flight Animation")
 ## While the unit is in the air these stand in for idle and walk; empty
 ## means the ground clip plays in the air too. Takeoff plays as the unit

@@ -221,8 +221,8 @@ var _posed_clip: String = ""
 ## scene to say so.
 func adopt_model(model: CharacterModel) -> void:
 	animation_player = model.resolve_animation_player()
-	idle_animation = model.idle_animation
-	walk_animation = model.walk_animation
+	idle_animation = model.standing_clip()
+	walk_animation = model.walking_clip()
 	hit_animation = model.hit_animation
 	death_animation = model.death_animation
 	_motions = model.motions
@@ -236,8 +236,6 @@ func adopt_model(model: CharacterModel) -> void:
 	climb_mount_animation = model.climb_mount_animation
 	climb_dismount_animation = model.climb_dismount_animation
 	_locomotion_set = model.locomotion
-	if _locomotion_set and _locomotion_set.idle:
-		idle_animation = String(_locomotion_set.idle.clip)
 	model.moment.connect(_on_model_moment)
 	_model = model
 	model.aloft = _aloft
