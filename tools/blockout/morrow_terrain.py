@@ -27,11 +27,12 @@ import os
 import sys
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
+from scipy import ndimage
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from morrow_layout import (DOORS, DOWNTOWN, HALF, INN_HOUSE, LAKE, OUTSKIRTS, QUARRY_CLEARING, RIDGE,  # noqa: E402
-                           RIDGE_HALF_WIDTH, RIDGE_HEIGHT, RIVER, ROAD, SAFE_SPOT, SQUARE, START, street_lines)
+                           RIDGE_HALF_WIDTH, RIDGE_HEIGHT, RIVER, ROAD, SAFE_SPOT, SQUARE, START)
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 OUT = os.path.join(ROOT, "world", "morrow")
@@ -43,9 +44,6 @@ N = 513               # vertices a side: 2048 m
 PAINT = 2048          # paint texels a side, 1 m each
 SEED = 11
 
-# The quarry road and the north, south and east roads, out from the square.
-ROADS = [((0.0, 0.0), (-1030.0, 0.0)), ((0.0, 0.0), (1030.0, 0.0)),
-         ((0.0, 0.0), (0.0, -1030.0)), ((0.0, 0.0), (0.0, 1030.0))]
 ROAD_GRADE = 0.07     # steepest a graded road climbs
 RIVER_CUT = 9.0       # valley floor below the smoothed ground
 RIVER_FLOOR = 26.0    # half-width of the valley's flat floor
@@ -171,9 +169,10 @@ def square_radius(x, z):
 
 # ----------------------------------------------------------------- height
 
-def build_heights():
-    coords = X0 + np.arange(N) * CELL
-    x, z = np.meshgrid(coords, coords)
+def base_heights(x, z):
+    """The land before anything is cut into it: the tilt, the rolling
+    outskirts, the Greywood's hills and the ridge. Stage 2 lays its roads
+    on this."""
     r = square_radius(x, z)
     town = 1.0 - smoothstep(DOWNTOWN - 20.0, DOWNTOWN + 110.0, r)
     wood = smoothstep(OUTSKIRTS - 60.0, OUTSKIRTS + 120.0, r)
@@ -188,27 +187,74 @@ def build_heights():
     d, _ = polyline(x, z, RIDGE)
     bump = 0.5 * (1.0 + np.cos(np.pi * np.clip(d / RIDGE_HALF_WIDTH, 0.0, 1.0)))
     crag = 0.8 + 0.2 * fbm(x, z, 90.0, 3, SEED + 30)
-    h = h + RIDGE_HEIGHT * bump * crag * wood
+    return h + RIDGE_HEIGHT * bump * crag * wood
 
-    # The roads, graded. Ground near each takes the road's smoothed height.
+
+def line_field(x, z, pts, margin):
+    """polyline() over just the grid points within `margin` of the line's
+    bounds; inf everywhere else."""
+    pts = np.asarray(pts, float)
+    step = x[0, 1] - x[0, 0]
+    ox, oz = x[0, 0], z[0, 0]
+    i0 = max(int((pts[:, 0].min() - margin - ox) / step), 0)
+    i1 = min(int((pts[:, 0].max() + margin - ox) / step) + 2, x.shape[1])
+    j0 = max(int((pts[:, 1].min() - margin - oz) / step), 0)
+    j1 = min(int((pts[:, 1].max() + margin - oz) / step) + 2, x.shape[0])
+    dist = np.full(x.shape, np.inf)
+    along = np.zeros(x.shape)
+    if i1 > i0 and j1 > j0:
+        d, a = polyline(x[j0:j1, i0:i1], z[j0:j1, i0:i1], [tuple(p) for p in pts])
+        dist[j0:j1, i0:i1] = d
+        along[j0:j1, i0:i1] = a
+    return dist, along
+
+
+def load_roads():
+    with open(os.path.join(OUT, "roads.json")) as fh:
+        return json.load(fh)
+
+
+# How each kind of road is graded: half-width of its flat, the blend past
+# it, and how fast the blend widens with depth. Downtown's are not: the
+# town is nearly flat already.
+GRADED = {"highway": (ROAD * 0.5 + 3.0, 20.0, 2.5, ROAD_GRADE, 25.0),
+          "quarry": (8.0, 16.0, 2.5, ROAD_GRADE, 25.0),
+          "lane": (5.5, 10.0, 2.0, 0.10, 14.0)}
+
+
+def build_heights():
+    coords = X0 + np.arange(N) * CELL
+    x, z = np.meshgrid(coords, coords)
+    r = square_radius(x, z)
+    h = base_heights(x, z)
+    net = load_roads()
+
+    # The roads, graded in the order stage 2 laid them, so a lane meets
+    # the highway it leaves at the highway's height. Ground near each takes
+    # the road's smoothed height; downtown is graded already, so only out
+    # of town does a road cut.
+    out_of_town = smoothstep(DOWNTOWN, DOWNTOWN + 60.0, r)
     roads = []
-    for a, b in ROADS:
-        rx, rz, rs = resample([a, b], CELL)
-        across = np.array([-12.0, -6.0, 0.0, 6.0, 12.0])
-        nx, nz = -(b[1] - a[1]), b[0] - a[0]
-        nl = math.hypot(nx, nz)
-        nx, nz = nx / nl, nz / nl
+    for road in net["roads"]:
+        if road["kind"] not in GRADED:
+            continue
+        inner, base_w, per_m, grade, sigma = GRADED[road["kind"]]
+        rx, rz, rs = resample([tuple(p) for p in road["points"]], CELL)
+        tx, tz = np.gradient(rx), np.gradient(rz)
+        tl = np.maximum(np.hypot(tx, tz), 1e-6)
+        nx, nz = -tz / tl, tx / tl
+        across = np.array([-1.0, -0.5, 0.0, 0.5, 1.0]) * (inner + 3.0)
         prof = np.mean([sample(h, rx + nx * o, rz + nz * o) for o in across], axis=0)
-        prof = limit_grade(gaussian(prof, 25.0 / CELL), CELL, ROAD_GRADE)
-        dist, along = polyline(x, z, [a, b])
+        prof = limit_grade(gaussian(prof, sigma / CELL), CELL, grade)
+        dist, along = line_field(x, z, road["points"], inner + base_w + per_m * 40.0)
         target = np.interp(along, rs, prof)
-        # Downtown is graded already; only out of town does the road cut.
-        out_of_town = smoothstep(DOWNTOWN, DOWNTOWN + 60.0, r)
-        h = h + (blend_toward(h, target, dist, ROAD * 0.5 + 3.0, 20.0, 2.5) - h) * out_of_town
-        roads.append((rx, rz, prof))
+        h = h + (blend_toward(h, target, dist, inner, base_w, per_m) - h) * out_of_town
+        roads.append({"name": road["name"], "kind": road["kind"], "s": rs, "prof": prof})
 
-    # The river: down a valley whose floor falls all the way, cut after the
-    # roads so the quarry road fords it.
+    # The river: down a valley whose floor falls all the way. Where a road
+    # bridges it, the road's ground is kept as an embankment, and the cut
+    # comes back only under the deck.
+    pre = h.copy()
     vx, vz, vs = resample(RIVER, CELL)
     prof = gaussian(sample(h, vx, vz), 40.0 / CELL)
     if prof[0] < prof[-1]:
@@ -219,6 +265,19 @@ def build_heights():
     dist, along = polyline(x, z, RIVER)
     target = np.interp(along, vs, floor)
     h = blend_toward(h, target, dist, RIVER_FLOOR, 50.0, 3.0)
+    under_deck = 1.0 - smoothstep(CHANNEL + 4.0, CHANNEL + 12.0, dist)
+    bridges = []
+    for bridge in net["bridges"]:
+        road = next(rd for rd in net["roads"] if rd["name"] == bridge["road"])
+        graded = next(rd for rd in roads if rd["name"] == bridge["road"])
+        inner = GRADED[road["kind"]][0]
+        d_road, _ = line_field(x, z, road["points"], 200.0)
+        depth = np.maximum(pre - h, 0.0)
+        bank = 1.0 - smoothstep(0.0, 1.0, (d_road - inner) / (6.0 + 1.5 * depth))
+        keep = bank * (1.0 - under_deck)
+        h = h + (pre - h) * keep
+        deck = float(np.interp(bridge["s"], graded["s"], graded["prof"]))
+        bridges.append(dict(bridge, y=deck))
     channel = 0.5 * (1.0 + np.cos(np.pi * np.clip(dist / CHANNEL, 0.0, 1.0)))
     h = h - CHANNEL_DEPTH * channel
     river = [(float(px), float(pz), float(w - WATER_BELOW_BANK))
@@ -245,7 +304,7 @@ def build_heights():
         w = 1.0 - smoothstep(pr, pr + blend, dp)
         h = h + (level - h) * w
 
-    return x, z, h, river, lake, roads
+    return x, z, h, river, lake, roads, bridges
 
 
 def normals(h):
@@ -256,7 +315,23 @@ def normals(h):
 
 # ------------------------------------------------------------------ paint
 
-def build_paint(h, roads):
+def road_distance(roads, kinds, narrow=1.0):
+    """Metres from each paint texel to the nearest centreline of the given
+    kinds, less that road's half-width: negative on the road."""
+    best = np.full((PAINT, PAINT), np.inf, np.float32)
+    widths = sorted({rd["width"] for rd in roads if rd["kind"] in kinds})
+    for w in widths:
+        img = Image.new("1", (PAINT, PAINT), 1)
+        draw = ImageDraw.Draw(img)
+        for rd in roads:
+            if rd["kind"] in kinds and rd["width"] == w:
+                draw.line([(px - X0, pz - X0) for px, pz in rd["points"]], fill=0, width=1)
+        d = ndimage.distance_transform_edt(np.asarray(img)).astype(np.float32) - w * 0.5 * narrow
+        best = np.minimum(best, d)
+    return best
+
+
+def build_paint(h):
     coords = X0 + 0.5 + np.arange(PAINT)
     x, z = np.meshgrid(coords, coords)
     r = square_radius(x, z)
@@ -264,18 +339,21 @@ def build_paint(h, roads):
     slope_grid = np.hypot(gx, gz).astype(np.float32)
     slope = np.asarray(Image.fromarray(slope_grid, "F").resize((PAINT, PAINT), Image.BILINEAR))
     jitter = fbm(x, z, 6.0, 2, SEED + 40)
+    roads = load_roads()["roads"]
+    town_side = 1.0 - smoothstep(OUTSKIRTS - 10.0, OUTSKIRTS + 10.0, r)
 
     # Nature: soil thickens into the woods, rock where it is steep, dirt
-    # on the trails, the quarry clearing and the river's banks.
+    # on the lanes, the trails out of town, the quarry clearing and the
+    # river's banks.
     wood = smoothstep(OUTSKIRTS - 80.0, OUTSKIRTS + 160.0, r)
     soil = np.clip(wood * (0.6 + 0.6 * fbm(x, z, 60.0, 3, SEED + 50)), 0.0, 1.0)
     rock = smoothstep(0.28, 0.42, slope + 0.06 * jitter)
-    dirt = np.zeros_like(x)
-    for (rx, rz, _) in roads:
-        a, b = (rx[0], rz[0]), (rx[-1], rz[-1])
-        d, _ = polyline(x, z, [a, b])
-        trail = 1.0 - smoothstep(ROAD * 0.33, ROAD * 0.33 + 1.5, d + 1.5 * jitter)
-        dirt = np.maximum(dirt, trail * smoothstep(OUTSKIRTS - 10.0, OUTSKIRTS + 10.0, r))
+    out = road_distance(roads, ("highway", "quarry"))
+    # Past the outskirts a road narrows to a trail: a third of it each side.
+    trail = road_distance(roads, ("highway", "quarry"), narrow=0.33)
+    dirt = (1.0 - smoothstep(-0.5, 1.0, trail + 1.5 * jitter)) * (1.0 - town_side)
+    lane = road_distance(roads, ("lane",))
+    dirt = np.maximum(dirt, 1.0 - smoothstep(-0.5, 1.0, lane + 1.0 * jitter))
     qd = np.hypot(x - QUARRY_CLEARING[0], z - QUARRY_CLEARING[1])
     dirt = np.maximum(dirt, (1.0 - smoothstep(70.0, 90.0, qd + 8.0 * jitter)) * (0.7 + 0.3 * jitter))
     vd, _ = polyline(x, z, RIVER)
@@ -284,18 +362,13 @@ def build_paint(h, roads):
     dirt = np.maximum(dirt, 1.0 - smoothstep(LAKE[2] - 4.0, LAKE[2] + 6.0, ld + 3.0 * jitter))
     nature = np.stack([soil, rock, dirt], axis=-1)
 
-    # Town: asphalt streets, paved blocks, the cobbled square.
+    # Town: asphalt streets, paved blocks, the cobbled square, and the roads
+    # out paved as far as the outskirts.
     edge = DOWNTOWN + ROAD * 0.5
     in_town = (np.abs(x) < edge) & (np.abs(z) < edge)
-    lines = np.array(street_lines())
-    sx = np.min(np.abs(x[..., None] - lines), axis=-1)
-    sz = np.min(np.abs(z[..., None] - lines), axis=-1)
-    street = 1.0 - smoothstep(ROAD * 0.5 - 0.5, ROAD * 0.5 + 0.5, np.minimum(sx, sz))
+    street = 1.0 - smoothstep(-0.5, 0.5, road_distance(roads, ("avenue", "street", "ring")))
     asphalt = np.where(in_town, street, 0.0)
-    for (rx, rz, _) in roads:
-        d, _ = polyline(x, z, [(rx[0], rz[0]), (rx[-1], rz[-1])])
-        paved = 1.0 - smoothstep(ROAD * 0.5 - 0.5, ROAD * 0.5 + 0.5, d)
-        asphalt = np.maximum(asphalt, paved * (1.0 - smoothstep(OUTSKIRTS - 10.0, OUTSKIRTS + 10.0, r)))
+    asphalt = np.maximum(asphalt, (1.0 - smoothstep(-0.5, 0.5, out)) * town_side)
     paving = np.where(in_town, 1.0 - street, 0.0)
     sq = SQUARE + ROAD * 0.5
     cobble = 1.0 - smoothstep(sq - 0.5, sq + 0.5, np.maximum(np.abs(x), np.abs(z)))
@@ -379,15 +452,15 @@ class Terrain:
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(BUILD, exist_ok=True)
-    x, z, h, river, lake, roads = build_heights()
+    x, z, h, river, lake, roads, bridges = build_heights()
     h = h.astype(np.float32)
     h.tofile(os.path.join(OUT, "terrain_height.bin"))
     normals(h).astype(np.float32).tofile(os.path.join(OUT, "terrain_normal.bin"))
-    nature, town = build_paint(h, roads)
+    nature, town = build_paint(h)
     to_png(nature, os.path.join(OUT, "ground_nature.png"))
     to_png(town, os.path.join(OUT, "ground_town.png"))
     meta = {"x0": X0, "cell": CELL, "n": N, "paint_size": PAINT, "paint_x0": X0,
-            "river": river, "lake": lake}
+            "river": river, "lake": lake, "bridges": bridges}
     with open(os.path.join(OUT, "terrain.json"), "w", newline="\n") as fh:
         json.dump(meta, fh, indent=1)
     preview(h, nature, town, river, lake, os.path.join(BUILD, "stage1_terrain.png"))

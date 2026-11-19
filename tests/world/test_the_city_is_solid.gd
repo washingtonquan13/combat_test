@@ -6,12 +6,14 @@ extends AiTestCase
 ## The other overworld suites load this scene but never touch its ground,
 ## so they stay green with the ground taken out of it. This suite does not.
 ## The map is world/morrow_overworld.tscn, written by
-## tools/blockout/morrow_overworld.py. The building and the tree are read
+## tools/blockout/morrow_overworld.py. The building is read from stage 3's
+## lots (world/morrow/city.json, which MorrowCity builds from) and the tree
 ## from the scene's own collision shapes (not its MultiMeshes, which the
 ## headless renderer leaves empty), so a regenerated map needs no new
 ## coordinates here.
 
 const SCENE := "res://world/morrow_overworld.tscn"
+const CITY := "res://world/morrow/city.json"
 ## Above every roof in Morrow.
 const SKY: float = 400.0
 ## The map is lifted clear of the test runner's own floor at y 0.
@@ -35,13 +37,23 @@ func run() -> void:
 		check("and the ground is just under the start", absf(street.position.y - (start.global_position.y - 0.5)) < 0.2,
 			_say(street))
 
-	var block: CollisionShape3D = area.get_node(^"Buildings/Solid/Box0")
-	var at := block.global_position
-	var roof := _drop(area, at.x, at.z)
-	check("a ray on a building lands on its solid", _under(area, ^"Buildings/Solid", roof), _say(roof))
-	if not roof.is_empty():
-		var top := at.y + (block.shape as BoxShape3D).size.y * 0.5
-		check("at its roof", absf(roof.position.y - top) < 0.5, "%s, roof at %.1f" % [_say(roof), top])
+	var city: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(CITY))
+	var block: Dictionary = {}
+	for b in city.buildings:
+		if b.roof == "flat":
+			block = b
+			break
+	check("stage 3 wrote a flat-roofed building", not block.is_empty())
+	if not block.is_empty():
+		var at := Vector2.ZERO
+		for p in block.points:
+			at += Vector2(p[0], p[1])
+		at /= block.points.size()
+		var roof := _drop(area, at.x, at.y)
+		check("a ray on a building lands on its solid", _under(area, ^"City/Solid", roof), _say(roof))
+		if not roof.is_empty():
+			var top: float = LIFT + block.floor + city.ground_floor + (block.storeys - 1) * city.storey
+			check("at its roof", absf(roof.position.y - top) < 0.5, "%s, roof at %.1f" % [_say(roof), top])
 
 	var tree: Node3D = area.get_node(^"Wilds/TreeTrunks/Trunk0")
 	var trunk := _drop(area, tree.global_position.x, tree.global_position.z)

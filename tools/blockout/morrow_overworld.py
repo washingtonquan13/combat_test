@@ -3,9 +3,10 @@ the New Orleans map. One compact downtown (Morrow) on a street grid round
 a central square, a ring of low outskirts, and the Greywood wilderness out
 to the map's edge, with a dirt road west to the Old Quarry.
 
-Grey-box only: boxes for buildings, cylinders and cones for trees. The
-ground is stage 1's (morrow_terrain.py, run it first): everything here
-stands on its heights. Everything is seeded, so running it again writes
+Grey-box trees (cylinders and cones) and rocks. The ground is stage 1's
+(morrow_terrain.py), the roads stage 2's (morrow_roads.py) and the
+buildings stage 3's (morrow_city.py): run those first. Everything here
+stands on stage 1's heights and keeps off the roads and the buildings. Everything is seeded, so running it again writes
 the same map.
 
     python tools/blockout/morrow_overworld.py
@@ -13,15 +14,21 @@ the same map.
 Hand edits to the .tscn are lost on the next run; move a door or a
 district by changing the tables below instead.
 """
+import json
 import math
 import os
 import random
 import sys
 
+import numpy as np
+from PIL import Image, ImageDraw
+from scipy import ndimage
+from shapely.geometry import Point, Polygon
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from morrow_layout import (DOOR_SCALE, DOORS, DOWNTOWN, HALF, INN_HOUSE, LAKE, OUTSKIRTS,  # noqa: E402
-                           QUARRY_CLEARING, RIVER, ROAD, SAFE_SPOT, SQUARE, START, STREET, street_lines)
-from morrow_terrain import Terrain, polyline  # noqa: E402
+                           QUARRY_CLEARING, RIVER, ROAD, SAFE_SPOT, START)
+from morrow_terrain import OUT as STAGES, Terrain, polyline  # noqa: E402
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "world", "morrow_overworld.tscn")
 SEED = 7
@@ -166,42 +173,44 @@ def on_ground(box, sink=0.5):
     return (x, (base + top) * 0.5, z, sx, top - base, sz)
 
 
-def downtown_buildings():
-    """Every block between the streets, split into one to four lots, the
-    middle four blocks left open as the square."""
-    out = []
-    lines = street_lines()
-    for i in range(len(lines) - 1):
-        for j in range(len(lines) - 1):
-            x0, x1 = lines[i] + ROAD * 0.5, lines[i + 1] - ROAD * 0.5
-            z0, z1 = lines[j] + ROAD * 0.5, lines[j + 1] - ROAD * 0.5
-            cx, cz = (x0 + x1) * 0.5, (z0 + z1) * 0.5
-            if abs(cx) < SQUARE + STREET * 0.5 and abs(cz) < SQUARE + STREET * 0.5:
-                continue
-            centre = 1.0 - max(abs(cx), abs(cz)) / DOWNTOWN
-            split = rng.choice([1, 2, 2, 4])
-            lots = [(x0, x1, z0, z1)]
-            if split == 2:
-                if rng.random() < 0.5:
-                    m = (x0 + x1) * 0.5
-                    lots = [(x0, m, z0, z1), (m, x1, z0, z1)]
-                else:
-                    m = (z0 + z1) * 0.5
-                    lots = [(x0, x1, z0, m), (x0, x1, m, z1)]
-            elif split == 4:
-                mx, mz = (x0 + x1) * 0.5, (z0 + z1) * 0.5
-                lots = [(x0, mx, z0, mz), (mx, x1, z0, mz), (x0, mx, mz, z1), (mx, x1, mz, z1)]
-            for (a0, a1, b0, b1) in lots:
-                inset = 3.0
-                sx, sz = a1 - a0 - inset * 2, b1 - b0 - inset * 2
-                h = rng.uniform(10.0, 22.0) + centre * rng.uniform(15.0, 50.0)
-                out.append(((a0 + a1) * 0.5, h * 0.5, (b0 + b1) * 0.5, sx, h, sz))
-    return out
+def load_stage(name):
+    with open(os.path.join(STAGES, name), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+roads = load_stage("roads.json")["roads"]
+city = load_stage("city.json")
+
+
+def clearance():
+    """Metres from every point of the map (a metre a texel) to the nearest
+    road or building."""
+    x0 = ground.x0
+    size = int(math.ceil(-x0 * 2)) + 1
+    img = Image.new("L", (size, size), 0)
+    draw = ImageDraw.Draw(img)
+
+    def px(p):
+        return (p[0] - x0, p[1] - x0)
+
+    for road in roads:
+        if road["kind"] == "square":
+            draw.polygon([px(p) for p in road["points"]], fill=255)
+        else:
+            draw.line([px(p) for p in road["points"]], fill=255, width=max(1, int(round(road["width"]))))
+    for bld in city["buildings"]:
+        draw.polygon([px(p) for p in bld["points"]], fill=255)
+    return ndimage.distance_transform_edt(np.asarray(img) == 0)
+
+
+CLEAR = clearance()
 
 
 def clear_of_roads(x, z, margin):
-    # The two main roads run out of town along x = 0 and z = 0.
-    if abs(x) < ROAD * 0.5 + margin or abs(z) < ROAD * 0.5 + margin:
+    """Margin metres or more from every road and building, and clear of the
+    doors, the quarry, the lake and the river."""
+    i, j = int(round(x - ground.x0)), int(round(z - ground.x0))
+    if not (0 <= i < CLEAR.shape[1] and 0 <= j < CLEAR.shape[0]) or CLEAR[j, i] < margin:
         return False
     for _, _, (dx, dz), _ in DOORS:
         if math.hypot(x - dx, z - dz) < 40.0 + margin:
@@ -213,27 +222,6 @@ def clear_of_roads(x, z, margin):
     if polyline(x, z, RIVER)[0] < 40.0 + margin:
         return False
     return True
-
-
-def outskirts_houses():
-    out = []
-    ring_in = DOWNTOWN + ROAD + 20.0
-    tries = 0
-    while len(out) < 120 and tries < 5000:
-        tries += 1
-        x, z = rng.uniform(-OUTSKIRTS, OUTSKIRTS), rng.uniform(-OUTSKIRTS, OUTSKIRTS)
-        if max(abs(x), abs(z)) < ring_in:
-            continue
-        if not clear_of_roads(x, z, 14.0):
-            continue
-        w, d, h = rng.uniform(10, 18), rng.uniform(10, 18), rng.uniform(5, 10)
-        if any(abs(x - o[0]) < (w + o[3]) * 0.5 + 8 and abs(z - o[2]) < (d + o[5]) * 0.5 + 8 for o in out):
-            continue
-        lo, hi = ground.span(x - w * 0.5, x + w * 0.5, z - d * 0.5, z + d * 0.5)
-        if hi - lo > 3.0:
-            continue
-        out.append((x, h * 0.5, z, w, h, d))
-    return out
 
 
 def trees():
@@ -260,6 +248,15 @@ def trees():
         if any(abs(x - t[0]) < 9 and abs(z - t[1]) < 9 for t in out[-60:]):
             continue
         out.append((x, z, rng.uniform(0.8, 1.4), ground.at(x, z)))
+    # Downtown's parks: a loose grid of smaller trees.
+    for park in city["parks"]:
+        inner = Polygon(park).buffer(-5.0)
+        x0, z0, x1, z1 = inner.bounds
+        for x in np.arange(x0, x1, 12.0):
+            for z in np.arange(z0, z1, 12.0):
+                tx, tz = float(x) + rng.uniform(-3, 3), float(z) + rng.uniform(-3, 3)
+                if inner.contains(Point(tx, tz)):
+                    out.append((tx, tz, rng.uniform(0.6, 0.9), ground.at(tx, tz)))
     return out
 
 
@@ -303,7 +300,6 @@ def build():
         "fog_density": "1.0", "fog_depth_curve": "1.6", "fog_depth_begin": "350.0", "fog_depth_end": "1400.0",
     })
 
-    stone = material(sc, (1, 1, 1), 0.85, vertex=True)
     bark = material(sc, (0.32, 0.24, 0.17))
     leaves = material(sc, (1, 1, 1), 0.9, vertex=True)
     rock = material(sc, (0.48, 0.46, 0.43))
@@ -340,22 +336,56 @@ def build():
     sc.node("Terrain", "Node3D", "Ground", {"script": terrain_script, "material": ground_mat,
                                             "water_material": river_water})
 
-    unit_box = sc.sub_res("BoxMesh", {"size": "Vector3(1, 1, 1)"})
 
-    # Downtown and the outskirts.
-    town_boxes = [on_ground(b) for b in downtown_buildings()]
-    houses = [on_ground(b) for b in outskirts_houses()]
-    sc.node("Buildings", "Node3D", ".")
-    shades = []
-    for (_, _, _, _, h, _) in town_boxes:
-        g = rng.uniform(0.55, 0.78) - min(h, 70) * 0.002
-        shades.append((g, g, g * rng.uniform(0.97, 1.03), 1.0))
-    for _ in houses:
-        shades.append((rng.uniform(0.62, 0.74), rng.uniform(0.55, 0.62), rng.uniform(0.45, 0.52), 1.0))
-    every = town_boxes + houses
-    unit_stone = sc.sub_res("BoxMesh", {"size": "Vector3(1, 1, 1)", "material": stone})
-    multimesh(sc, "Blocks", "Buildings", unit_stone, every, shades)
-    static_boxes(sc, "Solid", "Buildings", every)
+    # Downtown and the outskirts: stage 3's buildings, built on load
+    # (morrow_city.gd). Not under Ground: encounters don't spawn on roofs.
+    def tex(stem, kind):
+        return sc.ext_res("Texture2D", TEX + "morrow/textures/%s/%s_%s_2k.jpg" % (stem, stem, kind))
+
+    def textured(stem, tile, triplanar=False):
+        p = {"albedo_texture": tex(stem, "diff"), "normal_enabled": "true",
+             "normal_texture": tex(stem, "nor_gl"), "roughness": "0.9", "texture_filter": "5"}
+        if triplanar:
+            p.update({"uv1_triplanar": "true", "uv1_world_triplanar": "true",
+                      "uv1_scale": "Vector3(%s, %s, %s)" % (f(tile), f(tile), f(tile))})
+        else:
+            p["uv1_scale"] = "Vector3(%s, %s, 1)" % (f(tile), f(tile))
+        return sc.sub_res("StandardMaterial3D", p)
+
+    facade = sc.ext_res("Shader", "res://world/morrow/morrow_facade.gdshader")
+    walls = {}
+    for style, stem, tile in [("brick", "red_brick_03", 0.4), ("brick_dark", "brick_wall_02", 0.4),
+                              ("plaster", "painted_plaster_wall", 0.3), ("plaster_warm", "beige_wall_001", 0.3),
+                              ("stone", "sandstone_blocks_08", 0.3)]:
+        walls[style] = sc.sub_res("ShaderMaterial", {
+            "shader": facade, "shader_parameter/wall_tile": f(tile),
+            "shader_parameter/wall_albedo": tex(stem, "diff"),
+            "shader_parameter/wall_normal": tex(stem, "nor_gl"),
+            "shader_parameter/ground_floor": f(city["ground_floor"]), "shader_parameter/storey": f(city["storey"])})
+    sc.node("City", "Node3D", ".", {
+        "script": sc.ext_res("Script", "res://world/morrow/morrow_city.gd"),
+        "wall_materials": "{\n%s\n}" % ",\n".join('"%s": %s' % kv for kv in walls.items()),
+        "flat_roof_material": textured("roof_slates_02", 0.25, True),
+        "gable_roof_material": textured("clay_roof_tiles_02", 0.4)})
+
+    # Bridges where a road crosses the river (stage 2 finds them, stage 1
+    # sets their decks level with the road either side).
+    sc.node("Bridges", "Node3D", ".")
+    deck_stone = textured("sandstone_blocks_08", 0.25, True)
+    for i, br in enumerate(ground.meta["bridges"]):
+        name = "Bridge%d" % i
+        sc.node(name, "StaticBody3D", "Bridges",
+                {"transform": xform(br["x"], br["y"], br["z"], yaw=-math.degrees(br["yaw"]))})
+        length, width = br["length"], br["width"]
+        parts = [("Deck", 0.0, -0.6, 1.2, width)]
+        for k, side in enumerate((-1, 1)):
+            parts.append(("Rail%d" % k, side * (width * 0.5 - 0.2), 0.55, 1.1, 0.4))
+        for part, off, y, sy, sz in parts:
+            size = "Vector3(%s, %s, %s)" % (f(length), f(sy), f(sz))
+            mesh = sc.sub_res("BoxMesh", {"size": size, "material": deck_stone})
+            shape = sc.sub_res("BoxShape3D", {"size": size})
+            sc.node(part, "MeshInstance3D", "Bridges/" + name, {"transform": xform(0, y, off), "mesh": mesh})
+            sc.node(part + "Shape", "CollisionShape3D", "Bridges/" + name, {"transform": xform(0, y, off), "shape": shape})
 
     # The inn on the square: where a full rest will be taken.
     sx, sz = SAFE_SPOT
@@ -441,7 +471,7 @@ def build():
             "polygon": "PackedVector2Array(-%s, -%s, %s, -%s, %s, %s, -%s, %s)" % (h, h, h, h, h, h, h, h)})
 
     sc.write(OUT)
-    print("wrote", os.path.normpath(OUT), "-", len(every), "buildings,", len(tr), "trees,", len(rk), "rocks")
+    print("wrote", os.path.normpath(OUT), "-", len(city["buildings"]), "buildings,", len(tr), "trees,", len(rk), "rocks")
 
 
 build()
