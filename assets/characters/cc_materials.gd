@@ -226,6 +226,12 @@ static func _col(v: Variant) -> Color:
 	return Color(v[0] / 255.0, v[1] / 255.0, v[2] / 255.0)
 
 
+# CC hair's "<which> Reflection Offset X/Y/Z" as one vector.
+static func _offset(v: Dictionary, which: String) -> Vector3:
+	var k := which + " Reflection Offset "
+	return Vector3(v.get(k + "X", 0.0), v.get(k + "Y", 0.0), v.get(k + "Z", 0.0))
+
+
 static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Material:
 	var cs: Dictionary = m.get("Custom Shader", {})
 	var shader := str(cs.get("Shader Name", ""))
@@ -276,10 +282,20 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 				"orm_map": _tex(files, {"Texture Path": mat_name + "_ORM.png"}),
 				"root_color": _col(v.get("RootColor", [8, 5, 3])),
 				"tip_color": _col(v.get("TipColor", [25, 18, 13])),
-				"invert_root_tip": v.get("InvertRootTip", 0.0) > 0.5,
+				"strand_blend_mode": int(v.get("RootTipBlendMode", 1.0)),
+				"strand_strength": v.get("UseRootTipColor", 1.0),
+				"root_strength": v.get("RootColorStrength", 1.0),
+				"tip_strength": v.get("TipColorStrength", 1.0),
+				"invert_root_tip": v.get("InvertRootTip", 0.0),
 				"diffuse_strength": v.get("Diffuse Strength", 1.0),
 				"blend_map_strength": v.get("BaseColorMapStrength", 0.7),
+				"vertex_gray_color": _col(v.get("VertexGrayToColor", [0, 0, 0])),
+				"vertex_color_strength": v.get("VertexColorStrength", 0.0),
+				"dyes_active": v.get("ActiveChangeHairColor", 1.0) > 0.5,
 				"specular_strength": v.get("Specular Strength", 0.35),
+				"secondary_specular_strength": v.get("Secondary Specular Strength", 0.5),
+				"black_offset": _offset(v, "BlackColor"),
+				"white_offset": _offset(v, "WhiteColor"),
 				"spec_map_strength": v.get("Hair Specular Map Strength", 0.25),
 				"roughness_map_strength": v.get("Hair Roughness Map Strength", 0.5),
 				"flip_flow_y": v.get("TangentMapFlipGreen", 1.0) > 0.5,
@@ -288,13 +304,14 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 			for i in [1, 2]:
 				var d := "_%s Dye " % ("1st" if i == 1 else "2nd")
 				var r: Array = v.get(d + "Distribution from Grayscale", [0, 255, 255])
-				var mask := 0.0
-				if v.get("Mask %s Dye by RootMap" % ("1st" if i == 1 else "2nd"), 0.0) > 0.5:
-					mask = -1.0 if v.get("Invert %s Dye RootMap Mask" % ("1st" if i == 1 else "2nd"), 0.0) > 0.5 else 1.0
+				var n := "1st" if i == 1 else "2nd"
 				p["dye%d_color" % i] = _col(v.get(d + "Color", [0, 0, 0]))
 				p["dye%d_strength" % i] = v.get(d + "Strength", 0.0)
 				p["dye%d_range" % i] = Vector3(r[0], r[1], r[2]) / 255.0
-				p["dye%d_root_mask" % i] = mask
+				p["dye%d_blend_mode" % i] = int(v.get("_%s BlendMode" % n, 0.0))
+				p["dye%d_end_overlap" % i] = v.get("Mask %s Dye by RootMap" % n, 0.0)
+				p["dye%d_end_invert" % i] = v.get("Invert %s Dye RootMap Mask" % n, 0.0)
+				p["dye%d_specular" % i] = v.get(d + "add Specular", 0.0)
 			for k: String in p:
 				sm.set_shader_parameter(k, p[k])
 				fringe.set_shader_parameter(k, p[k])
