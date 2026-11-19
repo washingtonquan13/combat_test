@@ -23,6 +23,8 @@ const INNATE_ABILITIES: Array[String] = [
 ]
 ## These come with an advantage, and the leader hasn't got it.
 const ADVANTAGE_ABILITIES: Array[String] = ["cling"]
+## How many of an item the character starts with, where it is not one.
+const STARTING_COUNT := {"camp_supplies": 3}
 ## What the character starts wearing. Everything else goes in the bag.
 const WORN := {
 	EquipSlot.Slot.HELMET: "leather_helmet",
@@ -75,6 +77,7 @@ static func _give_everything(leader: Unit) -> void:
 	for id in _resource_ids(ITEM_DIR):
 		var definition: ItemDefinition = load(ITEM_DIR + id + ".tres")
 		var item := ItemInstance.new(definition)
+		item.count = STARTING_COUNT.get(id, 1)
 		var slot = WORN.find_key(id)
 		if slot != null:
 			leader.equip_item(slot, item)

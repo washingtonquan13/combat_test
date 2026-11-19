@@ -26,6 +26,7 @@ Mapped 2026-10-29 at commit 28ba573; reviewed 2026-11-15 at 14cb4ad9. Issue coun
 | | Game mode & UI stack | [mode_and_ui_stack.md](mode_and_ui_stack.md) | 5 | 1 |
 | **Party & progression** | Party (PartyManager, groups, leader) | [party.md](party.md) | 9 | 4 |
 | | Demons (roster, compendium, fusion) | [demons.md](demons.md) | 8 | 6 |
+| | Rest (short rest, full rest, supplies) | [rest.md](rest.md) | 3 | 2 |
 | | Inventory, stash, currency | [inventory.md](inventory.md) | 11 | 11 |
 | | Factions, flags, quests | [factions_flags_quests.md](factions_flags_quests.md) | 9 | 4 |
 | | Character creation | [character_creation.md](character_creation.md) | 6 | 6 |
