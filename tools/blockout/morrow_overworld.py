@@ -37,11 +37,18 @@ DOORS = [
 START = (0.0, 20.0)
 SAFE_SPOT = (55.0, 30.0)   # the inn on the square: full rests (built in step 3)
 
-# Districts, smallest wins where they overlap: name, half-extent of a square.
+# Districts, smallest wins where they overlap: name, half-extent of a square,
+# then its random encounters (see world/overworld_encounters.gd): danger is
+# the chance per metre walked (the avatar covers ~24 m a second, so 1/300
+# is a chase every ~12 s of walking), the fights it holds before it is
+# quiet until a rest, its battle area and its table (data/encounters/).
 DISTRICTS = [
-    ("Downtown", "Downtown Morrow", DOWNTOWN + ROAD),
-    ("Outskirts", "Morrow Outskirts", OUTSKIRTS),
-    ("Greywood", "Greywood", HALF),
+    ("Downtown", "Downtown Morrow", DOWNTOWN + ROAD,
+     1.0 / 1500.0, 2, "battle_downtown", ["goblin_pair"]),
+    ("Outskirts", "Morrow Outskirts", OUTSKIRTS,
+     1.0 / 600.0, 4, "battle_outskirts", ["goblin_pair", "wolf_pack", "goblin_band"]),
+    ("Greywood", "Greywood", HALF,
+     1.0 / 300.0, 6, "battle_greywood", ["wolf_pack", "goblin_band", "hobgoblin_patrol", "giant_spider"]),
 ]
 
 rng = random.Random(SEED)
@@ -421,10 +428,20 @@ def build():
 
     # Districts, for the area label (and, from step 2, encounters).
     sc.node("Districts", "Node3D", ".")
-    for node, display, half in DISTRICTS:
+    tables = {}
+    group_script = sc.ext_res("Script", "res://world/encounter_group.gd")
+    for node, display, half, danger, limit, battle, table in DISTRICTS:
+        for name in table:
+            if name not in tables:
+                tables[name] = sc.ext_res("Resource", "res://data/encounters/%s.tres" % name)
         sc.node(node, "Area3D", "Districts", {"collision_layer": "0", "collision_mask": "0", "monitoring": "false",
                                               "monitorable": "false", "script": district,
-                                              "display_name": '"%s"' % display})
+                                              "display_name": '"%s"' % display,
+                                              "danger": "%.6f" % danger,
+                                              "encounters": "Array[%s]([%s])" % (
+                                                  group_script, ", ".join(tables[n] for n in table)),
+                                              "battle_area": '&"%s"' % battle,
+                                              "encounter_limit": str(limit)})
         h = f(half)
         sc.node("Piece0", "CollisionPolygon3D", "Districts/" + node, {
             "rotation": "Vector3(1.5707964, 0, 0)", "depth": "400.0",

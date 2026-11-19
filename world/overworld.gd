@@ -67,6 +67,10 @@ var _candidate: OverworldDistrict
 var _candidate_time := 0.0
 var _poll := 0.0
 
+## The random encounters rolled as the party walks; see
+## overworld_encounters.gd.
+var encounters: OverworldEncounters
+
 
 func _ready() -> void:
 	# Re-synced on focus too, not only here: this world stays resident
@@ -81,6 +85,10 @@ func _ready() -> void:
 		_fog_end = _environment.environment.fog_depth_end
 	if _sun:
 		_shadow_distance = _sun.directional_shadow_max_distance
+	encounters = OverworldEncounters.new()
+	encounters.name = "Encounters"
+	encounters.overworld = self
+	add_child(encounters)
 	sync_avatars()
 	_camera.snap_to_target()
 

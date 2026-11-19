@@ -1,10 +1,16 @@
-[gd_scene load_steps=283 format=3]
+[gd_scene load_steps=289 format=3]
 
 [ext_resource type="Script" path="res://world/overworld.gd" id="1_ext"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/overworld_camera.tscn" id="2_ext"]
 [ext_resource type="PackedScene" uid="uid://b826s0f7pql2r" path="res://world/overworld_door.tscn" id="3_ext"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="4_ext"]
 [ext_resource type="Script" path="res://world/overworld_district.gd" id="5_ext"]
+[ext_resource type="Script" path="res://world/encounter_group.gd" id="6_ext"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_pair.tres" id="7_ext"]
+[ext_resource type="Resource" path="res://data/encounters/wolf_pack.tres" id="8_ext"]
+[ext_resource type="Resource" path="res://data/encounters/goblin_band.tres" id="9_ext"]
+[ext_resource type="Resource" path="res://data/encounters/hobgoblin_patrol.tres" id="10_ext"]
+[ext_resource type="Resource" path="res://data/encounters/giant_spider.tres" id="11_ext"]
 
 [sub_resource type="Environment" id="Environment_1"]
 background_mode = 1
@@ -8094,6 +8100,10 @@ monitoring = false
 monitorable = false
 script = ExtResource("5_ext")
 display_name = "Downtown Morrow"
+danger = 0.000667
+encounters = Array[ExtResource("6_ext")]([ExtResource("7_ext")])
+battle_area = &"battle_downtown"
+encounter_limit = 2
 
 [node name="Piece0" type="CollisionPolygon3D" parent="Districts/Downtown"]
 rotation = Vector3(1.5707964, 0, 0)
@@ -8107,6 +8117,10 @@ monitoring = false
 monitorable = false
 script = ExtResource("5_ext")
 display_name = "Morrow Outskirts"
+danger = 0.001667
+encounters = Array[ExtResource("6_ext")]([ExtResource("7_ext"), ExtResource("8_ext"), ExtResource("9_ext")])
+battle_area = &"battle_outskirts"
+encounter_limit = 4
 
 [node name="Piece0" type="CollisionPolygon3D" parent="Districts/Outskirts"]
 rotation = Vector3(1.5707964, 0, 0)
@@ -8120,6 +8134,10 @@ monitoring = false
 monitorable = false
 script = ExtResource("5_ext")
 display_name = "Greywood"
+danger = 0.003333
+encounters = Array[ExtResource("6_ext")]([ExtResource("8_ext"), ExtResource("9_ext"), ExtResource("10_ext"), ExtResource("11_ext")])
+battle_area = &"battle_greywood"
+encounter_limit = 6
 
 [node name="Piece0" type="CollisionPolygon3D" parent="Districts/Greywood"]
 rotation = Vector3(1.5707964, 0, 0)

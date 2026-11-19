@@ -17,6 +17,15 @@ WorldManager internals (residency, focus, teardown) are documented in world.md.
 - **Collision:** a floor slab with its top at y 0, one box per building, one cylinder per tree trunk, the lake as a cylinder, and walls at the map edge.
 - The New Orleans map (`world/city_overworld*`, `city_geometry.gd`) is no longer referenced but has not been deleted.
 
+**Random encounters (11-18).** Owned by the overworld. The rest system will call into it, but does not own it.
+- **Per district** (`overworld_district.gd`, "Random encounters" group): `danger` (chance per metre walked; the short rest's ambush rolls it too), `encounters` (an Array of `EncounterGroup`, `world/encounter_group.gd`: unit definitions plus a weight; the tables are `data/encounters/*.tres`), `battle_area` (an area id) and `encounter_limit` (fights before the district goes quiet; 0 = no limit). The generator sets them: Downtown 1/1500, 2 fights; Outskirts 1/600, 4; Greywood 1/300, 6.
+- **Driver:** `world/overworld_encounters.gd` (OverworldEncounters). It is made by `overworld.gd` `_ready` as the child "Encounters". Every metre the commanded avatar walks is rolled, after `grace_metres` (120) from each arrival on the overworld.
+- **Chase:** on a hit, a hostile `OverworldAvatar` (`hostile = true`, red, spinning) is placed 45 m off on open ground (a drop ray that hits `Ground`, never a roof or a tree). It grows in with `appear()`, the reverse of `enter()`, then steers straight at you at 0.85 of your pace. Past 130 m it gives up (`vanish()`). Within 5 m it catches you: both icons shrink and `WorldManager.travel_area(battle_area)` runs. No first strike either way.
+- **The fight:** a weighted pick from the table is stored in FlagManager as `encounter/pending` (`{group, district}`), so the fight's autosave and Retry respawn the same enemies. `world/battle_field.gd` (BattleField, a GameArea) spawns the units at its `EnemySpawns` markers as faction `enemy` and starts combat with the party. Won, it bumps `encounter/cleared/<district>` and sends the party back to the overworld, where `group.overworld_position` (untouched by any of this) puts them at the spot they were caught.
+- **Battlefields:** `world/battle_downtown|outskirts|greywood.tscn` plus `data/areas/battle_*.tres`, written by `tools/blockout/battle_fields.py` (seeded; rerun it, don't hand-edit).
+- **Rest:** `OverworldEncounters.clear_all()` empties the cleared counts. `start(district, avatar, true)` is the ambush (it grows on top of you and catches you at once).
+- **Limits (known):** the party is sent back `return_delay` (2 s) after the win, so there is no time to loot. The chase is a straight line with no pathing around buildings (the overworld has no navmesh). Only one chaser at a time.
+
 **Autoloads owned:** DebugSpawner (project.godot autoload list).
 
 ## Purpose
@@ -133,6 +142,7 @@ This system does not hold residency, party embodiment or save state. Those belon
 - test_the_overworld_names_where_you_are.gd (districts)
 - test_the_harness_stands_up_a_world.gd
 - test_the_city_is_solid.gd
+- test_a_random_encounter_is_fought.gd (red avatar grows in, district limit and rest, battlefield spawns the fight)
 - test_world_hosting.gd
 - test_residency.gd
 - test_a_rebuild_is_not_a_journey.gd

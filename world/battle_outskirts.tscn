@@ -1,0 +1,82 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://world/battle_field.gd" id="1_field"]
+[ext_resource type="PackedScene" path="res://world/proto_block.tscn" id="2_block"]
+[ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_camera"]
+[ext_resource type="Environment" path="res://world/combat_environment.tres" id="4_env"]
+
+[node name="BattleOutskirts" type="Node3D"]
+script = ExtResource("1_field")
+
+[node name="LevelGeometry" type="Node3D" parent="."]
+
+[node name="Floor" parent="LevelGeometry" instance=ExtResource("2_block")]
+size = Vector3(60, 1, 60)
+
+[node name="Cover0" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.567, 0, 0.823, 0, 1, 0, -0.823, 0, 0.567, -22.416, 1.2, -1.242)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="Cover1" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.384, 0, 0.923, 0, 1, 0, -0.923, 0, 0.384, -25.552, 1.2, -17.256)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="Cover2" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -25.851, 1.2, -5.314)
+size = Vector3(5, 1.4, 0.4)
+
+[node name="Cover3" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -19.425, 1.2, -7.873)
+size = Vector3(5, 1.4, 0.4)
+
+[node name="Cover4" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 5.393, 1.2, 25.415)
+size = Vector3(5, 1.4, 0.4)
+
+[node name="Cover5" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 12.058, 1.2, 27.766)
+size = Vector3(5, 1.4, 0.4)
+
+[node name="Cover6" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.156, 0, 0.988, 0, 1, 0, -0.988, 0, 0.156, -25.484, 1.2, 2.766)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="Cover7" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.133, 0, 0.991, 0, 1, 0, -0.991, 0, 0.133, 14.225, 1.2, 12.221)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="Cover8" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.622, 0, 0.783, 0, 1, 0, -0.783, 0, 0.622, -4.971, 1.2, 17.432)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="Cover9" parent="LevelGeometry" instance=ExtResource("2_block")]
+transform = Transform3D(0.188, 0, 0.982, 0, 1, 0, -0.982, 0, 0.188, -25.188, 1.2, 8.364)
+size = Vector3(1.4, 1.4, 1.4)
+
+[node name="PartySpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, 0.5, -10)
+
+[node name="EnemySpawns" type="Node3D" parent="."]
+
+[node name="Enemy0" type="Marker3D" parent="EnemySpawns"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, -6, 0.5, 10)
+
+[node name="Enemy1" type="Marker3D" parent="EnemySpawns"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, -2, 0.5, 11)
+
+[node name="Enemy2" type="Marker3D" parent="EnemySpawns"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 2, 0.5, 11)
+
+[node name="Enemy3" type="Marker3D" parent="EnemySpawns"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 6, 0.5, 10)
+
+[node name="CRPGCamera" parent="." instance=ExtResource("3_camera")]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 10, -18)
+max_pan_radius = 30
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("4_env")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 10, 0)
+shadow_enabled = true

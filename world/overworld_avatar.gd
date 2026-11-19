@@ -44,6 +44,13 @@ var group: PartyGroup = null
 ## to be in different places.
 var active: bool = false
 
+## A random encounter's avatar instead of a group's: no group, drawn in
+## hostile_color with a steady spin, and walked along `steer` by
+## overworld_encounters.gd rather than by the keys.
+var hostile: bool = false
+## Where a hostile avatar is walking, flat, length 0 to 1.
+var steer: Vector3 = Vector3.ZERO
+
 ## Full speed from the first frame a key is held, and dead still the
 ## frame it is let go: crossing the map is getting somewhere, not
 ## steering a body with weight, so there is no ramp up or down.
@@ -82,6 +89,10 @@ var active: bool = false
 ## Seconds the door stands empty after the icon has gone, before the trip
 ## (and its fade to black) starts, so the eye sees it go.
 const ENTER_HOLD := 0.15
+
+## A hostile avatar's colour and spin, in degrees a second.
+@export var hostile_color: Color = Color(0.95, 0.06, 0.04)
+@export var hostile_spin_degrees: float = 240.0
 
 @export_group("Alignment Color")
 ## The whole icon takes its leader's place on the alignment grid: Law to
@@ -133,6 +144,13 @@ func _physics_process(delta: float) -> void:
 		if Input.is_action_pressed("camera_pan_right"):
 			input_dir.x += 1.0
 	input_dir = input_dir.normalized()
+
+	if hostile:
+		walk(Vector3.ZERO if _entering else steer, delta)
+		if not _entering:
+			_spin_pivot.rotate_y(deg_to_rad(hostile_spin_degrees) * delta)
+		_apply_hostile_color()
+		return
 
 	var yaw: float = camera.get_yaw() if camera else 0.0
 	var basis := Basis(Vector3.UP, yaw)
@@ -236,6 +254,12 @@ func _apply_alignment_color(delta: float) -> void:
 	_body.set_instance_shader_parameter(&"pulse_rate", lerpf(pulse_rate_mild, pulse_rate_extreme, extremity))
 
 
+func _apply_hostile_color() -> void:
+	_body.set_instance_shader_parameter(&"body_color", Vector3(hostile_color.r, hostile_color.g, hostile_color.b))
+	_body.set_instance_shader_parameter(&"pulse_depth", pulse_depth_extreme)
+	_body.set_instance_shader_parameter(&"pulse_rate", pulse_rate_extreme)
+
+
 ## 0 at the neutral band's edge (or inside it), 1 at the end of the scale.
 func _extremity(value: int) -> float:
 	var threshold: float = float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD)
@@ -308,11 +332,37 @@ func enter(at: Vector3, then_travel: Callable) -> void:
 	tween.chain().tween_callback(then_travel)
 
 
+## enter() run backwards: the icon grows out of the ground where it
+## stands, from nothing, spinning fast and slowing as it reaches full
+## size, then `then` runs. How a random encounter shows up.
+func appear(then: Callable = Callable()) -> void:
+	_entering = true
+	velocity = Vector3.ZERO
+	_set_shrink(0.0)
+	var tween := create_tween().set_parallel().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	tween.tween_method(_set_shrink, 0.0, 1.0, enter_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(_spin_pivot, "rotation:y", _spin_pivot.rotation.y + TAU * 1.5, enter_time) 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.chain().tween_callback(func() -> void:
+		_entering = false
+		if then.is_valid():
+			then.call())
+
+
+## The shrink of enter(), where it stands: a hostile avatar giving up.
+func vanish(then: Callable = Callable()) -> void:
+	enter(global_position, then)
+
+
 ## Standing at full size again, for an avatar still here after its trip
 ## did not happen.
 func stand() -> void:
 	_entering = false
 	_set_shrink(1.0)
+
+
+## Mid-shrink or mid-grow: not walking, and on its way somewhere.
+func is_entering() -> bool:
+	return _entering
 
 
 func _set_shrink(v: float) -> void:

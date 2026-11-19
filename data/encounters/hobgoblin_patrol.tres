@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://world/encounter_group.gd" id="1_group"]
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/units/demons/hobgoblin.tres" id="2_hob"]
+[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/units/demons/goblin_rogue.tres" id="3_rogue"]
+
+[resource]
+script = ExtResource("1_group")
+units = Array[ExtResource("1_def")]([ExtResource("2_hob"), ExtResource("3_rogue")])
+weight = 1.0

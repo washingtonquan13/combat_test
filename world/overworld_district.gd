@@ -11,6 +11,19 @@ extends Area3D
 ## The name the area label shows.
 @export var display_name: String = ""
 
+@export_group("Random encounters")
+## Chance, per metre the party walks here, that a red avatar appears and
+## gives chase; 0 for a district where nothing ever does. Also what a
+## short rest here is ambushed against. See overworld_encounters.gd.
+@export_range(0.0, 0.05, 0.0001) var danger: float = 0.0
+## Who you fight, one line picked by weight per encounter.
+@export var encounters: Array[EncounterGroup] = []
+## The area a fight here is fought in (an AreaDefinition id).
+@export var battle_area: StringName = &""
+## How many fights the district holds before it is cleared and quiet
+## until the party rests; 0 for no limit.
+@export var encounter_limit: int = 0
+
 var _area: float = -1.0
 
 

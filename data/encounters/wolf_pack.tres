@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="EncounterGroup" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://world/encounter_group.gd" id="1_group"]
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="Resource" uid="uid://gf742i35d0m" path="res://data/units/demons/test_wolf.tres" id="2_wolf"]
+
+[resource]
+script = ExtResource("1_group")
+units = Array[ExtResource("1_def")]([ExtResource("2_wolf"), ExtResource("2_wolf"), ExtResource("2_wolf")])
+weight = 2.0
