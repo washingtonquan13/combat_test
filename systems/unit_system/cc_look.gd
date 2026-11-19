@@ -17,6 +17,11 @@ extends Node
 ## beside it. CC's layers sit through each other (the base's underwear
 ## through anything, a sweater through an apron's bib): by Wearable.cc_layer,
 ## the one beneath loses what the one over it hides (_drop_under).
+##
+## An outfit from outside CC (Wearable.cc_scene: armour fitted to the base by
+## tools/characters/fit_armour.py) is worn instead of the clothes, not over
+## them: while one is worn, the clothes items stay equipped but are not drawn.
+## Its covers mask (cc_wearable.gd) drops the skin under it.
 
 ## The base's JSON, beside its FBX.
 @export_file("*.json") var body_json: String = ""
@@ -69,7 +74,8 @@ func _has_hair(body: Node) -> bool:
 
 
 ## Dresses the body in items, in place of what it wore. An item whose
-## cc_part this body's clothes lack shows nothing.
+## cc_part its source (Wearable.cc_scene, else this body's clothes) lacks
+## shows nothing. While any item has a cc_scene, the clothes are not drawn.
 func wear(items: Array[Wearable]) -> void:
 	var body := get_parent().get_node_or_null("Body") as Node3D
 	if body == null:
@@ -80,22 +86,23 @@ func wear(items: Array[Wearable]) -> void:
 			mesh.queue_free()
 	var masks: Array[Texture2D] = []
 	var garments: Array[MeshInstance3D] = []
-	if clothes_scene != "":
-		var clothes: PackedScene = load(clothes_scene)
-		var json := clothes_scene.get_basename() + ".json"
-		for item in items:
-			if item.cc_part == &"":
-				continue
-			var garment := CCMaterials.attach_garment(body, clothes, json, item.cc_part)
-			if garment == null:
-				continue
-			garment.set_meta(GARMENT_META, true)
-			garment.set_meta(OWN_MESH_META, garment.mesh)
-			garment.set_meta(LAYER_META, item.cc_layer)
-			garments.append(garment)
-			var mask := clothes_scene.get_base_dir().path_join("covers/%s.png" % String(item.cc_part).to_lower())
-			if ResourceLoader.exists(mask):
-				masks.append(load(mask))
+	var outfit := items.any(func(item: Wearable) -> bool: return item.cc_scene != "")
+	for item in items:
+		if outfit and item.cc_scene == "":
+			continue
+		var source := item.cc_scene if item.cc_scene != "" else clothes_scene
+		if item.cc_part == &"" or source == "":
+			continue
+		var garment := CCMaterials.attach_garment(body, load(source), source.get_basename() + ".json", item.cc_part)
+		if garment == null:
+			continue
+		garment.set_meta(GARMENT_META, true)
+		garment.set_meta(OWN_MESH_META, garment.mesh)
+		garment.set_meta(LAYER_META, item.cc_layer)
+		garments.append(garment)
+		var mask := source.get_base_dir().path_join("covers/%s.png" % String(item.cc_part).to_lower())
+		if ResourceLoader.exists(mask):
+			masks.append(load(mask))
 	_show_covers(body, CharacterLook.joined_covers(masks))
 	_drop_under(body, garments)
 

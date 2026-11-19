@@ -50,3 +50,9 @@ CC BY 4.0. Vendored in `addons/human_shaders/` (licence and notes there);
 the skin and eye in `assets/characters/shaders/human_skin.gdshader` and
 `human_eye.gdshader` are changed copies. Upstream does not state where its
 eye and micro-detail textures come from.
+
+"Leather Armor" by Blueprint Games (@Vahil) on Sketchfab
+(https://sketchfab.com/3d-models/leather-armor-0693e6cbc82b47f7a8c08a7bb87ae72b),
+CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). Changed: refitted
+and skinned to the Character Creator body (`tools/characters/fit_armour.py`),
+in `assets/wearables/leather_armor/`.
