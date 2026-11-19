@@ -82,6 +82,9 @@ var _mouth_track: Array = []
 var _mouth_elapsed: float = 0.0
 var _blink_in: float = 0.0
 var _blink_elapsed: float = -1.0
+## Turns the jaw bone for a rig whose shapes carry a jaw turn; null for one
+## whose shapes open the mouth themselves.
+var _jaw: FaceJaw = null
 
 
 ## The face [param unit]'s body declares, or null if it has none.
@@ -114,6 +117,11 @@ func _ready() -> void:
 				if not indices.is_empty():
 					shapes[name] = indices
 		_shape_index[instance] = shapes
+	if shape_names and not shape_names.jaw_degrees.is_empty():
+		for skeleton: Skeleton3D in body.find_children("*", "Skeleton3D", true, false):
+			if skeleton.find_bone(shape_names.jaw_bone) != -1:
+				_jaw = FaceJaw.attach(skeleton, shape_names.jaw_bone)
+				break
 	_blink_in = randf_range(blink_every_min, blink_every_max)
 	set_process(not _shape_index.is_empty())
 
@@ -176,6 +184,8 @@ func _process(delta: float) -> void:
 		else:
 			_current[shape] = now
 		_apply(shape, now)
+	if _jaw:
+		_jaw.degrees = _jaw_degrees()
 
 
 func _apply(shape: String, weight: float) -> void:
@@ -184,6 +194,20 @@ func _apply(shape: String, weight: float) -> void:
 			continue
 		for index: int in _shape_index[mesh].get(shape, []):
 			(mesh as MeshInstance3D).set_blend_shape_value(index, weight)
+
+
+## How far open the shapes now showing hold the jaw: each of the rig's
+## own shapes at its heaviest weight, times the turn it carries.
+func _jaw_degrees() -> float:
+	var heaviest: Dictionary = {}
+	for shape: String in _current:
+		var own: PackedStringArray = shape_names.names.get(shape, PackedStringArray([shape]))
+		for name in own:
+			heaviest[name] = maxf(heaviest.get(name, 0.0), _current[shape])
+	var total: float = 0.0
+	for name: String in heaviest:
+		total += shape_names.jaw_degrees.get(name, 0.0) * heaviest[name]
+	return total
 
 
 func _expression_now() -> Dictionary:

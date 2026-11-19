@@ -42,3 +42,7 @@ names = Dictionary[String, PackedStringArray]({
 "viseme_nn": PackedStringArray("V_Lip_Open"),
 "viseme_RR": PackedStringArray("V_Tight_O")
 })
+jaw_degrees = Dictionary[String, float]({
+"V_Open": 16.0,
+"Jaw_Open": 30.89
+})
