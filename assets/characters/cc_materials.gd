@@ -299,6 +299,11 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 				"spec_map_strength": v.get("Hair Specular Map Strength", 0.25),
 				"roughness_map_strength": v.get("Hair Roughness Map Strength", 0.5),
 				"flip_flow_y": v.get("TangentMapFlipGreen", 1.0) > 0.5,
+				"has_flow_map": img.get("Hair Flow Map") is Dictionary and str(img["Hair Flow Map"].get("Texture Path", "")) != "",
+				"tangent_vector_color": _col(v.get("TangentVectorColor", [255, 0, 0])),
+				"specular_color": _col(m.get("Specular Color", [255, 255, 255])),
+				"ao_light_affect": v.get("AO Map Occlude All Lighting", 1.0),
+				"lit_back_face": v.get("No Back Face Triangles", 1.0),
 				"transmission": v.get("Transmission Strength", 0.5),
 			}
 			for i in [1, 2]:

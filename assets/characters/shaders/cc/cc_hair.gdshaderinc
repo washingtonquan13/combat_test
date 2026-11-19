@@ -70,7 +70,20 @@ uniform vec3 black_offset = vec3(0.0);
 uniform vec3 white_offset = vec3(0.0);
 uniform float anisotropy = 0.8;
 uniform bool flip_flow_y = true;
+// The strand direction when there is no flow map, as a flow-map colour
+// (CC's Tangent Vector Color; red runs along V).
+uniform bool has_flow_map = true;
+uniform vec3 tangent_vector_color = vec3(1.0, 0.0, 0.0);
 uniform float transmission = 0.5;
+// The material's Specular Color, tinting both highlights.
+uniform vec3 specular_color : source_color = vec3(1.0);
+// How far the AO map darkens direct light too, not only ambient (CC's "AO
+// map occlude all lighting").
+uniform float ao_light_affect = 1.0;
+// How far a card's back face is lit as if it faced the light (CC's "Lit Back
+// Face", "No Back Face Triangles" in its JSON). At 0 back faces light by the
+// card's front normal and fall dark, as CC's plain PBR hair does.
+uniform float lit_back_face = 1.0;
 // Godot-side tunes. CC's Specular Strength used as Godot's SPECULAR (F0) on
 // flat cards turned near-black hair grey with white glints (card normals are
 // not strand normals), so the ambient reflection takes it scaled down.
@@ -89,6 +102,7 @@ varying vec3 v_strand;
 varying float v_shift;
 varying float v_primary;
 varying float v_secondary;
+varying float v_back;
 
 float dye_weight(float id, vec3 range, float root, float overlap, float invert) {
 	float up = range.y > range.x ? smoothstep(range.x, range.y, id) : step(range.x, id);
@@ -165,7 +179,8 @@ Hair hair_surface(vec2 uv, vec4 vertex_color) {
 	h.secondary = secondary_specular_strength * spec_map;
 
 	vec3 offset = mix(black_offset, white_offset, id);
-	vec2 flow = (texture(flow_map, uv).rg + offset.xy) * 2.0 - 1.0;
+	vec2 flow_rg = has_flow_map ? texture(flow_map, uv).rg : tangent_vector_color.rg;
+	vec2 flow = (flow_rg + offset.xy) * 2.0 - 1.0;
 	if (flip_flow_y) {
 		flow.y = -flow.y;
 	}
@@ -181,7 +196,9 @@ float strand_highlight(vec3 t, vec3 h, float e) {
 
 void light() {
 	vec3 lc = LIGHT_COLOR * ATTENUATION;
-	float wrap = clamp(dot(NORMAL, LIGHT) * 0.75 + 0.25, 0.0, 1.0);
+	// Godot flips NORMAL on back faces; unflip it as far as back faces are unlit.
+	float ndl = dot(NORMAL, LIGHT) * mix(1.0, 2.0 * lit_back_face - 1.0, v_back);
+	float wrap = clamp(ndl * 0.75 + 0.25, 0.0, 1.0);
 	DIFFUSE_LIGHT += lc * wrap / PI;
 	// Light from behind, through the hair.
 	DIFFUSE_LIGHT += lc * transmission * pow(clamp(dot(VIEW, -LIGHT), 0.0, 1.0), 4.0) / PI;
@@ -192,9 +209,9 @@ void light() {
 	float fresnel = 0.046 + 0.954 * pow(1.0 - clamp(dot(hv, VIEW), 0.0, 1.0), 5.0);
 	vec3 t1 = normalize(v_strand + NORMAL * (v_shift + primary_shift));
 	vec3 t2 = normalize(v_strand + NORMAL * (v_shift + secondary_shift));
-	vec3 lobes = vec3(v_primary * strand_highlight(t1, hv, e))
+	vec3 lobes = specular_color * v_primary * strand_highlight(t1, hv, e)
 			+ ALBEDO * v_secondary * strand_highlight(t2, hv, e * 0.5);
 	SPECULAR_LIGHT += lc * SPECULAR_AMOUNT * highlight_gain * fresnel * wrap * lobes;
 }
 
-#define HAIR_SURFACE(uv) Hair h = hair_surface(uv, COLOR); ALBEDO = h.albedo; AO = h.ao; AO_LIGHT_AFFECT = 1.0; ROUGHNESS = h.roughness; SPECULAR = h.specular; ANISOTROPY = anisotropy; ANISOTROPY_FLOW = h.flow; v_strand = normalize(TANGENT * h.flow.x + BINORMAL * h.flow.y); v_shift = h.shift; v_primary = h.primary; v_secondary = h.secondary
+#define HAIR_SURFACE(uv) Hair h = hair_surface(uv, COLOR); ALBEDO = h.albedo; AO = h.ao; AO_LIGHT_AFFECT = ao_light_affect; ROUGHNESS = h.roughness; SPECULAR = h.specular; ANISOTROPY = anisotropy; ANISOTROPY_FLOW = h.flow; v_strand = normalize(TANGENT * h.flow.x + BINORMAL * h.flow.y); v_shift = h.shift; v_primary = h.primary; v_secondary = h.secondary; v_back = FRONT_FACING ? 0.0 : 1.0
