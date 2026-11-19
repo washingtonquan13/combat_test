@@ -291,8 +291,14 @@ def build():
     district = sc.ext_res("Script", "res://world/overworld_district.gd")
     rest_spot = sc.ext_res("PackedScene", "res://world/inn_rest_spot.tscn")
 
+    # A sky, mostly for the water to reflect (quarry_water.gdshader has
+    # nothing to mirror against a flat colour); its horizon is the fog's.
+    sky_mat = sc.sub_res("ProceduralSkyMaterial", {
+        "sky_top_color": color(0.36, 0.52, 0.76), "sky_horizon_color": color(0.62, 0.68, 0.72),
+        "ground_bottom_color": color(0.2, 0.22, 0.16), "ground_horizon_color": color(0.62, 0.68, 0.72)})
+    sky = sc.sub_res("Sky", {"sky_material": sky_mat})
     env = sc.sub_res("Environment", {
-        "background_mode": "1", "background_color": color(0.62, 0.68, 0.72),
+        "background_mode": "2", "sky": sky, "reflected_light_source": "2",
         "ambient_light_source": "2", "ambient_light_color": color(0.78, 0.84, 0.95),
         "ambient_light_energy": "0.6", "tonemap_mode": "2", "tonemap_exposure": "1.05",
         "ssao_enabled": "true", "ssao_radius": "2.5", "ssao_intensity": "2.0",
@@ -303,7 +309,6 @@ def build():
     bark = material(sc, (0.32, 0.24, 0.17))
     leaves = material(sc, (1, 1, 1), 0.9, vertex=True)
     rock = material(sc, (0.48, 0.46, 0.43))
-    water = material(sc, (0.18, 0.3, 0.38), 0.15)
     inn = material(sc, (0.6, 0.42, 0.28))
 
     sc.node("MorrowOverworld", "Node3D", None, {
@@ -331,8 +336,14 @@ def build():
     px0 = ground.meta["paint_x0"]
     params["shader_parameter/mask_rect"] = "Vector4(%s, %s, %r, %r)" % (f(px0), f(px0), 1.0 / span, 1.0 / span)
     ground_mat = sc.sub_res("ShaderMaterial", params)
-    river_water = sc.sub_res("StandardMaterial3D", {"albedo_color": color(0.18, 0.3, 0.38), "roughness": "0.15",
-                                                    "cull_mode": "2"})
+    # The quarry's water shader (flow from the vertex colours morrow_terrain.gd
+    # writes), its ripples scaled up for the overworld's high camera and its
+    # pond greens cooled toward a river's blue.
+    river_water = sc.sub_res("ShaderMaterial", {
+        "shader": sc.ext_res("Shader", "res://world/goblin_quarry/quarry_water.gdshader"),
+        "shader_parameter/ripple_size": "2.5", "shader_parameter/ripple_height": "0.3",
+        "shader_parameter/clear_depth": "0.9",
+        "shader_parameter/deep_color": color(0.03, 0.07, 0.09), "shader_parameter/murk_color": color(0.12, 0.18, 0.17)})
     sc.node("Terrain", "Node3D", "Ground", {"script": terrain_script, "material": ground_mat,
                                             "water_material": river_water})
 
@@ -418,10 +429,7 @@ def build():
 
     lx, lz, lr = LAKE
     lake_water = ground.meta["lake"]["water"]
-    lake = sc.sub_res("CylinderMesh", {"top_radius": f(lr), "bottom_radius": f(lr), "height": "0.2",
-                                       "radial_segments": "48", "rings": "1"})
-    sc.node("Lake", "MeshInstance3D", "Wilds", {"transform": xform(lx, lake_water, lz), "mesh": lake,
-                                               "material_override": water, "cast_shadow": "0"})
+    # The lake's water is the terrain's (morrow_terrain.gd); this keeps walkers out.
     shore = sc.sub_res("CylinderShape3D", {"height": "20.0", "radius": f(lr - 4)})
     sc.node("LakeShore", "StaticBody3D", "Wilds")
     sc.node("Shape", "CollisionShape3D", "Wilds/LakeShore", {"transform": xform(lx, lake_water + 10, lz), "shape": shore})
