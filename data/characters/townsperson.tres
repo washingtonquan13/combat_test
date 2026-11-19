@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="CharacterPreset" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/character_preset.gd" id="1_preset"]
+
+[resource]
+script = ExtResource("1_preset")
+body_scene = "res://scenes/character_models/cc_female_model.tscn"
+hair_scene = "res://assets/characters/cc/hair/female/cc_hair_female.fbx"
+skin_tint = Color(0.6, 0.45, 0.36, 1)
+iris_tint = Color(0.55, 0.4, 0.3, 1)
+hair_color = Color(0.05, 0.04, 0.035, 1)

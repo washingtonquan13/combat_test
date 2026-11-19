@@ -1,12 +1,14 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/proof_hero_model.tscn" id="3_model"]
 [ext_resource type="Script" uid="uid://1cuiym8es4oi" path="res://systems/inventory_system/item_definition.gd" id="4_itemdef"]
-[ext_resource type="Resource" path="res://data/items/casual_suit.tres" id="5_suit"]
-[ext_resource type="Resource" path="res://data/items/leather_shoes.tres" id="6_shoes"]
+[ext_resource type="Resource" path="res://data/items/work_shirt.tres" id="5_shirt"]
+[ext_resource type="Resource" path="res://data/items/work_boots.tres" id="6_boots"]
 [ext_resource type="Resource" path="res://data/characters/hero.tres" id="7_look"]
+[ext_resource type="Resource" path="res://data/items/work_belt.tres" id="8_belt"]
+[ext_resource type="Resource" path="res://data/items/work_pants.tres" id="9_pants"]
 
 [resource]
 script = ExtResource("1_def")
@@ -17,6 +19,8 @@ unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
 look = ExtResource("7_look")
 equipment = Dictionary[int, ExtResource("4_itemdef")]({
-4: ExtResource("5_suit"),
-11: ExtResource("6_shoes")
+4: ExtResource("5_shirt"),
+9: ExtResource("8_belt"),
+10: ExtResource("9_pants"),
+11: ExtResource("6_boots")
 })
