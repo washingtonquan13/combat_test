@@ -24,7 +24,7 @@ body_glb, armour_gltf, out_glb, preview = argv[:4]
 S, DZ, DY, ARM, LEG, YAW = map(float, argv[4:10])
 extra = list(map(float, argv[10:14])) + [0.0] * (4 - len(argv[10:14]))
 UPPER, FORE, SHOULDER, SPINE = extra
-CUFF = 0.015      # sleeve past the wrist
+CUFF = -0.02      # sleeve end past the wrist joint (< 0: short of it, off the palm)
 ARM_R = 0.14      # sleeve radius taken as the sleeve
 MARGIN, NEAR = 0.004, 0.08
 
