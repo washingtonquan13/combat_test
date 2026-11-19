@@ -3,8 +3,9 @@ extends Node
 ## Dresses the body in what the unit wears - the worn counterpart of
 ## UnitWeapons, wired the same way and deciding nothing. Every equipped
 ## item with a GearItem.wearable goes on the body through its
-## CharacterLook (CharacterLook.wear). A body without one - a demon, a
-## placeholder mannequin - wears nothing.
+## CharacterLook or, on a Character Creator body, its CCLook (each has
+## wear()). A body with neither - a demon, a placeholder mannequin - wears
+## nothing.
 
 @export var unit: Unit
 
@@ -27,10 +28,10 @@ func refresh() -> void:
 	if not is_instance_valid(unit):
 		return
 	var body := unit.get_node_or_null("CharacterModel") as CharacterModel
-	var look: CharacterLook = null
+	var look: Node = null
 	if body:
 		for child in body.get_children():
-			if child is CharacterLook:
+			if child is CharacterLook or child is CCLook:
 				look = child
 	var items: Array[Wearable] = []
 	for slot: EquipSlot.Slot in EquipSlot.Slot.values():

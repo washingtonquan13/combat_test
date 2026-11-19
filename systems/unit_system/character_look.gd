@@ -104,7 +104,7 @@ func wear(items: Array[Wearable]) -> void:
 			mesh.layers = _body_layers(skeleton)
 			_worn.append(mesh)
 		fitted.free()
-	_covers = _joined(masks)
+	_covers = joined_covers(masks)
 	_show_covers()
 
 
@@ -128,7 +128,7 @@ func _body_layers(skeleton: Skeleton3D) -> int:
 
 
 ## The masks laid over each other: what any of them covers.
-static func _joined(masks: Array[Texture2D]) -> Texture2D:
+static func joined_covers(masks: Array[Texture2D]) -> Texture2D:
 	if masks.size() <= 1:
 		return masks[0] if masks else null
 	var joined: Image = null

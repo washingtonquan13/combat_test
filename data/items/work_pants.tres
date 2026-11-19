@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_chest.png" id="2_icon"]
+[ext_resource type="Script" path="res://systems/inventory_system/wearable.gd" id="3_wear"]
+
+[sub_resource type="Resource" id="Resource_wear"]
+script = ExtResource("3_wear")
+cc_part = &"pants"
+cc_layer = 2
+
+[resource]
+script = ExtResource("1_gear")
+slot_type = 9
+weight = 1.0
+wearable = SubResource("Resource_wear")
+id = &"work_pants"
+item_name = "Work Pants"
+icon = ExtResource("2_icon")
+width = 2
+height = 3
+maximum_stack_count = 1

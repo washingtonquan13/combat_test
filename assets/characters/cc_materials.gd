@@ -124,23 +124,386 @@ static func attach_hair(character: Node3D, hair: PackedScene, json_path: String)
 				best = b
 		skin.add_named_bind(bs.get_bone_name(best),
 				bs.get_bone_global_rest(best).affine_inverse() * at * mesh.skin.get_bind_pose(i))
-	var plain := ArrayMesh.new()
-	var am := mesh.mesh as ArrayMesh
-	for s in am.get_surface_count():
-		plain.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, am.surface_get_arrays(s), [], {},
-				am.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
-		plain.surface_set_material(s, am.surface_get_material(s))
-		plain.surface_set_name(s, am.surface_get_name(s))
-	plain.resource_name = am.resource_name
 	var out := MeshInstance3D.new()
 	out.name = mesh.name
-	out.mesh = plain
+	out.mesh = _without_shapes(mesh.mesh as ArrayMesh)
 	out.skin = skin
 	bs.add_child(out)
 	out.skeleton = NodePath("..")
 	src.free()
 	apply(out, json_path)
 	return out
+
+
+## Puts one garment of a CC clothed export on a CC character: the mesh
+## named `part` (case aside) in `clothes`, the base dressed in CC and
+## exported whole. Null when the export has no such mesh. Built once per
+## export, part and body, and shared.
+##
+## The garment is skinned with the character's own body binds, so it moves
+## exactly as the skin under it. CC skins a garment to the same bones as the
+## body, so each of its binds takes the body's bind for the same bone (by
+## name; by place for the bones the two name differently).
+##
+## WORKAROUND: the clothed exports came from CC's Python export, as the
+## hair did (Unreal-style bone names), and its mesh space sits a few
+## millimetres off the base's along Z (8.9 mm on the male, 7.7 mm on the
+## female). That shift is measured from the bones both name alike and
+## undone. Blend shapes are dropped, as for the hair.
+static var _garments := {}
+
+static func attach_garment(character: Node3D, clothes: PackedScene, json_path: String, part: StringName) -> MeshInstance3D:
+	var body := _body(character)
+	if body == null or body.skin == null:
+		return null
+	var bs := body.get_node(body.skeleton) as Skeleton3D
+	var key := "%s|%s|%d" % [clothes.resource_path, String(part).to_lower(), body.skin.get_instance_id()]
+	if not _garments.has(key):
+		_garments[key] = _garment(clothes, part, body.skin)
+	var built: Array = _garments[key]
+	if built.is_empty():
+		return null
+	var out := MeshInstance3D.new()
+	out.name = String(part)
+	out.mesh = built[0]
+	out.skin = built[1]
+	out.set_meta(OFFSET_META, built[2])
+	out.layers = body.layers
+	bs.add_child(out)
+	out.skeleton = NodePath("..")
+	apply(out, json_path)
+	return out
+
+
+## [mesh, skin, offset] of `part` in `clothes`, bound to `body_skin`; empty
+## for none.
+static func _garment(clothes: PackedScene, part: StringName, body_skin: Skin) -> Array:
+	var src := clothes.instantiate()
+	var mesh: MeshInstance3D = null
+	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
+		if String(m.name).to_lower() == String(part).to_lower():
+			mesh = m
+	var out := []
+	if mesh and mesh.skin:
+		out = [_without_shapes(mesh.mesh as ArrayMesh), garment_skin(mesh.skin, body_skin),
+				garment_offset(mesh.skin, body_skin)]
+	src.free()
+	return out
+
+
+## The base's body mesh.
+static func _body(character: Node) -> MeshInstance3D:
+	for m: MeshInstance3D in character.find_children("*", "MeshInstance3D", true, false):
+		if m.name == "CC_Base_Body":
+			return m
+	return null
+
+
+## A skin for a mesh skinned by `src` (a CC Python export's) that takes
+## `body`'s bind for each of its bones, shifted by garment_offset().
+static func garment_skin(src: Skin, body: Skin) -> Skin:
+	var pairs := _bind_pairs(src, body)
+	var shift := Transform3D(Basis.IDENTITY, garment_offset(src, body))
+	var skin := Skin.new()
+	for i in src.get_bind_count():
+		var j: int = pairs[i]
+		skin.add_named_bind(body.get_bind_name(j), body.get_bind_pose(j) * shift)
+	return skin
+
+
+## How far a CC Python export's mesh space sits from the base's: the
+## median, per axis, of the moves between the bones both skins name alike.
+static func garment_offset(src: Skin, body: Skin) -> Vector3:
+	var by_key := {}
+	for j in body.get_bind_count():
+		by_key[_bone_key(body.get_bind_name(j))] = j
+	var moves: Array[Vector3] = []
+	for i in src.get_bind_count():
+		var j: int = by_key.get(_bone_key(src.get_bind_name(i)), -1)
+		if j >= 0:
+			moves.append(_bind_origin(body, j) - _bind_origin(src, i))
+	if moves.is_empty():
+		push_warning("CCMaterials: no bone named alike in a garment and its body; no offset.")
+		return Vector3.ZERO
+	var out := Vector3.ZERO
+	for axis in 3:
+		var values: Array[float] = []
+		for m in moves:
+			values.append(m[axis])
+		values.sort()
+		out[axis] = values[values.size() / 2]
+	return out
+
+
+## src's bind index -> body's bind index for the same bone: by name where
+## both name it alike, else the body bone (not already taken, if one is as
+## near) nearest where src's sits, once shifted.
+static func _bind_pairs(src: Skin, body: Skin) -> Dictionary:
+	var shift := garment_offset(src, body)
+	var by_key := {}
+	for j in body.get_bind_count():
+		by_key[_bone_key(body.get_bind_name(j))] = j
+	var pairs := {}
+	var taken := {}
+	for i in src.get_bind_count():
+		var j: int = by_key.get(_bone_key(src.get_bind_name(i)), -1)
+		if j >= 0:
+			pairs[i] = j
+			taken[j] = true
+	for i in src.get_bind_count():
+		if pairs.has(i):
+			continue
+		var at := _bind_origin(src, i) + shift
+		var best := -1
+		var best_d := INF
+		for j in body.get_bind_count():
+			# A taken bone counts a millimetre farther: coincident bones
+			# (a twist on its limb bone) go to the free one.
+			var d := _bind_origin(body, j).distance_to(at) + (0.001 if taken.has(j) else 0.0)
+			if d < best_d:
+				best_d = d
+				best = j
+		pairs[i] = best
+		taken[best] = true
+	return pairs
+
+
+## Where a bind's bone sat in the mesh's space when it was bound.
+static func _bind_origin(skin: Skin, i: int) -> Vector3:
+	return skin.get_bind_pose(i).affine_inverse().origin
+
+
+## A bone's name as both CC exports can say it: "CC_Base_L_CalfTwist01"
+## and "calf_twist_01_l" are both "lcalftwist01".
+static func _bone_key(bone: StringName) -> String:
+	var n := String(bone).to_lower().trim_prefix("cc_base_")
+	if n.ends_with("_l") or n.ends_with("_r"):
+		n = n.right(1) + n.left(-2)
+	return n.replace("_", "")
+
+
+## A garment's meta: garment_offset(), its mesh's shift into the base's space.
+const OFFSET_META := &"cc_offset"
+## Metres: a lower layer's vertex this near an upper's surface (either side
+## of it: CC's layers sit through each other), over one of its triangles, is
+## hidden by it. Over the upper's edge (its open boundary, not a seam between
+## its own triangles) it must lie UNDER_SIDE inside it (negative: inside),
+## so what is dropped stays behind the edge seen at an angle. Underwear takes
+## UNDERWEAR_SIDE: past a garment's edge it only bares skin, never a hole.
+const UNDER_DEPTH := 0.02
+const UNDER_SIDE := -0.004
+const UNDERWEAR_SIDE := 0.03
+## Metres: underwear lies on the skin, under clothes hanging loose off it.
+const UNDERWEAR_DEPTH := 0.05
+## Metres: within a cover, its triangles' shared edges are crossed this freely.
+const UNDER_SEAM := 0.001
+## Metres: two vertices this near are one, for finding a cover's boundary.
+const UNDER_WELD := 0.0001
+const UNDER_CELL := 0.02
+static var _uncovered := {}
+
+
+## mesh (its vertices shifted by offset into the base's space) without the
+## triangles hidden by covers, at rest: those whose every vertex lies close
+## against a cover. A cover is [ArrayMesh, offset, behind]: a layer worn over
+## it, or with behind true one worn level with it, which hides only what lies
+## behind it (by its normals), so two layers level with each other hide each
+## other where each is outermost (a belt over a shirt's front, under its
+## back). CC layers clothes so close they sit through each other (a sweater
+## through an apron's bib, the base's underwear through anything); what is
+## hidden is dropped. Indices only change, so blend shapes and skinning stay.
+## A surface left with nothing keeps one empty triangle, so its index (and
+## the materials set by it) stays.
+static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: float = UNDER_SIDE, depth: float = UNDER_DEPTH) -> ArrayMesh:
+	if covers.is_empty():
+		return mesh
+	var ids := []
+	for c in covers:
+		ids.append("%d%s" % [c[0].get_instance_id(), "b" if c.size() > 2 and c[2] else ""])
+	ids.sort()
+	var key := "%d|%s|%f|%f" % [mesh.get_instance_id(), ids, side, depth]
+	if _uncovered.has(key):
+		return _uncovered[key]
+	var grid := {}
+	var reach := Vector3.ONE * (depth + maxf(side, UNDER_SEAM))
+	for c in covers:
+		var cm: ArrayMesh = c[0]
+		var behind: bool = c.size() > 2 and c[2]
+		var edges := {}
+		var tris := []
+		for cs in cm.get_surface_count():
+			var a := cm.surface_get_arrays(cs)
+			var v: PackedVector3Array = a[Mesh.ARRAY_VERTEX]
+			var vn: PackedVector3Array = a[Mesh.ARRAY_NORMAL]
+			var ci: PackedInt32Array = a[Mesh.ARRAY_INDEX]
+			for i in range(0, ci.size(), 3):
+				var ps: Array[Vector3] = [v[ci[i]] + c[1], v[ci[i + 1]] + c[1], v[ci[i + 2]] + c[1]]
+				var n := (ps[1] - ps[0]).cross(ps[2] - ps[0])
+				if n.length_squared() < 1e-14:
+					continue
+				n = n.normalized()
+				var facing := 1.0 if n.dot(vn[ci[i]] + vn[ci[i + 1]] + vn[ci[i + 2]]) >= 0.0 else -1.0
+				var ek := []
+				for e in 3:
+					var k := _edge_key(ps[e], ps[(e + 1) % 3])
+					edges[k] = edges.get(k, 0) + 1
+					ek.append(k)
+				tris.append([ps, n, ek, facing])
+		for t in tris:
+			var ps: Array[Vector3] = t[0]
+			var margins := PackedFloat32Array()
+			for k in t[2]:
+				margins.append(side if edges[k] == 1 else UNDER_SEAM)
+			var tri := [ps[0], ps[1], ps[2], t[1], margins, t[3] if behind else 0.0]
+			var lo := Vector3i(((ps[0].min(ps[1]).min(ps[2]) - reach) / UNDER_CELL).floor())
+			var hi := Vector3i(((ps[0].max(ps[1]).max(ps[2]) + reach) / UNDER_CELL).floor())
+			for x in range(lo.x, hi.x + 1):
+				for y in range(lo.y, hi.y + 1):
+					for z in range(lo.z, hi.z + 1):
+						var k := Vector3i(x, y, z)
+						if not grid.has(k):
+							grid[k] = []
+						grid[k].append(tri)
+	var out := ArrayMesh.new()
+	out.blend_shape_mode = mesh.blend_shape_mode
+	for k in mesh.get_blend_shape_count():
+		out.add_blend_shape(mesh.get_blend_shape_name(k))
+	var dropped := 0
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		var hidden := {}
+		var kept := PackedInt32Array()
+		var gone := PackedInt32Array()
+		for i in range(0, idx.size(), 3):
+			var all := true
+			for j in 3:
+				var vi: int = idx[i + j]
+				if not hidden.has(vi):
+					hidden[vi] = _hidden(grid, v[vi] + offset, depth)
+				if not hidden[vi]:
+					all = false
+					break
+			if all:
+				dropped += 1
+				gone.append_array([idx[i], idx[i + 1], idx[i + 2]])
+			else:
+				kept.append_array([idx[i], idx[i + 1], idx[i + 2]])
+		var stray := kept.size()
+		kept = _without_islands(v, kept, gone)
+		dropped += (stray - kept.size()) / 3
+		if kept.is_empty():
+			kept = PackedInt32Array([idx[0], idx[0], idx[0]])
+		arrays[Mesh.ARRAY_INDEX] = kept
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, mesh.surface_get_blend_shape_arrays(s), {},
+				mesh.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		out.surface_set_material(s, mesh.surface_get_material(s))
+		out.surface_set_name(s, mesh.surface_get_name(s))
+	out.resource_name = mesh.resource_name
+	var result: ArrayMesh = out if dropped > 0 else mesh
+	_uncovered[key] = result
+	return result
+
+
+## Triangles: a piece of a layer this small, cut off by the drop, is a
+## speck of it poking through what is over it.
+const UNDER_ISLAND := 16
+
+
+## kept (triangles) without the small pieces the drop cut off: those
+## of under UNDER_ISLAND triangles touching a dropped triangle. A piece that
+## touches none (a button, a rivet) was a piece before.
+static func _without_islands(v: PackedVector3Array, kept: PackedInt32Array, gone: PackedInt32Array) -> PackedInt32Array:
+	if gone.is_empty():
+		return kept
+	var weld := {}
+	var at := PackedInt32Array()
+	at.resize(v.size())
+	for i in v.size():
+		var k := Vector3i((v[i] / UNDER_WELD).round())
+		if not weld.has(k):
+			weld[k] = weld.size()
+		at[i] = weld[k]
+	# Union-find over welded vertices, by the kept triangles.
+	var parent := PackedInt32Array()
+	parent.resize(weld.size())
+	for i in parent.size():
+		parent[i] = i
+	for i in range(0, kept.size(), 3):
+		var r := _root(parent, at[kept[i]])
+		for j in [1, 2]:
+			var o := _root(parent, at[kept[i + j]])
+			if o != r:
+				parent[o] = r
+	# Each piece's size, and whether it touches a dropped triangle.
+	var size := {}
+	for i in range(0, kept.size(), 3):
+		var r := _root(parent, at[kept[i]])
+		size[r] = size.get(r, 0) + 1
+	var touches := {}
+	for i in gone:
+		touches[_root(parent, at[i])] = true
+	var out := PackedInt32Array()
+	for i in range(0, kept.size(), 3):
+		var r := _root(parent, at[kept[i]])
+		if touches.has(r) and size[r] < UNDER_ISLAND:
+			continue
+		out.append_array([kept[i], kept[i + 1], kept[i + 2]])
+	return out
+
+
+static func _root(parent: PackedInt32Array, i: int) -> int:
+	while parent[i] != i:
+		parent[i] = parent[parent[i]]
+		i = parent[i]
+	return i
+
+
+## An edge between two points, the same whichever way round and whichever
+## of a seam's split vertices made it.
+static func _edge_key(a: Vector3, b: Vector3) -> String:
+	var ka := Vector3i((a / UNDER_WELD).round())
+	var kb := Vector3i((b / UNDER_WELD).round())
+	if ka < kb:
+		return "%s%s" % [ka, kb]
+	return "%s%s" % [kb, ka]
+
+
+## Whether p lies close against a cover: within reach of one of its
+## triangles' planes (behind it only, for a level layer: t[5] is the side
+## its normals face, 0 for either), and over that triangle by each edge's
+## margin.
+static func _hidden(grid: Dictionary, p: Vector3, reach: float) -> bool:
+	for t in grid.get(Vector3i((p / UNDER_CELL).floor()), []):
+		var n: Vector3 = t[3]
+		var depth: float = (p - t[0]).dot(n)
+		if absf(depth) >= reach or depth * t[5] > UNDER_SEAM:
+			continue
+		var q: Vector3 = p - n * depth
+		var margins: PackedFloat32Array = t[4]
+		var inside := true
+		for e in 3:
+			var a: Vector3 = t[e]
+			var edge: Vector3 = t[(e + 1) % 3] - a
+			if edge.cross(q - a).dot(n) / edge.length() < -margins[e]:
+				inside = false
+				break
+		if inside:
+			return true
+	return false
+
+
+## mesh's surfaces without its blend shapes.
+static func _without_shapes(mesh: ArrayMesh) -> ArrayMesh:
+	var plain := ArrayMesh.new()
+	for s in mesh.get_surface_count():
+		plain.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh.surface_get_arrays(s), [], {},
+				mesh.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		plain.surface_set_material(s, mesh.surface_get_material(s))
+		plain.surface_set_name(s, mesh.surface_get_name(s))
+	plain.resource_name = mesh.resource_name
+	return plain
 
 
 ## A node's transform relative to its scene's root.
@@ -256,6 +619,8 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 			l.ao_enabled = true
 			l.ao_texture = ao
 		return l
+	if shader == "" and m.get("Material Type", "") == "Pbr" and not mat_name.begins_with("Std_"):
+		return _pbr(mat_name, m, files, base, normal)
 	var sm := ShaderMaterial.new()
 	sm.resource_name = mat_name
 	if shader == "" and m.get("Node Type", "") == "Hair":
@@ -455,6 +820,28 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 		_:
 			return null
 	return sm
+
+
+## CC's plain PBR material (clothes, shoes): colour, normal, and the ORM
+## map the export writes beside the others (R occlusion, G roughness, B
+## metal; the JSON names none). Its Diffuse Color is ignored, as CC does
+## when a Base Color map is set. Two-sided when CC says so.
+static func _pbr(mat_name: String, m: Dictionary, files: Dictionary, base: Texture2D, normal: Texture2D) -> Material:
+	var p := ORMMaterial3D.new()
+	p.resource_name = mat_name
+	p.albedo_texture = base
+	if normal:
+		p.normal_enabled = true
+		p.normal_texture = normal
+	var orm := (mat_name + "_ORM.png").to_lower()
+	if files.has(orm):
+		p.orm_texture = load(files[orm])
+	else:
+		p.roughness = 0.8
+		p.metallic = 0.0
+	if m.get("Two Side", false):
+		p.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return p
 
 
 static func _v4(v: Dictionary, names: Array, suffix: String, fallback: float) -> Vector4:

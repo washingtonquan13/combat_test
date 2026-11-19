@@ -71,7 +71,16 @@ vec2 unpack_xy(vec4 t) {
 	return t.xy * 2.0 - 1.0;
 }
 
+// The skin the worn clothes hide (CCLook.wear), their covers masks joined.
+// One strip over every UV tile of the body: tile t (u from t to t+1) is the
+// strip's t-th of COVERS_TILES. Dropped, so it can't show through.
+const float COVERS_TILES = 6.0;
+uniform sampler2D covers : hint_default_transparent, filter_nearest, repeat_disable;
+
 void fragment() {
+	if (texture(covers, vec2(UV.x / COVERS_TILES, UV.y)).a > 0.5) {
+		discard;
+	}
 	vec2 uv = fract(UV);
 	vec3 albedo = texture(base_map, uv).rgb * skin_tint;
 	vec4 hdrp = texture(hdrp_map, uv);
