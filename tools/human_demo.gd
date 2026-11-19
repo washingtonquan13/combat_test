@@ -26,11 +26,12 @@ const EXPRESSIONS := [
 	["Worried", {"Brow_Raise_Inner_L": 0.9, "Brow_Raise_Inner_R": 0.9, "Brow_Drop_L": 0.3, "Brow_Drop_R": 0.3, "Mouth_Frown_L": 0.6, "Mouth_Frown_R": 0.6}],
 	["Angry", {"Brow_Drop_L": 1.0, "Brow_Drop_R": 1.0, "Nose_Sneer_L": 0.6, "Nose_Sneer_R": 0.6, "Mouth_Shrug_Upper": 0.4, "Eye_Squint_L": 0.5, "Eye_Squint_R": 0.5}],
 ]
+# name, male skin, iris, hair, female skin, iris, hair (hair alpha 0: CC's).
 const TINTS := [
-	["As made", Color(1, 1, 1), Color(1, 1, 1), Color(1, 1, 1), Color(1, 1, 1)],
-	["Tanned, green eyes", Color(0.86, 0.72, 0.6), Color(0.5, 0.85, 0.55), Color(0.9, 0.76, 0.64), Color(0.55, 0.8, 0.6)],
-	["Dark, brown eyes", Color(0.5, 0.36, 0.28), Color(0.6, 0.42, 0.28), Color(0.46, 0.33, 0.26), Color(0.55, 0.38, 0.26)],
-	["Pale, blue eyes", Color(1.05, 0.98, 0.96), Color(0.55, 0.7, 1.0), Color(1.04, 0.97, 0.95), Color(0.6, 0.75, 1.0)],
+	["As made", Color(1, 1, 1), Color(1, 1, 1), Color(0, 0, 0, 0), Color(1, 1, 1), Color(1, 1, 1), Color(0, 0, 0, 0)],
+	["Tanned, green eyes", Color(0.86, 0.72, 0.6), Color(0.5, 0.85, 0.55), Color(0.45, 0.28, 0.14), Color(0.9, 0.76, 0.64), Color(0.55, 0.8, 0.6), Color(0.55, 0.18, 0.08)],
+	["Dark, brown eyes", Color(0.5, 0.36, 0.28), Color(0.6, 0.42, 0.28), Color(0.05, 0.04, 0.035), Color(0.46, 0.33, 0.26), Color(0.55, 0.38, 0.26), Color(0.07, 0.05, 0.04)],
+	["Pale, blue eyes", Color(1.05, 0.98, 0.96), Color(0.55, 0.7, 1.0), Color(0.75, 0.62, 0.4), Color(1.04, 0.97, 0.95), Color(0.6, 0.75, 1.0), Color(0.8, 0.68, 0.45)],
 ]
 
 var chars := {}
@@ -70,6 +71,8 @@ func _ready() -> void:
 		if sex == "female":
 			ap.seek(1.3, true)
 		CCMaterials.apply(c, "res://assets/characters/cc/%s/cc_base_%s.json" % [sex, sex])
+		var hair := "res://assets/characters/cc/hair/%s/cc_hair_%s" % [sex, sex]
+		CCMaterials.attach_hair(c, load(hair + ".fbx"), hair + ".json")
 		chars[sex] = c
 	_camera(int(OS.get_environment("CC_CAM")) if OS.get_environment("CC_CAM") != "" else 1)
 	_lighting(int(OS.get_environment("CC_LIGHT")) if OS.get_environment("CC_LIGHT") != "" else 0)
@@ -219,7 +222,9 @@ func _expression() -> void:
 func _tints() -> void:
 	var t: Array = TINTS[tint_i]
 	CCMaterials.set_tints(chars["male"], t[1], t[2])
-	CCMaterials.set_tints(chars["female"], t[3], t[4])
+	CCMaterials.set_hair_color(chars["male"], t[3])
+	CCMaterials.set_tints(chars["female"], t[4], t[5])
+	CCMaterials.set_hair_color(chars["female"], t[6])
 
 
 func _toggle_cc() -> void:
@@ -227,6 +232,7 @@ func _toggle_cc() -> void:
 	for sex: String in chars:
 		if cc_on:
 			CCMaterials.apply(chars[sex], "res://assets/characters/cc/%s/cc_base_%s.json" % [sex, sex])
+			CCMaterials.apply(chars[sex], "res://assets/characters/cc/hair/%s/cc_hair_%s.json" % [sex, sex])
 		else:
 			CCMaterials.clear(chars[sex])
 

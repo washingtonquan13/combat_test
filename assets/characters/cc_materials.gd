@@ -16,10 +16,13 @@ const SHADERS := "res://assets/characters/shaders/cc/"
 static var _cache := {}
 
 
-## Puts the CC materials on every mesh under `root`, from `json_path`.
+## Puts the CC materials on `root` and every mesh under it, from `json_path`.
 static func apply(root: Node, json_path: String) -> void:
 	var mats := _materials(json_path)
-	for m: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+	var meshes := root.find_children("*", "MeshInstance3D", true, false)
+	if root is MeshInstance3D:
+		meshes.append(root)
+	for m: MeshInstance3D in meshes:
 		for s in m.mesh.get_surface_count():
 			var src := m.mesh.surface_get_material(s)
 			if src and mats.has(src.resource_name):
@@ -80,6 +83,84 @@ static func clear(root: Node) -> void:
 		for s in m.mesh.get_surface_count():
 			m.set_surface_override_material(s, null)
 		m.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+
+
+## Puts a CC hairstyle on a CC character. CC exports the hair on its own
+## copy of the base body, with that copy's skeleton, so the hair mesh is moved
+## onto `character`'s skeleton and each of its binds is rebound to the
+## character's bone at the same place.
+##
+## WORKAROUND: the hair FBXs came from CC's Python export, which ignored its
+## Y-up and bone-name options (Z up, Unreal-style names); the bases came from
+## the export dialog. A Z-up hair skeleton is turned Y-up here. Exporting the
+## hair from the dialog would make that step a no-op. Its blend shapes
+## (CC's face morphs, there so the hair can follow brow and scalp shapes) are
+## dropped: the hair does not follow expressions. Returns the hair mesh.
+static func attach_hair(character: Node3D, hair: PackedScene, json_path: String) -> MeshInstance3D:
+	var src := hair.instantiate() as Node3D
+	var hs := src.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var bs := character.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var mesh: MeshInstance3D = null
+	for m: MeshInstance3D in hs.find_children("*", "MeshInstance3D", false, false):
+		var n := String(m.name).to_lower()
+		if not (n.begins_with("cc_base") or n in ["boxers", "bra", "underwear_bottoms"]):
+			mesh = m
+	if mesh == null:
+		src.free()
+		push_warning("CCMaterials: no hair mesh in %s" % hair.resource_path)
+		return null
+	# From the hair skeleton's space to the character skeleton's.
+	var to_base := _in_scene(bs).affine_inverse() * _in_scene(hs)
+	var head := hs.get_bone_global_rest(hs.find_bone(mesh.skin.get_bind_name(0))).origin
+	if head.z > head.y:
+		to_base = to_base * Transform3D(Basis(Vector3.RIGHT, -PI / 2.0))
+	var skin := Skin.new()
+	for i in mesh.skin.get_bind_count():
+		var hb := hs.find_bone(mesh.skin.get_bind_name(i))
+		var at := to_base * hs.get_bone_global_rest(hb)
+		var best := -1
+		for b in bs.get_bone_count():
+			if best < 0 or bs.get_bone_global_rest(b).origin.distance_to(at.origin) < bs.get_bone_global_rest(best).origin.distance_to(at.origin):
+				best = b
+		skin.add_named_bind(bs.get_bone_name(best),
+				bs.get_bone_global_rest(best).affine_inverse() * at * mesh.skin.get_bind_pose(i))
+	var plain := ArrayMesh.new()
+	var am := mesh.mesh as ArrayMesh
+	for s in am.get_surface_count():
+		plain.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, am.surface_get_arrays(s), [], {},
+				am.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		plain.surface_set_material(s, am.surface_get_material(s))
+		plain.surface_set_name(s, am.surface_get_name(s))
+	plain.resource_name = am.resource_name
+	var out := MeshInstance3D.new()
+	out.name = mesh.name
+	out.mesh = plain
+	out.skin = skin
+	bs.add_child(out)
+	out.skeleton = NodePath("..")
+	src.free()
+	apply(out, json_path)
+	return out
+
+
+## A node's transform relative to its scene's root.
+static func _in_scene(n: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	while n and n.owner != null:
+		t = n.transform * t
+		n = n.get_parent() as Node3D
+	return t
+
+
+## This character's hair colour; alpha 0 keeps CC's.
+static func set_hair_color(root: Node, color: Color) -> void:
+	for m: MeshInstance3D in root.find_children("*", "MeshInstance3D", true, false):
+		for s in m.mesh.get_surface_count():
+			var mat := m.get_surface_override_material(s) as ShaderMaterial
+			var f := mat.shader.resource_path.get_file() if mat else ""
+			if f.begins_with("cc_hair") or f.begins_with("cc_scalp"):
+				m.set_instance_shader_parameter("hair_color", color)
+				break
 
 
 ## This character's skin and iris colour, multiplied over CC's maps.
@@ -171,7 +252,54 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 		return l
 	var sm := ShaderMaterial.new()
 	sm.resource_name = mat_name
+	if shader == "" and m.get("Node Type", "") == "Hair":
+		# The scalp cap under the hair cards: colour and opacity, no CC shader.
+		if base == null:
+			return null
+		sm.shader = load(SHADERS + "cc_scalp.gdshader")
+		sm.set_shader_parameter("base_map", base)
+		sm.set_shader_parameter("opacity_map", _tex(files, tex.get("Opacity")))
+		sm.render_priority = -1
+		return sm
 	match shader:
+		"RLHair":
+			sm.shader = load(SHADERS + "cc_hair.gdshader")
+			var fringe := ShaderMaterial.new()
+			fringe.shader = load(SHADERS + "cc_hair_fringe.gdshader")
+			# CC's JSON names no ORM map; the export puts one beside the others.
+			var p := {
+				"opacity_map": _tex(files, tex.get("Opacity")),
+				"root_map": _tex(files, img.get("Hair Root Map")),
+				"id_map": _tex(files, img.get("Hair ID Map")),
+				"flow_map": _tex(files, img.get("Hair Flow Map")),
+				"blend_map": _tex(files, tex.get("Blend")),
+				"orm_map": _tex(files, {"Texture Path": mat_name + "_ORM.png"}),
+				"root_color": _col(v.get("RootColor", [8, 5, 3])),
+				"tip_color": _col(v.get("TipColor", [25, 18, 13])),
+				"invert_root_tip": v.get("InvertRootTip", 0.0) > 0.5,
+				"diffuse_strength": v.get("Diffuse Strength", 1.0),
+				"blend_map_strength": v.get("BaseColorMapStrength", 0.7),
+				"specular_strength": v.get("Specular Strength", 0.35),
+				"spec_map_strength": v.get("Hair Specular Map Strength", 0.25),
+				"roughness_map_strength": v.get("Hair Roughness Map Strength", 0.5),
+				"flip_flow_y": v.get("TangentMapFlipGreen", 1.0) > 0.5,
+				"transmission": v.get("Transmission Strength", 0.5),
+			}
+			for i in [1, 2]:
+				var d := "_%s Dye " % ("1st" if i == 1 else "2nd")
+				var r: Array = v.get(d + "Distribution from Grayscale", [0, 255, 255])
+				var mask := 0.0
+				if v.get("Mask %s Dye by RootMap" % ("1st" if i == 1 else "2nd"), 0.0) > 0.5:
+					mask = -1.0 if v.get("Invert %s Dye RootMap Mask" % ("1st" if i == 1 else "2nd"), 0.0) > 0.5 else 1.0
+				p["dye%d_color" % i] = _col(v.get(d + "Color", [0, 0, 0]))
+				p["dye%d_strength" % i] = v.get(d + "Strength", 0.0)
+				p["dye%d_range" % i] = Vector3(r[0], r[1], r[2]) / 255.0
+				p["dye%d_root_mask" % i] = mask
+			for k: String in p:
+				sm.set_shader_parameter(k, p[k])
+				fringe.set_shader_parameter(k, p[k])
+			sm.next_pass = fringe
+			return sm
 		"RLSkin", "RLHead":
 			if base == null or not img.has("SSS Map"):
 				return null  # the tear ducts: base colour only, keep the import
