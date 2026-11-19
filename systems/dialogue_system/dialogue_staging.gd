@@ -134,6 +134,12 @@ func _on_changed() -> void:
 	if c == null:
 		return
 	if c.ended:
+		# Whoever is still on their own body (no stand-in to strike) would
+		# otherwise keep the last face a line gave them.
+		for member: Variant in c.cast.values():
+			var face: FaceDriver = FaceDriver.of(member) if is_instance_valid(member) and member is Unit else null
+			if face:
+				face.express(&"neutral", 1.0, 0.35)
 		_forget()
 		_on_conversation_ended()
 		return
@@ -276,8 +282,18 @@ func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 		_hush()
 	var face: FaceDriver = FaceDriver.of(speaking)
 	if face:
+		# A staging tag naming an expression ("#wary") is the face the
+		# speaker takes on this line and keeps through the rest of what they
+		# say. When they next start speaking, after someone else, it is let
+		# go: the smile that handed over a gift does not carry into the next
+		# subject.
+		if speaking != _talking:
+			face.express(&"neutral", 1.0, 0.35)
 		face.talk(entry.text)
 		_talking = speaking
+		for tag: String in entry.get("tags", PackedStringArray()):
+			if FaceDriver.EXPRESSIONS.has(StringName(tag)):
+				face.express(StringName(tag), 1.0, 0.35)
 	if speaking == _speaker:
 		_run += 1
 	else:

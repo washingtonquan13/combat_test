@@ -28,7 +28,8 @@ extends RefCounted
 ## "== name" starts a node. "speaker: text" is a spoken line and "~ text" (or
 ## a line with no speaker) is narration; several in a row become a chain of
 ## nodes that follow on by themselves, the first keeping the node's id and
-## the last carrying its responses. A trailing #word is a staging tag. "*"
+## the last carrying its responses. A trailing #word is a staging tag
+## (#close; an expression name such as #wary sets the speaker's face). "*"
 ## is a response; its [brackets] hold an alignment, repeat, silent/spoken,
 ## hidden, a check, or a condition; the indented lines under it are what
 ## choosing it does and where it leads ("-> END" or nothing ends the

@@ -44,11 +44,13 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	var copy := original.duplicate(DUPLICATE_SCRIPTS) as CharacterModel
 	if copy == null:
 		return null
-	_mirror_owners(original, copy, {original: copy})
+	var twins: Dictionary = {original: copy}
+	_mirror_owners(original, copy, twins)
 	_give_own_tree(copy)
 	for solid in copy.find_children("*", "CollisionObject3D", true, false):
 		solid.free()
 	_strip_player_feedback(original, copy)
+	_point_at_own_parts(original, copy, twins)
 	copy.name = BODY_NAME
 	copy.visible = true
 
@@ -91,6 +93,23 @@ static func _mirror_owners(from: Node, to: Node, twins: Dictionary) -> void:
 		if twins.has(child.owner):
 			twin.owner = twins[child.owner]
 		_mirror_owners(child, twin, twins)
+
+
+## A duplicate keeps the original's values for every exported node the body
+## names (its face, anchors, grips, sheaths), so without this the copy's
+## `face` is the hidden body's FaceDriver, or nothing, and a stand-in never
+## moves its lips. Each is turned to the copy's own matching node; one the
+## copy dropped (the ring mesh, the collision solids) is left empty.
+static func _point_at_own_parts(original: CharacterModel, copy: CharacterModel,
+		twins: Dictionary) -> void:
+	for property: Dictionary in copy.get_property_list():
+		if property.type != TYPE_OBJECT or not (property.usage & PROPERTY_USAGE_STORAGE):
+			continue
+		var part: Object = original.get(property.name)
+		if not (part is Node) or not twins.has(part):
+			continue
+		var twin: Variant = twins[part]
+		copy.set(property.name, twin if is_instance_valid(twin) else null)
 
 
 ## The unit's body shows its clips through a BodyAnimationTree, and the

@@ -1,9 +1,9 @@
 // The Scared Townperson of Millhaven: the goblin raid quest, before and after.
 
 == hub
-npc: I don't get many friendly faces through here anymore.  #line:f3c988
-npc: Watch yourself. Even standing here talking to you, I keep expecting something to come out of the trees.  #line:cc00a1
-npc: What did you want to know?  #line:4a272e
+npc: I don't get many friendly faces through here anymore.  #smile  #line:f3c988
+npc: Watch yourself. Even standing here talking to you, I keep expecting something to come out of the trees.  #wary  #line:cc00a1
+npc: What did you want to know?  #neutral  #line:4a272e
 * [noflag townsperson_heard_raids] What's been happening around here?  #line:f17856
     set townsperson_heard_raids
     -> quest_intro
@@ -18,7 +18,7 @@ npc: What did you want to know?  #line:4a272e
 
 == quest_intro
 before: [present DwarfFighter] -> quest_intro_dwarf_reaction
-npc: You mean the raids.  #line:d3c313
+npc: You mean the raids.  #frown  #line:d3c313
 npc: Goblins, mostly. Small bands, quick and mean.  #line:123bd0
 npc: But there's bigger ones running with them now. Uglier, smarter, giving the orders.  #line:4fc078
 npc: It's gotten worse these past few months.  #line:f508e8
@@ -34,15 +34,15 @@ npc: It's gotten worse these past few months.  #line:f508e8
 
 
 == quest_intro_dwarf_reaction
-DwarfFighter: Whatever's got her this rattled, we should hear her out.  #line:f2dd1e
+DwarfFighter: Whatever's got her this rattled, we should hear her out.  #frown  #line:f2dd1e
 -> quest_intro
 
 
 == quest_details
-npc: Three nights back they hit the Hollis farm.  #line:799f7a
+npc: Three nights back they hit the Hollis farm.  #frown  #line:799f7a
 npc: Burned the grain store, took what livestock they could herd off.  #line:c72b93
 npc: Put an arrow through Old Hollis's leg when he came out swinging a torch at them.  #line:19a770
-npc: Before that it was the mill. Before that, some fool who wandered too close to the tree line at dusk never came home at all.  #line:f5dc44
+npc: Before that it was the mill. Before that, some fool who wandered too close to the tree line at dusk never came home at all.  #wary  #line:f5dc44
 npc: They don't come every night. Just enough that nobody sleeps easy anymore.  #line:05a561
 * Do you know where they're camped?  #line:c5f7f4
     -> quest_location
@@ -55,28 +55,28 @@ npc: They don't come every night. Just enough that nobody sleeps easy anymore.  
 
 
 == quest_insight
-npc: ...There's one more thing.  #line:b2d814
+npc: ...There's one more thing.  #wary  #line:b2d814
 npc: The night they hit the mill, I saw one of them stop at the well and just stare at it. Like it was looking for something.  #line:332a06
 npc: The others didn't seem to notice, but the big one did. It got angry, herded it along.  #line:1d2593
-npc: I haven't told anyone that part. Didn't want people thinking I'd lost my nerve completely.  #line:0280c7
+npc: I haven't told anyone that part. Didn't want people thinking I'd lost my nerve completely.  #frown  #line:0280c7
 -> quest_details
 
 
 == quest_location
-npc: Somewhere out past the old quarry, if I had to guess.  #line:246b8a
+npc: Somewhere out past the old quarry, if I had to guess.  #neutral  #line:246b8a
 npc: That's the direction they always come from, and where the tracks lead back to.  #line:f73fa1
 npc: Nobody from town's been foolish enough to go look.  #line:00fdf1
-npc: If you're thinking about it... just be careful. Please.  #line:b0c54a
+npc: If you're thinking about it... just be careful. Please.  #frown  #line:b0c54a
 -> potion_gift
 
 
 == quest_pushed_back
-npc: I've told you what I know. Don't push me on this.  #line:4fc3d6
+npc: I've told you what I know. Don't push me on this.  #angry  #line:4fc3d6
 -> potion_gift
 
 
 == potion_gift
-npc: Here, take this. I hope it helps if you encounter them.  #line:9d8c40
+npc: Here, take this. I hope it helps if you encounter them.  #smile  #line:9d8c40
 -> hub
 
 
