@@ -122,6 +122,22 @@ func capture(blend: float, from: Animation, pos: float, speed: float) -> void:
 	_applied = false
 
 
+## The pose just captured, with `bone` moved by `by` (in its parent's
+## space). For a body whose root is moved on the frame its clip changes:
+## the travel a clip kept in the hips is handed to the root, and the pose
+## the change leaves is the same pose seen from the root's new place, so
+## the hips do not slide back to where the root used to be. Call it after
+## the play() that captured, before the next frame.
+func carry(bone: int, by: Transform3D) -> void:
+	if not _pending or bone < 0 or bone >= _old_pos.size():
+		return
+	var turn: Quaternion = by.basis.get_rotation_quaternion()
+	_old_pos[bone] = by * _old_pos[bone]
+	_old_pos_prev[bone] = by * _old_pos_prev[bone]
+	_old_rot[bone] = turn * _old_rot[bone]
+	_old_rot_prev[bone] = turn * _old_rot_prev[bone]
+
+
 ## The tree has applied a pose since the capture: the next modification
 ## sees the new clip.
 func applied() -> void:

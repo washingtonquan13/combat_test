@@ -217,6 +217,25 @@ func play(clip: StringName, custom_blend: float = -1.0, custom_speed: float = 1.
 	animation_started.emit(clip)
 
 
+## After a play(): `body` (the CharacterModel) is about to move by `moved`,
+## in its own space, on this frame, taking over travel the clip left in the
+## hips. The change's blend is carried with it, so the body stays where it
+## is instead of sliding back. See BodyInertia.carry.
+func carry_root(body: Node3D, moved: Transform3D) -> void:
+	var skeleton: Skeleton3D = _inertia.get_parent() as Skeleton3D if _inertia else null
+	if skeleton == null:
+		return
+	var hips: int = skeleton.find_bone(&"Hips")
+	if hips == -1:
+		return
+	var parent: int = skeleton.get_bone_parent(hips)
+	# The hips' parent space, seen from the body's root.
+	var space: Transform3D = body.global_transform.affine_inverse() * skeleton.global_transform
+	if parent != -1:
+		space = space * skeleton.get_bone_global_pose(parent)
+	_inertia.carry(hips, space.affine_inverse() * moved.affine_inverse() * space)
+
+
 ## AnimationPlayer.seek(): with `update`, shows the pose now rather than at
 ## the next advance.
 func seek(seconds: float, update: bool = false) -> void:

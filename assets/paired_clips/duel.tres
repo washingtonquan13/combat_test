@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="PairedClip" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/paired_clip.gd" id="1_csuit"]
+
+[resource]
+script = ExtResource("1_csuit")
+lead_clip = "Fight/Duel_Lead"
+partner_clip = "Fight/Duel_Partner"
+partner_from_lead = Transform3D(-0.939693, 0, 0.34202, 0, 1, 0, -0.34202, 0, -0.939693, -0.04, 0, 1.52)
+contact_time = 0.666667
+length = 4.26667
+kills_partner = false
+contacts = PackedFloat32Array(0.666667, 1.73333, 2.76667)
+lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0924277, 0, 0.520444)
+partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0208521, 0, -0.00396222)

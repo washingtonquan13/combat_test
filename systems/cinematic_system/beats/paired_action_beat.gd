@@ -26,8 +26,10 @@ extends BeatNode
 ## THE FLOOR. Each body keeps the height it stands at. The pair is made for
 ## level ground.
 ##
-## WHEN IT ENDS the lead goes back to its own standing clip. The partner is
-## left as the clip left them.
+## WHEN IT ENDS the lead goes back to its own standing clip, and so does a
+## partner the clip leaves alive. Each is moved to where its clip carried
+## it (PairedClip.lead_end, partner_end) on that frame, so a lunge that
+## stepped in stays in and a stagger stays back.
 ##
 ## A KILL. When the clip says the partner ends dead (kills_partner), the
 ## partner dies as the clip ends, lying as the clip left them, not falling a
@@ -176,17 +178,43 @@ func _end(owner_stage: CinematicStage) -> void:
 	_to = []
 	# A scene's clip is what its body rests on, so one that ends starts
 	# again. The lead goes back to standing instead.
-	var leading: Unit = owner_stage.actor(lead)
-	var stance: UnitAnimator = leading.animator() if leading else null
-	if stance and stance.idle_animation != "":
-		owner_stage.clip(lead, stance.idle_animation, true, BodyAnimationTree.Layer.BODY, blend)
+	_stand_down(owner_stage, lead, clip.lead_end)
 	if not clip.kills_partner:
+		_stand_down(owner_stage, partner, clip.partner_end)
 		return
 	var dying: Unit = owner_stage.actor(partner)
 	if dying == null or not dying.is_alive():
 		return
 	# The unit's death is the clip's last frame: it has already fallen.
 	HurtBeat.kill(dying, clip.partner_clip)
+
+
+## `role` back to its standing clip, its place moved by `moved` (in its own
+## space) on the same frame, the travel its clip had in the hips handed to
+## the root.
+func _stand_down(owner_stage: CinematicStage, role: StringName, moved: Transform3D) -> void:
+	var unit_now: Unit = owner_stage.actor(role)
+	var stance: UnitAnimator = unit_now.animator() if unit_now else null
+	if stance == null or stance.idle_animation == "":
+		return
+	owner_stage.clip(role, stance.idle_animation, true, BodyAnimationTree.Layer.BODY, blend)
+	if moved.is_equal_approx(Transform3D.IDENTITY):
+		return
+	var shown: Node3D = owner_stage.body(role)
+	var model: Node3D = (shown as StandIn).body() if shown is StandIn \
+			else unit_now.get_node_or_null(NodePath(StandIn.BODY_NAME)) as Node3D
+	if shown == null or model == null:
+		return
+	var tree: BodyAnimationTree = BodyAnimationTree.of(model)
+	if tree:
+		tree.carry_root(model, moved)
+	var frame: Basis = model.global_basis.orthonormalized()
+	var step: Vector3 = frame * moved.origin
+	step.y = 0.0
+	var at: Vector3 = shown.global_position + step
+	var ahead: Vector3 = _forward(shown).rotated(Vector3.UP, moved.basis.get_euler().y)
+	owner_stage.move(role, at)
+	owner_stage.face(role, at + ahead)
 
 
 func _forward(body: Node3D) -> Vector3:

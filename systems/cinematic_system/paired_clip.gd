@@ -9,6 +9,15 @@ extends Resource
 ## face, measured from there. Stood like that and started on the same
 ## frame, the two meet: the blade is in the chest at contact_time.
 ##
+## A clip may carry its body somewhere (a lunge steps in, a stagger
+## back): that travel is in the clip's hips, not its root. lead_end and
+## partner_end are where each body's own place has got to on the last
+## frame, from where it started, so whoever plays the clip can move the
+## body there as it leaves the clip, and the body does not slide back.
+##
+## An exchange (several blows, blocks) is one pair of clips with every
+## touch in `contacts`; contact_time is the first.
+##
 ## Made by a bake tool that knows the clips (tools/kimodo/
 ## make_paired_animations.gd), not typed: the numbers are measurements.
 
@@ -26,3 +35,11 @@ extends Resource
 @export_range(0.0, 60.0, 0.01, "suffix:s") var length: float = 1.0
 ## The partner's clip ends with them dead on the ground.
 @export var kills_partner: bool = false
+## Every time the two touch, in order, contact_time first. Empty = only
+## contact_time.
+@export var contacts: PackedFloat32Array = PackedFloat32Array()
+## Where the lead's place is on the last frame, from its first, in the
+## lead's own space (+Z ahead). Flat.
+@export var lead_end: Transform3D = Transform3D.IDENTITY
+## The partner's, in the partner's own space.
+@export var partner_end: Transform3D = Transform3D.IDENTITY

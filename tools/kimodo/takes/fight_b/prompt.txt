@@ -1,0 +1,6 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 1
+30 frames: A person stands in a fighting stance holding a sword in the right hand and steps slowly to the left.
+30 frames: A person holding a sword in the right hand raises it horizontally above the head to block a strike from above.
+40 frames: A person swings a sword horizontally from right to left in front with the right hand.
+40 frames: A person is struck on the left shoulder, staggers backward and almost falls.
+70 frames: A person regains balance and raises the sword back into a fighting stance.
