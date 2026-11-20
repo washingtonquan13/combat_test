@@ -1,0 +1,6 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 3
+15 frames: A person holding a sword in the right hand runs forward fast and jumps.
+30 frames: A person jumps high into the air off both feet holding a sword in the right hand and lands hard on both feet in a deep crouch.
+20 frames: A person rises from a low crouch into a fighting stance holding a sword in the right hand.
+constraints:
+none

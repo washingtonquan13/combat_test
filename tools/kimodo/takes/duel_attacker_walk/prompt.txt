@@ -1,0 +1,4 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 3
+70 frames: A person walks forward slowly and menacingly holding a sword low in the right hand.
+constraints:
+none

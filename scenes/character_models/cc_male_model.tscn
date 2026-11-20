@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="9_ragdoll"]
@@ -9,6 +9,8 @@
 [ext_resource type="AnimationLibrary" path="res://assets/fireball_animations.tres" id="6_fireball"]
 [ext_resource type="AnimationLibrary" path="res://assets/weapon_animations.tres" id="7_weapon"]
 [ext_resource type="AnimationLibrary" path="res://assets/fight_animations.tres" id="22_fight"]
+[ext_resource type="AnimationLibrary" path="res://assets/exchange_animations.tres" id="23_exchange"]
+[ext_resource type="AnimationLibrary" path="res://assets/duel_animations.tres" id="24_duel"]
 [ext_resource type="AnimationLibrary" path="res://assets/ladder_animations.tres" id="8_ladder"]
 [ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="9_motions"]
 [ext_resource type="Script" path="res://systems/unit_system/face_driver.gd" id="10_face"]
@@ -54,6 +56,8 @@ collision_shape = NodePath("CollisionTemplate")
 libraries = {
 &"": ExtResource("3_anims"),
 &"Fight": ExtResource("22_fight"),
+&"Exchange": ExtResource("23_exchange"),
+&"Duel": ExtResource("24_duel"),
 &"Fireball": ExtResource("6_fireball"),
 &"Flight": ExtResource("5_flight"),
 &"Ladder": ExtResource("8_ladder"),

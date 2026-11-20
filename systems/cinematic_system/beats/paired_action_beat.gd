@@ -73,6 +73,9 @@ const SETTLED: float = 0.75
 ## What the clip's contacts look and sound like. Empty = the contacts still
 ## hold and shake, with nothing seen or heard.
 @export var impacts: ImpactKit = null
+## Seconds of authored freeze-frame on the clip's last contact, after its
+## hit-stop (CinematicStage.freeze): the long held instant of a kill.
+@export_range(0.0, 3.0, 0.05, "suffix:s") var freeze: float = 0.0
 
 ## [position, flat facing] each body started from and is going to.
 var _from: Array = []
@@ -149,6 +152,8 @@ func _contact(owner_stage: CinematicStage, delta: float) -> void:
 				tree.seek(event.time, true)
 		var roles: Array[StringName] = _roles(event)
 		owner_stage.impact(event, roles[0], roles[1], impact_point(owner_stage, event), impacts)
+		if freeze > 0.0 and _next == clip.contacts.size() - 1:
+			owner_stage.freeze(freeze)
 		_next += 1
 		_heard = false
 	elif not _heard and delta > 0.0 and _elapsed + delta >= event.time:

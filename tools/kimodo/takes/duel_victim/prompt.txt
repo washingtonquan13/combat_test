@@ -1,0 +1,7 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 2
+40 frames: A frightened person walks backward slowly with both hands raised in front of them, palms out.
+30 frames: A frightened person stands still with both hands raised to protect the face, trembling.
+90 frames: A person crouches down in fear and covers their head with both arms, trembling.
+70 frames: A frightened person crouching slowly lowers their arms and looks up.
+constraints:
+none

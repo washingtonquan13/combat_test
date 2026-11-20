@@ -224,6 +224,8 @@ Each beat has two behaviours:
 | **AreaBeat** | `method` | Calls that method on the area the stage stands in (the goblin quarry's `break_gate`): a change to the place itself that outlives the scene. | Same as fire | Nothing |
 | **EffectBeat** | `vfx` (a VfxEffect)<br>`from`, `to` (`to` empty = at `from`) | Plays the effect. On a role it plays at the chest. | Nothing | Nothing |
 | **SoundBeat** | `cue` (an SfxCue), `at` | Plays the sound at the role's chest or at the mark. | Nothing | Nothing |
+| **ImpactBeat** | `role`, `event` (a ContactEvent)<br>`kit` (an ImpactKit) | Fires one contact no paired clip owns, usually a LAND (a body coming down from a jump), through the same dispatcher as a blow: hold, shake, VFX, sound. The point is on the floor under the role's shown hips, so a leap that lands short of its mark puts the dust where the feet are. | Nothing | Nothing |
+| **MusicDuckBeat** | `duck` (on: duck, off: bring back)<br>`db` (-60 is silent)<br>`seconds` | Ramps the score down to `db`, or back up. Key it half a second or more before a kill so the blow lands in silence. | Brings the music back, so a skipped scene never leaves the game ducked | Nothing |
 | **SilhouetteBeat** | `role`, `color`<br>`clear` | Paints every mesh of the actor's model one flat, unlit colour (black parents and the white newborn in fusion). With `clear`, takes the paint off. | Same as fire | Stand-in takes the colour |
 
 ### Filling in words: `{tokens}`
@@ -261,6 +263,10 @@ Give the PairedActionBeat an **ImpactKit** in its `impacts` field (`impact_kit.g
 | Sound | Starts on the frame before the contact |
 | The struck body's recoil | Plays on its flinch layer the frame the hold lets go |
 
+**A long freeze on a kill.** Set the PairedActionBeat's `freeze` (seconds) and the last contact holds that much longer after its hit-stop (`CinematicStage.freeze`): every role and the shot stand still, the shake and the sound go on. Like the hit-stop it stops the timeline clock, so keyed times after it shift with it and the scene plays that much longer than its timeline.
+
+**A landing.** `ContactEvent` kind LAND is a body meeting the ground: it holds and shakes by strength like a blow, with no reaction. Fire it from an ImpactBeat on the landing frame; the kit's `land_vfx` and `land_sfx` (dust puff, thud) play under the hips.
+
 Leave `impacts` empty and the contacts do nothing. Key the shot cuts against the contacts' cut hints: an ON cut within one frame of the contact, an AFTER cut 1 to 3 frames after it. A cut can never fall inside a hold, because the timeline is stopped. `stage.cut_problems()` lists any hint the shots break; the duel walkthrough (`tools/fight_test_demo.tscn`) prints it with the measured holds and shakes.
 
 ### Making a fight exchange from Kimodo takes
@@ -276,6 +282,8 @@ The exchange (overhead miss, sidestep, killing thrust: `assets/paired_clips/exch
    Posture is never corrected. If a take hunches or leans, re-prompt or pick another seed. The bake prints `M1 EXCHANGE MEASURES`: the miss's clearance, the kill's distance before and after IK, the largest hand move, and each foot's worst travel while planted. The spec is 3 cm or less at contact (1 cm in a shot closer than 2.5 m) and 1 cm or less for a planted foot.
 
 The clips land in `assets/exchange_animations.tres`, library `Exchange` on both CC model scenes.
+
+Single-body clips for a duel's set-up and aftermath (a cornered victim, a walk-in, a leap, a sword lowered) go the same way without the pair fit: `tools/kimodo/make_duel_animations.gd` bakes `tools/kimodo/takes/duel_*` into `assets/duel_animations.tres` (library `Duel` on both CC model scenes), pinning planted feet (three passes) and placing each clip so its last frame stands on the unit's origin: the walk travels in the hips and the unit is placed on where it ends. It prints each clip's frames and worst planted-foot travel. The leap's landing frame is found by speed, not height. `cinematics/duel_m2.tscn` (Showcase 1) uses them; its beat sheet is `cinematics/duel_m2_beats.md` and its walkthrough `tools/duel_m2_demo.tscn` prints every M2 number and plays the scene a second time with a skip.
 
 ---
 

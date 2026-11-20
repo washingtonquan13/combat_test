@@ -1,0 +1,488 @@
+[gd_scene load_steps=20 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/place_beat.gd" id="4_place"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/clip_beat.gd" id="5_clip"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/impact_beat.gd" id="6_impact"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/paired_action_beat.gd" id="7_paired"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/hurt_beat.gd" id="8_hurt"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/music_duck_beat.gd" id="9_duck"]
+[ext_resource type="Script" path="res://systems/cinematic_system/contact_event.gd" id="10_contact"]
+[ext_resource type="Resource" path="res://assets/paired_clips/exchange.tres" id="11_exchange"]
+[ext_resource type="Resource" path="res://assets/cinematics/impacts/duel_impacts.tres" id="12_impacts"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/rock_face_01.glb" id="13_rock1"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/rock_face_02.glb" id="14_rock2"]
+
+[sub_resource type="Resource" id="Resource_land"]
+script = ExtResource("10_contact")
+time = 0.0
+kind = 5
+striker = 0
+effector = &"blade_tip"
+target_side = 0
+target = &"Hips"
+strength = 0.6
+cut = 0
+
+[sub_resource type="Animation" id="Animation_reset"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"S1_wide"]
+}
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 9.3
+step = 0.0333333
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 1.6, 2.33333, 3.2, 4.7, 5.03333, 6.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1),
+"update": 1,
+"values": [&"S1_wide", &"S2_victim", &"S3_land", &"S4_behind_attacker", &"S5_thrust_line", &"S6_floor", &"S7_crane"]
+}
+tracks/1/type = "method"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Beats/PlaceVictim")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Beats/VictimCornered")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/3/type = "method"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Beats/PlaceAttacker")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/4/type = "method"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Beats/AttackerAdvance")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/5/type = "method"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Beats/HeroInWings")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/6/type = "method"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Beats/PlaceHero")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(1.23333),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/7/type = "method"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Beats/HeroDrop")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(1.23333),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/8/type = "method"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("Beats/Land")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(2.4),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/9/type = "method"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath("Beats/Exchange")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(2.83333),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/10/type = "method"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath("Beats/Duck")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(4.2),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/11/type = "method"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath("Beats/HeroAfter")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(6.36667),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/12/type = "method"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Beats/Wound")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(8.5),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/13/type = "method"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath("Beats/Unduck")
+tracks/13/interp = 1
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"times": PackedFloat32Array(8.6),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/14/type = "value"
+tracks/14/imported = false
+tracks/14/enabled = true
+tracks/14/path = NodePath("Shots/S7_crane:elevation_degrees")
+tracks/14/interp = 2
+tracks/14/loop_wrap = true
+tracks/14/keys = {
+"times": PackedFloat32Array(0, 6.5, 9.3),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [4.0, 4.0, 30.0]
+}
+tracks/15/type = "value"
+tracks/15/imported = false
+tracks/15/enabled = true
+tracks/15/path = NodePath("Shots/S7_crane:distance")
+tracks/15/interp = 2
+tracks/15/loop_wrap = true
+tracks/15/keys = {
+"times": PackedFloat32Array(0, 6.5, 9.3),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [3.0, 3.0, 4.2]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_duel"]
+_data = {
+"RESET": SubResource("Animation_reset"),
+"scene": SubResource("Animation_scene")
+}
+
+[node name="DuelM2" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &"duel_m2_anchor"
+props = {}
+world_marks = PackedStringArray("duel_m2_anchor")
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="hero" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="attacker" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="victim" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="Marks" type="Node3D" parent="."]
+
+[node name="landing" type="Marker3D" parent="Marks"]
+
+[node name="attacker_spot" type="Marker3D" parent="Marks"]
+transform = Transform3D(-0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, -0.984808, -0.96, 0, 1.12)
+
+[node name="victim_spot" type="Marker3D" parent="Marks"]
+transform = Transform3D(0.996, 0, 0.092, 0, 1, 0, -0.092, 0, 0.996, -0.7, 0, -1.7)
+
+[node name="wings" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
+
+[node name="cam_wide" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1.8, 0.5)
+
+[node name="wide_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1, 0.6)
+
+[node name="cam_victim" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, 1.65, 2.7)
+
+[node name="victim_face" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 1.25, -1.6)
+
+[node name="cam_land" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 0.8, -1.4)
+
+[node name="land_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0.7, -0.5)
+
+[node name="cam_floor" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.6, 1.4, 2.6)
+
+[node name="fall_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.35, 1.5)
+
+[node name="Set" type="Node3D" parent="."]
+
+[node name="rock_back" parent="Set" instance=ExtResource("13_rock1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 0, -2.3)
+
+[node name="rock_side" parent="Set" instance=ExtResource("14_rock2")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -0.5)
+
+[node name="Shots" type="Node3D" parent="."]
+
+[node name="S1_wide" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_mark = &"cam_wide"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 45.0
+look_mark = &"wide_look"
+
+[node name="S2_victim" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_mark = &"cam_victim"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 28.0
+look_mark = &"victim_face"
+
+[node name="S3_land" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_mark = &"cam_land"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 40.0
+look_mark = &"land_look"
+
+[node name="S4_behind_attacker" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"attacker"
+distance = 2.0
+azimuth_degrees = 165.0
+elevation_degrees = 12.0
+fov_degrees = 40.0
+look_role = &"hero"
+look_offset = Vector3(0, -0.4, 0)
+
+[node name="S5_thrust_line" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"hero"
+distance = 1.5
+azimuth_degrees = 148.0
+elevation_degrees = 6.0
+fov_degrees = 35.0
+look_role = &"attacker"
+look_offset = Vector3(0, -0.3, 0)
+
+[node name="S6_floor" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_mark = &"cam_floor"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 40.0
+look_mark = &"fall_look"
+
+[node name="S7_crane" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"hero"
+distance = 3.0
+azimuth_degrees = -50.0
+elevation_degrees = 4.0
+fov_degrees = 40.0
+look_role = &"hero"
+look_offset = Vector3(0, -0.5, 0)
+
+[node name="Beats" type="Node" parent="."]
+
+[node name="PlaceVictim" type="Node" parent="Beats"]
+script = ExtResource("4_place")
+role = &"victim"
+mark = &"victim_spot"
+
+[node name="VictimCornered" type="Node" parent="Beats"]
+script = ExtResource("5_clip")
+role = &"victim"
+animation_name = "Duel/Victim_Cornered"
+blend = 0.0
+
+[node name="PlaceAttacker" type="Node" parent="Beats"]
+script = ExtResource("4_place")
+role = &"attacker"
+mark = &"attacker_spot"
+
+[node name="AttackerAdvance" type="Node" parent="Beats"]
+script = ExtResource("5_clip")
+role = &"attacker"
+animation_name = "Duel/Attacker_Advance"
+blend = 0.0
+
+[node name="HeroInWings" type="Node" parent="Beats"]
+script = ExtResource("4_place")
+role = &"hero"
+mark = &"wings"
+
+[node name="PlaceHero" type="Node" parent="Beats"]
+script = ExtResource("4_place")
+role = &"hero"
+mark = &"landing"
+
+[node name="HeroDrop" type="Node" parent="Beats"]
+script = ExtResource("5_clip")
+role = &"hero"
+animation_name = "Duel/Hero_Drop"
+blend = 0.0
+
+[node name="Land" type="Node" parent="Beats"]
+script = ExtResource("6_impact")
+role = &"hero"
+event = SubResource("Resource_land")
+kit = ExtResource("12_impacts")
+
+[node name="Exchange" type="Node" parent="Beats"]
+script = ExtResource("7_paired")
+lead = &"hero"
+partner = &"attacker"
+clip = ExtResource("11_exchange")
+impacts = ExtResource("12_impacts")
+freeze = 0.9
+
+[node name="Duck" type="Node" parent="Beats"]
+script = ExtResource("9_duck")
+duck = true
+db = -60.0
+seconds = 0.25
+
+[node name="HeroAfter" type="Node" parent="Beats"]
+script = ExtResource("5_clip")
+role = &"hero"
+animation_name = "Duel/Hero_After"
+
+[node name="Wound" type="Node" parent="Beats"]
+script = ExtResource("8_hurt")
+role = &"victim"
+outcome = 0
+hp_left = 0.4
+
+[node name="Unduck" type="Node" parent="Beats"]
+script = ExtResource("9_duck")
+duck = false
+seconds = 0.8
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_duel")
+}

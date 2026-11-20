@@ -10,7 +10,10 @@ extends Resource
 ## Roles are the pair's own: LEAD and PARTNER of the PairedClip, which a
 ## PairedActionBeat maps onto the stage's role names.
 
-enum Kind { PARRY, HIT, KILL, GRAB, MISS }
+## LAND is a body meeting the ground (a jump coming down): it holds and
+## shakes by strength like a blow, with no reaction. Appended last so
+## saved resources keep their kinds.
+enum Kind { PARRY, HIT, KILL, GRAB, MISS, LAND }
 enum Who { LEAD, PARTNER }
 ## A hint for the editor (and the stage's cut check): NONE, a cut ON the
 ## contact frame, or a cut AFTER it, onto the reaction.

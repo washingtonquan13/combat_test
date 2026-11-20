@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="VfxEffect" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="1"]
+[ext_resource type="Script" path="res://systems/ability_system/spawn_particle_step.gd" id="2"]
+[ext_resource type="PackedScene" path="res://assets/cinematics/impacts/dust_puff.tscn" id="3"]
+
+[sub_resource type="Resource" id="step"]
+script = ExtResource("2")
+scene = ExtResource("3")
+at = 1
+fallback_lifetime = 2.0
+
+[resource]
+script = ExtResource("1")
+steps = Array[ExtResource("2")]([SubResource("step")])

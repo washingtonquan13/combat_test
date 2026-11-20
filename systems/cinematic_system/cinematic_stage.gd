@@ -822,6 +822,27 @@ func impact_heard(event: ContactEvent, point_at: Vector3, kit: ImpactKit) -> voi
 		heard_frame = Engine.get_process_frames()})
 
 
+## An authored freeze-frame: holds every role and the camera framing for
+## `seconds` more, on top of whatever hit-stop is running, so the two read
+## as one held instant (the hit-stop's 120 ms, then the long beat after it).
+## Sound and music go on, and so does the shake. Logged as `freeze` on the
+## last impact, for whoever measures the scene.
+func freeze(seconds: float) -> void:
+	if not _ready_to_act("freeze") or seconds <= 0.0:
+		return
+	var total: float = maxf(_hold_left, 0.0) + seconds
+	var names: Array = []
+	for role_name in role_names():
+		names.append(StringName(role_name))
+	_hold(total, names)
+	_hold_left = total
+	var camera: CinematicCamera = CinematicDirector.camera()
+	if camera:
+		camera.hold(total)
+	if not impact_log.is_empty():
+		impact_log[-1].freeze = seconds
+
+
 func is_holding() -> bool:
 	return _hold_left > 0.0
 

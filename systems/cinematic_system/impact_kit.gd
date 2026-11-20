@@ -19,6 +19,10 @@ extends Resource
 ## Empty falls back to the hit's.
 @export var kill_vfx: VfxEffect
 @export var kill_sfx: SfxCue
+@export_group("Land")
+## A body meeting the ground: dust at the feet and a thud.
+@export var land_vfx: VfxEffect
+@export var land_sfx: SfxCue
 @export_group("Reaction")
 ## The struck body's recoil, played on its FLINCH layer the moment the
 ## hit-stop lets go. Empty asks the body for its own hit clip.
@@ -33,6 +37,8 @@ func vfx_for(kind: ContactEvent.Kind) -> VfxEffect:
 			return hit_vfx
 		ContactEvent.Kind.KILL:
 			return kill_vfx if kill_vfx else hit_vfx
+		ContactEvent.Kind.LAND:
+			return land_vfx
 	return null
 
 
@@ -44,4 +50,6 @@ func sfx_for(kind: ContactEvent.Kind) -> SfxCue:
 			return hit_sfx
 		ContactEvent.Kind.KILL:
 			return kill_sfx if kill_sfx else hit_sfx
+		ContactEvent.Kind.LAND:
+			return land_sfx
 	return null

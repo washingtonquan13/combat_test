@@ -1,0 +1,5 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 3
+25 frames: A person holding a sword in the right hand slowly lowers it and stands still, breathing heavily.
+50 frames: A person stands still looking down at the ground, breathing heavily, holding a sword low in the right hand.
+constraints:
+none
