@@ -38,10 +38,8 @@ extends BeatNode
 ## IMPACTS. Each of the clip's contacts (ContactEvent) goes to the stage's
 ## impact dispatcher on the frame the clip crosses it, with `impacts` saying
 ## what plays there. The beat first puts both bodies on the contact's exact
-## time, so the hit-stop that follows holds the touch itself, not a frame
-## past it. The sound is started one frame ahead (impact_heard), the rest on
-## the frame. Hold time does not count as clip time: the stage ticks this
-## beat with no time while it holds.
+## time, so the impact lands on the touch itself, not a frame past it. The
+## sound is started one frame ahead (impact_heard), the rest on the frame.
 ##
 ## RUNS IN REAL TIME for the clip's length, and keeps the scene open until
 ## it is done. Skipped, both are on their places and the partner is dead on
@@ -71,12 +69,8 @@ const SETTLED: float = 0.75
 ## Seconds to blend into the clips over. Below 0 = each body's own.
 @export_range(-1.0, 3.0, 0.05, "suffix:s") var blend: float = -1.0
 ## What the clip's contacts look and sound like. Empty = the contacts still
-## hold and shake, with nothing seen or heard.
+## shake the camera, with nothing seen or heard.
 @export var impacts: ImpactKit = null
-## Seconds of authored freeze-frame on the clip's last contact, after its
-## hit-stop (CinematicStage.freeze): the long held instant of a kill.
-@export_range(0.0, 3.0, 0.05, "suffix:s") var freeze: float = 0.0
-
 ## [position, flat facing] each body started from and is going to.
 var _from: Array = []
 var _to: Array = []
@@ -152,8 +146,6 @@ func _contact(owner_stage: CinematicStage, delta: float) -> void:
 				tree.seek(event.time, true)
 		var roles: Array[StringName] = _roles(event)
 		owner_stage.impact(event, roles[0], roles[1], impact_point(owner_stage, event), impacts)
-		if freeze > 0.0 and _next == clip.contacts.size() - 1:
-			owner_stage.freeze(freeze)
 		_next += 1
 		_heard = false
 	elif not _heard and delta > 0.0 and _elapsed + delta >= event.time:

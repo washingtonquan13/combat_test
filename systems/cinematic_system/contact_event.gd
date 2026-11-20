@@ -3,15 +3,15 @@ extends Resource
 ## One touch in a paired clip: a blade on a blade, a point in a body.
 ##
 ## The single source for everything that happens at an impact. The stage's
-## impact dispatcher (CinematicStage.impact) reads it and fires the hit-stop,
-## the camera's trauma shake, the struck body's reaction, the spark or blood
+## impact dispatcher (CinematicStage.impact) reads it and fires the camera's
+## trauma shake, the struck body's reaction, the spark or blood
 ## and the sound, all from this one record, so they cannot drift apart.
 ##
 ## Roles are the pair's own: LEAD and PARTNER of the PairedClip, which a
 ## PairedActionBeat maps onto the stage's role names.
 
-## LAND is a body meeting the ground (a jump coming down): it holds and
-## shakes by strength like a blow, with no reaction. Appended last so
+## LAND is a body meeting the ground (a jump coming down): it shakes by
+## strength like a blow, with no reaction. Appended last so
 ## saved resources keep their kinds.
 enum Kind { PARRY, HIT, KILL, GRAB, MISS, LAND }
 enum Who { LEAD, PARTNER }
@@ -24,9 +24,6 @@ enum Cut { NONE, ON, AFTER }
 const BLADE: StringName = &"blade"
 const BLADE_TIP: StringName = &"blade_tip"
 
-## Hit-stop, in seconds, at strength 0 and 1 (spec 5.1: 50 to 120 ms).
-const HOLD_MIN := 0.05
-const HOLD_MAX := 0.12
 ## Shake decay, in seconds, at strength 0 and 1 (spec 5.1: 0.3 to 0.6 s).
 const SHAKE_MIN := 0.3
 const SHAKE_MAX := 0.6
@@ -40,7 +37,7 @@ const SHAKE_MAX := 0.6
 ## Who is met, and where: a bone name, BLADE or BLADE_TIP.
 @export var target_side: Who = Who.PARTNER
 @export var target: StringName = &"Chest"
-## 0..1. Scales the hit-stop, the shake and the reaction.
+## 0..1. Scales the shake and the reaction.
 @export_range(0.0, 1.0) var strength: float = 0.5
 @export var cut: Cut = Cut.NONE
 
@@ -57,23 +54,21 @@ static func make(at: float, what: Kind, how_hard: float, cut_hint: Cut = Cut.NON
 	return event
 
 
-## How long both bodies and the camera hold at the contact. A miss and a
-## grab touch nothing hard, so they do not hold.
-func hold_seconds() -> float:
-	if kind == Kind.MISS or kind == Kind.GRAB:
-		return 0.0
-	return lerpf(HOLD_MIN, HOLD_MAX, strength)
+## Whether the contact meets something hard enough to shake the camera.
+## A miss and a grab do not. There is no hit-stop: cinematics never stop
+## time on a contact; the cut and the motion carry the weight.
+func shakes() -> bool:
+	return kind != Kind.MISS and kind != Kind.GRAB
 
 
-## The camera's trauma at the contact, 0..1. Shake only ever comes with a
-## hold (spec: never without hit-stop).
+## The camera's trauma at the contact, 0..1.
 func trauma() -> float:
-	return 0.0 if hold_seconds() <= 0.0 else lerpf(0.35, 1.0, strength)
+	return lerpf(0.35, 1.0, strength) if shakes() else 0.0
 
 
 ## How long the trauma takes to decay to nothing.
 func shake_seconds() -> float:
-	return 0.0 if hold_seconds() <= 0.0 else lerpf(SHAKE_MIN, SHAKE_MAX, strength)
+	return lerpf(SHAKE_MIN, SHAKE_MAX, strength) if shakes() else 0.0
 
 
 func draws_blood() -> bool:

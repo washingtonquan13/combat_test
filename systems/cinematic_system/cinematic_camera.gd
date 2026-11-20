@@ -30,9 +30,8 @@ extends Node3D
 ## the length of one scene, because a conversation frames once per line and
 ## must not hand the screen back between them.
 ##
-## HIT-STOP AND SHAKE (CinematicStage.impact). hold() stops a transit where
-## it is; the stage stops ticking the shot, so the framing holds too. shake()
-## adds trauma, 0..1, decaying linearly to nothing over the seconds given.
+## SHAKE (CinematicStage.impact). There is no hit-stop: the framing never
+## stops on a contact. shake() adds trauma, 0..1, decaying linearly to nothing over the seconds given.
 ## The camera is displaced from where the framing put it by trauma SQUARED
 ## times the limits below, read from smooth noise, so a light knock barely
 ## moves and a heavy one jolts. The displacement rides on top of every
@@ -56,10 +55,6 @@ var _ease: float = -2.0
 var _elapsed: float = 0.0
 var _claimed: bool = false
 var _locked: bool = false
-var _hold_left: float = 0.0
-var _hold_from: int = -1
-## Whether the last _process() held the framing (for measuring).
-var held_this_frame: bool = false
 var _trauma: float = 0.0
 var _trauma_fall: float = 0.0
 var _shake_clock: float = 0.0
@@ -113,7 +108,6 @@ func release() -> void:
 	_from = null
 	_cast = null
 	_trauma = 0.0
-	_hold_left = 0.0
 	if _claimed:
 		_claimed = false
 		CameraDirector.deactivate_cinematic_camera()
@@ -142,37 +136,16 @@ func transit_progress() -> float:
 ## wants a shot to stop following simply frames a mark instead, once phase
 ## 3 adds them.
 func _process(delta: float) -> void:
-	# A hold ends on the frame less than half a frame of it is left, as the
-	# stage's does (CinematicStage._drive), so the two let go together.
-	# The frame the hold was set on is the contact frame: it frames as usual,
-	# and the hold counts from the next one, as the stage's does.
-	held_this_frame = false
-	if _hold_left > 0.0 and Engine.get_process_frames() != _hold_from:
-		if _hold_left > 0.5 * delta:
-			_hold_left -= delta
-			held_this_frame = true
-		else:
-			_hold_left = 0.0
-	if not held_this_frame:
-		if not _locked:
-			if _transit > 0.0 and _elapsed < _transit:
-				_elapsed += delta
-			_apply()
+	if not _locked:
+		if _transit > 0.0 and _elapsed < _transit:
+			_elapsed += delta
+		_apply()
 	if _trauma > 0.0:
 		_trauma = maxf(0.0, _trauma - _trauma_fall * delta)
 		_shake_clock += delta
 		_shaken()
-	elif _locked and _hold_left <= 0.0:
+	elif _locked:
 		set_process(false)
-
-
-## Holds the framing where it is for `seconds`: a transit stops moving. The
-## shake does not hold; it is what a hit-stop is felt through.
-## 0 lets go now.
-func hold(seconds: float) -> void:
-	_hold_left = seconds
-	_hold_from = Engine.get_process_frames()
-	set_process(true)
 
 
 ## Adds `amount` of trauma (0..1, capped at 1), all of which decays away
@@ -193,9 +166,6 @@ func shake(amount: float, seconds: float) -> void:
 func trauma() -> float:
 	return _trauma
 
-
-func is_holding() -> bool:
-	return _hold_left > 0.0
 
 
 ## How far the shake has moved the camera from its framing, in metres.

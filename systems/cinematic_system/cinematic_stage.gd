@@ -142,14 +142,6 @@ var _waiting: bool = false
 var _active: Array[BeatNode] = []
 ## The beat whose line is in the subtitle band. See show_line().
 var _line_owner: BeatNode = null
-## Seconds of hit-stop left (impact()). While it runs, the timeline, the
-## running beats, the held bodies and the shot all stand still.
-var _hold_left: float = 0.0
-## Whether the last _drive() stood still for a hit-stop (for measuring).
-var held_this_frame: bool = false
-var _held_players: Array[AnimationPlayer] = []
-## Struck bodies waiting for the hold to let go: [role, clip].
-var _reactions: Array = []
 ## Every impact this binding fired, in order, for whoever measures the
 ## scene (tools/fight_test_demo.gd). See impact().
 var impact_log: Array[Dictionary] = []
@@ -164,9 +156,8 @@ func _ready() -> void:
 		set_process(true)
 		_rebuild_preview_set()
 		return
-	# Before the bodies' trees and the camera every frame, so a hit-stop
-	# set or let go here holds or frees them on this same frame, whatever
-	# the scene order: a hold of N frames freezes exactly N.
+	# Before the bodies' trees and the camera every frame, so what the
+	# beats set here shows on this same frame, whatever the scene order.
 	process_priority = -10
 	set_process(false)
 
@@ -494,7 +485,7 @@ func advance() -> void:
 		return
 	_waiting = false
 	var player: AnimationPlayer = timeline()
-	if player and _hold_left <= 0.0:
+	if player:
 		player.speed_scale = 1.0
 
 
@@ -530,8 +521,6 @@ func skip_to_end() -> void:
 	if player == null or anim == null:
 		return
 	_waiting = false
-	_reactions.clear()
-	_release_hold()
 	player.speed_scale = 1.0
 	player.seek(anim.length, true, true)
 	player.pause()
@@ -558,20 +547,6 @@ func _process(delta: float) -> void:
 
 
 func _drive(delta: float) -> void:
-	# A hit-stop: nothing on stage moves, the shot included. Running beats
-	# are still ticked, with no time, so one reading its own clock stays on
-	# the frame it held on.
-	# Whole frames: a hold ends on the frame less than half a frame of it is
-	# left, so 50 to 120 ms rounds to the nearest frame count rather than up.
-	var held: bool = _hold_left > 0.5 * maxf(delta, 0.0001)
-	held_this_frame = held
-	if held:
-		_hold_left -= delta
-		delta = 0.0
-	elif _hold_left != 0.0 or not _held_players.is_empty():
-		# The last held frame can take the count just below zero; any
-		# leftover, either side of it, still lets go.
-		_release_hold()
 	# Beats before markers: a walking beat moves its actor AND its driven
 	# marker (see put()), so the copy below agrees with it either way.
 	for beat in _active.duplicate():
@@ -583,8 +558,6 @@ func _drive(delta: float) -> void:
 		var driven: Node3D = body(marker.role_name())
 		if driven:
 			driven.global_transform = marker.global_transform
-	if held:
-		return
 	var rig: FramingRig = live_shot()
 	if rig:
 		rig.tick()
@@ -745,16 +718,13 @@ func sound(cue: SfxCue, at: StringName) -> void:
 
 
 ## THE IMPACT DISPATCHER. Everything a contact does, from one ContactEvent:
-##   - HIT-STOP: event.hold_seconds() (50 to 120 ms by strength). The
-##     timeline, the running beats, both bodies' clips and the camera hold;
-##     sound and music do not, which is what makes a hold read as weight
-##     rather than as a stall.
+##   - NO HIT-STOP: nothing stops on a contact. A held frame in a directed
+##     scene reads as a stall; the cut and the motion carry the weight.
 ##   - SHAKE: the cinematic camera takes event.trauma(), decaying to nothing
-##     over event.shake_seconds(). Only with a hold: a miss shakes nothing.
+##     over event.shake_seconds(). A miss and a grab shake nothing.
 ##   - CONTENT: the kit's spark or blood at `point`, and its sound there
 ##     unless impact_heard() already started it a frame early.
-##   - REACTION: on a hit, the struck body recoils on its FLINCH layer the
-##     moment the hold lets go.
+##   - REACTION: on a hit, the struck body recoils on its FLINCH layer.
 ##   - CUT HINT: kept in impact_log beside the event, for cut_problems().
 ## `striker` and `target` are this stage's role names for the event's two
 ## sides; `point` is where they meet, in the world.
@@ -764,7 +734,7 @@ func impact(event: ContactEvent, striker: StringName, target: StringName,
 		return
 	var record: Dictionary = {
 		event = event, striker = striker, target = target, point = point_at,
-		at = _scene_clock(), hold = event.hold_seconds(),
+		at = _scene_clock(),
 		trauma = event.trauma(), shake = event.shake_seconds(),
 		frame = Engine.get_process_frames(), heard_frame = -1,
 	}
@@ -774,12 +744,9 @@ func impact(event: ContactEvent, striker: StringName, target: StringName,
 			impact_log.erase(earlier)
 			break
 	impact_log.append(record)
-	var hold: float = event.hold_seconds()
-	if hold > 0.0:
-		_hold(hold, [striker, target])
+	if event.shakes():
 		var camera: CinematicCamera = CinematicDirector.camera()
 		if camera:
-			camera.hold(hold)
 			camera.shake(event.trauma(), event.shake_seconds())
 	if event.kind == ContactEvent.Kind.HIT or event.kind == ContactEvent.Kind.KILL:
 		var recoil: String = kit.flinch_clip if kit else ""
@@ -787,10 +754,7 @@ func impact(event: ContactEvent, striker: StringName, target: StringName,
 			var model: CharacterModel = StandIn.body_of(actor(target))
 			recoil = model.hit_animation if model and model.hit_animation != "" else "Hit_Chest"
 		if event.kind == ContactEvent.Kind.HIT:
-			if hold > 0.0:
-				_reactions.append([target, recoil])
-			else:
-				clip(target, recoil, true, BodyAnimationTree.Layer.FLINCH)
+			clip(target, recoil, true, BodyAnimationTree.Layer.FLINCH)
 	if kit == null:
 		return
 	var context: Node = WorldManager.spawn_parent()
@@ -822,42 +786,15 @@ func impact_heard(event: ContactEvent, point_at: Vector3, kit: ImpactKit) -> voi
 		heard_frame = Engine.get_process_frames()})
 
 
-## An authored freeze-frame: holds every role and the camera framing for
-## `seconds` more, on top of whatever hit-stop is running, so the two read
-## as one held instant (the hit-stop's 120 ms, then the long beat after it).
-## Sound and music go on, and so does the shake. Logged as `freeze` on the
-## last impact, for whoever measures the scene.
-func freeze(seconds: float) -> void:
-	if not _ready_to_act("freeze") or seconds <= 0.0:
-		return
-	var total: float = maxf(_hold_left, 0.0) + seconds
-	var names: Array = []
-	for role_name in role_names():
-		names.append(StringName(role_name))
-	_hold(total, names)
-	_hold_left = total
-	var camera: CinematicCamera = CinematicDirector.camera()
-	if camera:
-		camera.hold(total)
-	if not impact_log.is_empty():
-		impact_log[-1].freeze = seconds
-
-
-func is_holding() -> bool:
-	return _hold_left > 0.0
-
-
 ## Every shot change that breaks spec 5.1's cut rules against the contacts
-## fired so far. Timeline seconds: the timeline stands still through a hold,
-## so a contact's hold is the instant `at` on it and no key can fire inside
-## it; what is left to check is the hints. ON wants a cut within a frame of
+## fired so far, in timeline seconds. ON wants a cut within a frame of
 ## the contact, AFTER wants one 1 to 3 frames after it.
 func cut_problems() -> PackedStringArray:
 	var problems := PackedStringArray()
 	var cuts: PackedFloat32Array = shot_change_times()
 	var frame: float = 1.0 / 30.0
 	for record: Dictionary in impact_log:
-		if not record.has("hold"):
+		if record.get("early", false):
 			continue
 		var event: ContactEvent = record.event
 		var at: float = record.at
@@ -902,37 +839,6 @@ func shot_change_times() -> PackedFloat32Array:
 func _scene_clock() -> float:
 	var player: AnimationPlayer = timeline()
 	return player.current_animation_position if player and player.is_playing() else 0.0
-
-
-func _hold(seconds: float, roles: Array) -> void:
-	_hold_left = maxf(_hold_left, seconds)
-	var player: AnimationPlayer = timeline()
-	if player:
-		player.speed_scale = 0.0
-	for role: StringName in roles:
-		var model: CharacterModel = StandIn.body_of(actor(role))
-		var clips: AnimationPlayer = model.resolve_animation_player() if model else null
-		if clips and not _held_players.has(clips):
-			clips.speed_scale = 0.0
-			_held_players.append(clips)
-
-
-func _release_hold() -> void:
-	_hold_left = 0.0
-	for clips in _held_players:
-		if is_instance_valid(clips):
-			clips.speed_scale = 1.0
-	_held_players.clear()
-	var camera: CinematicCamera = CinematicDirector.camera()
-	if camera:
-		camera.hold(0.0)
-	var player: AnimationPlayer = timeline()
-	if player and not _waiting:
-		player.speed_scale = 1.0
-	var pending: Array = _reactions.duplicate()
-	_reactions.clear()
-	for reaction: Array in pending:
-		clip(reaction[0], reaction[1], true, BodyAnimationTree.Layer.FLINCH)
 
 
 ## Puts a line in the subtitle band on behalf of `beat`. clear_line() only

@@ -6,8 +6,8 @@ extends Node
 ## The log prints how far apart the blades are at the two parries, how far
 ## the point is from the shoulder at the hit, and how far each body's hips
 ## jump on the frame the duel hands back to standing. Then, per contact,
-## the impact layer as it played (CinematicStage.impact): frames held and
-## how far the bodies moved inside the hold, how long the camera shook, how
+## the impact layer as it played (CinematicStage.impact): that nothing stops
+## on the contact (no hit-stop), how long the camera shook, how
 ## many frames early the sound started, whether the spark or blood spawned,
 ## the frame the struck body's reaction began, and the cut check.
 ##
@@ -74,12 +74,11 @@ func _run() -> void:
 		var frame: int = Engine.get_process_frames()
 		for w: Dictionary in watch:
 			_follow(w, stage, camera, a, b, frame)
-		var impacts: Array = stage.impact_log.filter(func(r: Dictionary) -> bool: return r.has("hold"))
+		var impacts: Array = stage.impact_log.filter(func(r: Dictionary) -> bool: return not r.get("early", false))
 		while seen < impacts.size():
 			var record: Dictionary = impacts[seen]
 			var event: ContactEvent = record.event
-			var w: Dictionary = {i = seen, record = record, held = 0, camera_held = 0,
-				released = -1, shake_end = -1, peak = 0.0, flinch = -1, moved = 0.0,
+			var w: Dictionary = {i = seen, record = record, shake_end = -1, peak = 0.0, flinch = -1,
 				still = 0, still_done = false,
 				pose = [_bone(a, "Hips"), _bone(b, "Hips"), _bone(a, "RightHand"), _bone(b, "RightHand")]}
 			for earlier: Dictionary in watch:
@@ -108,14 +107,14 @@ func _run() -> void:
 		var record: Dictionary = w.record
 		var event: ContactEvent = record.event
 		var early: int = record.frame - record.heard_frame if record.heard_frame >= 0 else -99
-		print("DEMO impact %d %s: hold asked %.0f ms, held %d frames = %.0f ms (camera %d frames, contact pose shown %d more frames), bodies moved %.4f m in the hold" % [
-			w.i, event.describe(), record.hold * 1000.0, w.held, w.held * FRAME * 1000.0, w.camera_held, w.still, w.moved])
+		print("DEMO impact %d %s: contact pose shown %d more frame(s) (0 = no hit-stop)" % [
+			w.i, event.describe(), w.still])
 		print("DEMO impact %d: trauma %.2f, shake asked %.2f s, shook %.3f s to zero, peak offset %.4f m" % [
 			w.i, record.trauma, record.shake, (w.shake_end - record.frame) * FRAME if w.shake_end >= 0 else -1.0, w.peak])
 		print("DEMO impact %d: sound %d frame(s) early, %s spawned at %s, reaction %s" % [
 			w.i, early, "blood" if event.draws_blood() else "spark", "yes" if record.get("vfx", false) else "NO",
 			"n/a (parry)" if event.kind == ContactEvent.Kind.PARRY else
-				("frame %d after release" % (w.flinch - w.released)) if w.flinch >= 0 and w.released >= 0 else "NONE"])
+				("frame %d after the contact" % (w.flinch - record.frame)) if w.flinch >= 0 else "NONE"])
 	var problems: PackedStringArray = _cut_problems
 	print("DEMO cut check: shot changes at %s; problems: %s" % [_cut_times, "none" if problems.is_empty() else "; ".join(problems)])
 	print("DEMO partner alive: ", partner.is_alive())
@@ -146,13 +145,6 @@ func _follow(w: Dictionary, stage: CinematicStage, camera: CinematicCamera,
 			w.still += 1
 		else:
 			w.still_done = true
-	if stage.held_this_frame and w.released < 0:
-		w.held += 1
-		w.moved = maxf(w.moved, drift)
-		if camera and camera.held_this_frame:
-			w.camera_held += 1
-	elif w.released < 0:
-		w.released = frame
 	if camera and not w.get("peak_done", false) and w.shake_end < 0:
 		w.peak = maxf(w.peak, camera.shake_offset())
 		if w.shake_end < 0 and camera.trauma() <= 0.0:

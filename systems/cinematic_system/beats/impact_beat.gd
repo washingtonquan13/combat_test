@@ -3,8 +3,8 @@ class_name ImpactBeat
 extends BeatNode
 ## Fires one ContactEvent through the stage's impact dispatcher
 ## (CinematicStage.impact) for a contact no paired clip owns: a body landing
-## from a jump (Kind.LAND), a door slammed into someone. The hit-stop, the
-## shake, the kit's VFX and SFX all come from the event, as for a blow.
+## from a jump (Kind.LAND), a door slammed into someone. The shake, the
+## kit's VFX and SFX all come from the event, as for a blow.
 ##
 ## The point is under the role's hips, on its floor: a clip that carries
 ## the body (a leap landing short of its mark) lands it where it shows, not

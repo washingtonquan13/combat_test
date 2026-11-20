@@ -224,7 +224,7 @@ Each beat has two behaviours:
 | **AreaBeat** | `method` | Calls that method on the area the stage stands in (the goblin quarry's `break_gate`): a change to the place itself that outlives the scene. | Same as fire | Nothing |
 | **EffectBeat** | `vfx` (a VfxEffect)<br>`from`, `to` (`to` empty = at `from`) | Plays the effect. On a role it plays at the chest. | Nothing | Nothing |
 | **SoundBeat** | `cue` (an SfxCue), `at` | Plays the sound at the role's chest or at the mark. | Nothing | Nothing |
-| **ImpactBeat** | `role`, `event` (a ContactEvent)<br>`kit` (an ImpactKit) | Fires one contact no paired clip owns, usually a LAND (a body coming down from a jump), through the same dispatcher as a blow: hold, shake, VFX, sound. The point is on the floor under the role's shown hips, so a leap that lands short of its mark puts the dust where the feet are. | Nothing | Nothing |
+| **ImpactBeat** | `role`, `event` (a ContactEvent)<br>`kit` (an ImpactKit) | Fires one contact no paired clip owns, usually a LAND (a body coming down from a jump), through the same dispatcher as a blow: shake, VFX, sound. The point is on the floor under the role's shown hips, so a leap that lands short of its mark puts the dust where the feet are. | Nothing | Nothing |
 | **MusicDuckBeat** | `duck` (on: duck, off: bring back)<br>`db` (-60 is silent)<br>`seconds` | Ramps the score down to `db`, or back up. Key it half a second or more before a kill so the blow lands in silence. | Brings the music back, so a skipped scene never leaves the game ducked | Nothing |
 | **SilhouetteBeat** | `role`, `color`<br>`clear` | Paints every mesh of the actor's model one flat, unlit colour (black parents and the white newborn in fusion). With `clear`, takes the paint off. | Same as fire | Stand-in takes the colour |
 
@@ -249,7 +249,7 @@ A walk keeps moving while a line holds the timeline. That lets someone talk whil
 
 For a sound or mesh that is part of the stage itself, use a normal AnimationPlayer track on a child node, such as an Audio track on an AudioStreamPlayer3D or a visibility track. Those scrub in the editor. SoundBeat and EffectBeat are for things that happen **at a unit or a world mark**.
 
-### Impacts: hit-stop, shake, sparks and blood
+### Impacts: shake, sparks and blood
 
 Every touch in a PairedClip's `contacts` is a **ContactEvent** (`contact_event.gd`): its `time` in the clip, its `kind` (parry, hit, kill, grab, miss), who strikes with what (`striker`, `effector`: a bone, `blade` or `blade_tip`), who is met where (`target_side`, `target`), a `strength` from 0 to 1, and a `cut` hint (none, a cut ON the contact, or a cut AFTER it onto the reaction).
 
@@ -257,17 +257,16 @@ Give the PairedActionBeat an **ImpactKit** in its `impacts` field (`impact_kit.g
 
 | What | How much |
 |---|---|
-| Hit-stop: both bodies, the timeline and the shot stand still; sound and music keep playing | 50 ms at strength 0 to 120 ms at strength 1, rounded to whole frames |
-| Camera shake, from trauma; the camera moves by trauma squared | Decays to nothing in 0.3 s at strength 0 to 0.6 s at strength 1. A miss or a grab has no hold, so no shake |
+| Camera shake, from trauma; the camera moves by trauma squared | Decays to nothing in 0.3 s at strength 0 to 0.6 s at strength 1. A miss or a grab does not shake |
 | Spark (parry) or blood (hit) | At the point the blades meet, or where the blade touches the body |
 | Sound | Starts on the frame before the contact |
-| The struck body's recoil | Plays on its flinch layer the frame the hold lets go |
+| The struck body's recoil | Plays on its flinch layer on the contact frame |
 
-**A long freeze on a kill.** Set the PairedActionBeat's `freeze` (seconds) and the last contact holds that much longer after its hit-stop (`CinematicStage.freeze`): every role and the shot stand still, the shake and the sound go on. Like the hit-stop it stops the timeline clock, so keyed times after it shift with it and the scene plays that much longer than its timeline.
+**No hit-stop, no freeze.** Nothing stops on a contact: the timeline, the bodies and the shot keep moving. Stopping time is a fighting-game device; in a directed scene a held frame reads as a stall. The cut, the motion, the shake and the sound carry the weight, and the scene plays exactly as long as its timeline.
 
-**A landing.** `ContactEvent` kind LAND is a body meeting the ground: it holds and shakes by strength like a blow, with no reaction. Fire it from an ImpactBeat on the landing frame; the kit's `land_vfx` and `land_sfx` (dust puff, thud) play under the hips.
+**A landing.** `ContactEvent` kind LAND is a body meeting the ground: it shakes by strength like a blow, with no reaction. Fire it from an ImpactBeat on the landing frame; the kit's `land_vfx` and `land_sfx` (dust puff, thud) play under the hips.
 
-Leave `impacts` empty and the contacts do nothing. Key the shot cuts against the contacts' cut hints: an ON cut within one frame of the contact, an AFTER cut 1 to 3 frames after it. A cut can never fall inside a hold, because the timeline is stopped. `stage.cut_problems()` lists any hint the shots break; the duel walkthrough (`tools/fight_test_demo.tscn`) prints it with the measured holds and shakes.
+Leave `impacts` empty and the contacts do nothing. Key the shot cuts against the contacts' cut hints: an ON cut within one frame of the contact, an AFTER cut 1 to 3 frames after it. `stage.cut_problems()` lists any hint the shots break; the duel walkthrough (`tools/fight_test_demo.tscn`) prints it with the measured shakes.
 
 ### Making a fight exchange from Kimodo takes
 

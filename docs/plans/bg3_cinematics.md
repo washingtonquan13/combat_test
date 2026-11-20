@@ -9,7 +9,7 @@ Three scenes good enough to show someone. Each is built by an autonomous `/goal`
 
 | # | Showcase | Proves | Milestones | Run stops when |
 |---|---|---|---|---|
-| 1 | The duel: cornered townsperson, hero drops in, overhead miss, sidestep thrust, freeze, fall, aftermath (~9 s) | Impact, contact, phrasing, editing | M0, M1, M2 | M2 exit criteria met, before/after renders delivered |
+| 1 | The duel: cornered townsperson, hero drops in, overhead miss, sidestep thrust, fall, aftermath (~9 s) | Impact, contact, phrasing, editing | M0, M1, M2 | M2 exit criteria met, before/after renders delivered |
 | 2 | A staged conversation (goblin_quarry townsperson) | Eyes, lip sync, emotions, gestures, coverage, shot lighting | M3 to M7 | M7 exit criteria met, recording delivered |
 | 3 | The camp raid group fight, redone | Foreground duel plus background pairs | M8 | M8 exit criteria met, recording delivered |
 
@@ -42,11 +42,11 @@ One `/goal` run per showcase. Between runs the user watches the result and eithe
 ### Showcase 1: the duel
 
 **M0. Impact layer on the existing duel** (`cinematics/fight_test.tscn`, no new motion)
-- `ContactEvent` records on `PairedClip.contacts` (5.1); one dispatcher fires hit-stop, trauma shake, reaction, `SoundBeat`/`EffectBeat` content and a cut hint.
-- Hit-stop 50 to 120 ms scaled by strength; bodies and camera hold, audio does not.
-- Shake decays to 0 in 0.3 to 0.6 s, never without hit-stop.
+- `ContactEvent` records on `PairedClip.contacts` (5.1); one dispatcher fires trauma shake, reaction, `SoundBeat`/`EffectBeat` content and a cut hint.
+- No hit-stop and no freeze (user, 2026-11-20: out of place in a cinematic). Contacts shake the camera, spark or bleed, and sound; nothing stops.
+- Shake decays to 0 in 0.3 to 0.6 s; a miss or a grab does not shake.
 - Spark on parry, blood on hit, impact sound on the contact frame or up to 2 frames early.
-- Exit: before and after renders of the same take side by side, measured hit-stop and shake durations printed, committed.
+- Exit: before and after renders of the same take side by side, measured shake durations printed, committed.
 
 **M1. Kimodo bake-off on one exchange** (overhead miss, sidestep, killing thrust)
 - Re-prompt for wind-up and commitment (heavy wind-up at least 8 frames at 30 fps), spatial and timeline constraints, contact IK (eases in over 4 to 6 frames, out over 6 to 10, moves the effector at most 15 cm).
@@ -55,8 +55,8 @@ One `/goal` run per showcase. Between runs the user watches the result and eithe
 
 **M2. The nine-second duel, re-planned**
 - Beat sheet and shot list from the proposal's M2 table, written to `cinematics/` beside the stage.
-- Phrasing: threat, a burst of three events in about 2.6 s, a long authored freeze, aftermath. No three consecutive contact gaps within 15% of each other.
-- Camera within 25 degrees of the strike line on landing blows; no cut inside a hit-stop; music silent or ducked at least 0.5 s before the kill.
+- Phrasing: threat, a burst of three events in about 2.6 s, the fall, aftermath. No three consecutive contact gaps within 15% of each other.
+- Camera within 25 degrees of the strike line on landing blows; music silent or ducked at least 0.5 s before the kill.
 - The townsperson ends dead or wounded as scripted through `HurtBeat`; skip lands in the same end state.
 - Exit: every 5.1 tolerance met and printed, contact sheet rendered (one frame per shot and per contact), full-length recording rendered, committed. **Stop for the user's verdict.**
 

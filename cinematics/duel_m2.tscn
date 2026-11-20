@@ -458,7 +458,6 @@ lead = &"hero"
 partner = &"attacker"
 clip = ExtResource("11_exchange")
 impacts = ExtResource("12_impacts")
-freeze = 0.9
 
 [node name="Duck" type="Node" parent="Beats"]
 script = ExtResource("9_duck")

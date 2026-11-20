@@ -6,8 +6,8 @@ extends Node
 ## a second in, to show the skip lands in the same end state.
 ##
 ## The log prints every number docs/plans/bg3_cinematics.md's M2 exit asks
-## for: per impact the hold, camera hold, shake, sound lead and reaction;
-## the freeze after the kill; the contact times and their gaps; the camera
+## for: per impact the shake, sound lead and reaction, and that nothing
+## stops on it (no hit-stop); the contact times and their gaps; the camera
 ## against the strike line at the kill; the kill contact gap; how far the
 ## music duck leads the kill; the cut check; the end states; and how flat
 ## the ground is under the marks.
@@ -109,10 +109,6 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 	var watch: Array[Dictionary] = []
 	var duck_frame := -1
 	var kill_frame := -1
-	var kill_record: Dictionary = {}
-	var freeze_frames := 0
-	var after_kill_moved := -1
-	var kill_pose: Vector3
 	var facing_printed := false
 	while result.is_empty():
 		await RenderingServer.frame_pre_draw
@@ -129,17 +125,12 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 			duck_frame = frame
 		for w: Dictionary in watch:
 			_follow(w, stage, camera, a, b, frame)
-		if kill_frame >= 0 and frame > kill_frame:
-			if stage.held_this_frame and after_kill_moved < 0:
-				freeze_frames += 1
-			elif after_kill_moved < 0 and _bone(b, "Hips").distance_to(kill_pose) > 0.0001:
-				after_kill_moved = frame
-		var impacts: Array = stage.impact_log.filter(func(r: Dictionary) -> bool: return r.has("hold"))
+		var impacts: Array = stage.impact_log.filter(func(r: Dictionary) -> bool: return not r.get("early", false))
 		while seen < impacts.size():
 			var record: Dictionary = impacts[seen]
 			var event: ContactEvent = record.event
-			var w: Dictionary = {i = seen, record = record, held = 0, camera_held = 0,
-				released = -1, shake_end = -1, peak = 0.0, moved = 0.0, still = 0, still_done = false,
+			var w: Dictionary = {i = seen, record = record, shake_end = -1, peak = 0.0,
+				still = 0, still_done = false,
 				solo = event.kind == ContactEvent.Kind.LAND,
 				pose = [_bone(a, "Hips"), _bone(b, "Hips"), _bone(a, "RightHand"), _bone(b, "RightHand")]}
 			for earlier: Dictionary in watch:
@@ -160,8 +151,6 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 						rad_to_deg(Vector2(have.x, have.z).angle_to(Vector2(want.x, want.z)))])
 			if event.kind == ContactEvent.Kind.KILL:
 				kill_frame = frame
-				kill_record = record
-				kill_pose = _bone(b, "Hips")
 				var edge: Array = _blade(a)
 				print("DEMO kill contact: point %.4f m from the attacker's Spine" % (edge[1] as Vector3).distance_to(_bone(b, "Spine")))
 				if camera:
@@ -181,8 +170,8 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 		var event: ContactEvent = record.event
 		times.append(record.at)
 		var early: int = record.frame - record.heard_frame if record.heard_frame >= 0 else -99
-		print("DEMO impact %d %s at scene %.3f s: hold asked %.0f ms, held %d frames = %.0f ms (camera %d), bodies moved %.4f m in the hold" % [
-			w.i, event.describe(), record.at, record.hold * 1000.0, w.held, w.held * FRAME * 1000.0, w.camera_held, w.moved])
+		print("DEMO impact %d %s at scene %.3f s: contact pose shown %d more frame(s) (0 = no hit-stop)" % [
+			w.i, event.describe(), record.at, w.still])
 		print("DEMO impact %d: trauma %.2f, shake asked %.2f s, shook %.3f s to zero, peak %.4f m; sound %d frame(s) early, vfx %s" % [
 			w.i, record.trauma, record.shake, (w.shake_end - record.frame) * FRAME if w.shake_end >= 0 else -1.0,
 			w.peak, early, "yes" if record.get("vfx", false) else "none"])
@@ -197,9 +186,6 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 	print("DEMO contacts at %s, gaps %s, burst span %.3f s, three even gaps in a row: %s" % [
 		times, gaps, times[-1] - times[0] if times.size() > 1 else 0.0, "YES" if even else "no"])
 	if kill_frame >= 0:
-		print("DEMO kill: hit-stop %.0f ms + freeze %.2f s asked; held %d frames = %.3f s after the kill frame; attacker moves again %d frame(s) after release" % [
-			kill_record.hold * 1000.0, kill_record.get("freeze", 0.0), freeze_frames, freeze_frames * FRAME,
-			after_kill_moved - kill_frame - freeze_frames if after_kill_moved >= 0 else -99])
 		print("DEMO music duck reached -59 dB %.3f s before the kill (need >= 0.5)" % ((kill_frame - duck_frame) * FRAME if duck_frame >= 0 else -99.0))
 	print("DEMO cut check: shot changes at %s; problems: %s" % [_cut_times, "none" if _cut_problems.is_empty() else "; ".join(_cut_problems)])
 	print("DEMO played run: attacker %s; victim alive %s, HP %d -> %d of %d; hero alive %s" % [
@@ -223,15 +209,15 @@ func _follow(w: Dictionary, stage: CinematicStage, camera: CinematicCamera,
 	var drift: float = 0.0
 	for k in 4:
 		if w.get("solo", false) and k % 2 == 1:
-			continue  # a landing holds only the one who lands
+			continue  # a landing is about the one who lands
 		drift = maxf(drift, (now[k] as Vector3).distance_to(w.pose[k]))
-	if stage.held_this_frame and w.released < 0:
-		w.held += 1
-		w.moved = maxf(w.moved, drift)
-		if camera and camera.held_this_frame:
-			w.camera_held += 1
-	elif w.released < 0:
-		w.released = frame
+	# Frames after the contact frame that show the contact pose again: with
+	# no hit-stop there are none.
+	if not w.still_done:
+		if drift < 0.00001:
+			w.still += 1
+		else:
+			w.still_done = true
 	if camera and not w.get("peak_done", false) and w.shake_end < 0:
 		w.peak = maxf(w.peak, camera.shake_offset())
 		if camera.trauma() <= 0.0:

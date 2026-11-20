@@ -24,8 +24,8 @@ extends Resource
 @export var land_vfx: VfxEffect
 @export var land_sfx: SfxCue
 @export_group("Reaction")
-## The struck body's recoil, played on its FLINCH layer the moment the
-## hit-stop lets go. Empty asks the body for its own hit clip.
+## The struck body's recoil, played on its FLINCH layer on the contact
+## frame. Empty asks the body for its own hit clip.
 @export var flinch_clip: String = ""
 
 
