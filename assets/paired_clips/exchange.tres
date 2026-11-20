@@ -5,7 +5,7 @@
 
 [sub_resource type="Resource" id="Resource_yo8fa"]
 script = ExtResource("1_bvti5")
-time = 1.73333
+time = 1.2
 kind = 4
 striker = 1
 effector = &"blade_tip"
@@ -16,7 +16,7 @@ cut = 0
 
 [sub_resource type="Resource" id="Resource_41qig"]
 script = ExtResource("1_bvti5")
-time = 2.13333
+time = 1.6
 kind = 2
 striker = 0
 effector = &"blade_tip"
@@ -29,10 +29,10 @@ cut = 2
 script = ExtResource("2_4aknm")
 lead_clip = "Exchange/Exchange_Hero"
 partner_clip = "Exchange/Exchange_Attacker"
-partner_from_lead = Transform3D(-0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, -0.984808, -0.96, 0, 1.12)
-contact_time = 2.13333
-length = 3.5
+partner_from_lead = Transform3D(-0.996195, 0, 0.0871556, 0, 1, 0, -0.0871556, 0, -0.996195, 0.72, 0, 0.88)
+contact_time = 1.6
+length = 4.76667
 kills_partner = true
 contacts = Array[ExtResource("1_bvti5")]([SubResource("Resource_yo8fa"), SubResource("Resource_41qig")])
-lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.303345, 0, 0.127369)
-partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0341826, 0, -0.0233335)
+lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0804809, 0, 0.00978822)
+partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.69475, 0, -0.477575)

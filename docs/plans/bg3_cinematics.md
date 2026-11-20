@@ -18,7 +18,7 @@ One `/goal` run per showcase. Between runs the user watches the result and eithe
 ## Decisions (2026-11-20)
 
 - **Stop points:** one per showcase.
-- **Motion source:** Kimodo (kimodo.cpp) plus contact IK only. No purchased mocap pack, no video capture of the user. If Kimodo plus IK cannot meet the contact spec, the run stops and says so; it does not fall back to something else.
+- **Motion source:** free mocap (Mixamo, from 2026-11-20, after the user judged the Kimodo duel takes terrible) or Kimodo (kimodo.cpp), plus contact IK. No purchased mocap pack, no video capture of the user. The user picks the clips; a run does not swap in clips the user has not picked. If the picked clips plus IK cannot meet the contact spec, the run stops and says so.
 - **Contact IK is allowed.** It closes a marked contact or pins a planted foot, nothing else. Posture and stance stay source-only: a bad pose is fixed by prompt or seed, never by correction.
 - **Face work is on:** eyes, lip sync and emotions.
 - **Autonomy:** during a goal run, code changes and commits of verified, scoped work need no plan report first. Never push. Report at each stop point.

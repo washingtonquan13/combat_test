@@ -100,6 +100,27 @@ if MOTIFECT:
     MOTIFECT_DIR = os.environ.get("MOTIFECT_DIR", "D:/ai_motion/motifect/BVH/")
     CLIPS = {"idle": (MOTIFECT_DIR + "idle_neutral", False)}
 
+# DUEL=1: the duel's candidate clips (docs/plans/bg3_cinematics.md, the
+# Mixamo rebuild of M1/M2) into their own glb, for review and for the
+# exchange bake. From D:/ai_motion/mixamo/duel (see its LICENSE.txt): the
+# Sword And Shield Pack's attacks, slashes, deaths, jumps and idles, and
+# single clips for the victim, the thrust, the deaths and the leap.
+DUEL = os.environ.get("DUEL") == "1"
+if DUEL:
+    OUT = os.path.join(HERE, "takes", "mixamo_duel.glb")
+    D = "D:/ai_motion/mixamo/duel/"
+    SS = D + "sword_shield_pack/sword and shield "
+    CLIPS = {"victim_terrified": (D + "Terrified", False),
+             "thrust_stabbing": (D + "Stabbing", False),
+             "death_back": (D + "Standing React Death Backward", False),
+             "death_fwd": (D + "Standing React Death Forward", False),
+             "death_fall_fwd": (D + "Falling Forward Death", False),
+             "gs_downward_slash": (D + "Great Sword Slash", False),
+             "gs_jump_attack": (D + "Great Sword Jump Attack", False)}
+    for stem, n in (("attack", 4), ("slash", 5), ("death", 2), ("jump", 2), ("idle", 4), ("impact", 3), ("kick", 1)):
+        for i in range(1, n + 1):
+            CLIPS["ss_%s_%d" % (stem, i)] = (SS + stem + ("" if i == 1 else " (%d)" % i), False)
+
 P = "mixamorig:"
 # the child that sets a bone's direction where it has several (or none, in the target)
 AIM = {"Hips": "Spine", "Spine2": "Neck", "LeftHand": "LeftHandMiddle1", "RightHand": "RightHandMiddle1",

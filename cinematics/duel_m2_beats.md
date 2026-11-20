@@ -9,33 +9,37 @@ sword), `victim` (townsperson, CC female body). The stage stands on one world ma
 `duel_m2_anchor`, which the area (or the demo) supplies.
 
 Marks, stage-local: the hero lands on `landing` (origin); the attacker ends his walk on
-`attacker_spot` (-0.96, 0, 1.12), which is the exchange's partner spot from the landing; the victim
+`attacker_spot` (0.72, 0, 0.88), turned -5 deg, which is the exchange's partner spot from the landing; the victim
 is pinned on `victim_spot` (-0.7, 0, -1.7) with two rocks behind and beside her.
 
 ## Phrasing
 
-Threat (0 to 2.4 s), a burst of three contacts in 2.53 s (land 2.40, miss 4.53, kill 4.93, as measured), one long
-authored freeze on the kill (hit-stop plus 0.9 s), aftermath (6.4 s to the end). Contact gaps 2.13 s
+Threat (0 to 2.4 s), a burst of three contacts in 2.53 s (land 2.40, miss 4.53, kill 4.93, planned), one long
+authored freeze on the kill (hit-stop plus 0.9 s), the fall (to about 7.8 s), aftermath (8.1 s to the end). Contact gaps 2.13 s
 and 0.40 s: no three gaps even.
 
 Hit-stops and the freeze stop the timeline clock, so the times below are scene-clock times; the
-recording runs about 1.2 s longer than the 9.3 s timeline.
+recording runs about 1.2 s longer than the 11.07 s timeline.
+
+All body motion is Mixamo (`tools/locomotion/takes/mixamo_duel.glb`, retargeted by
+`tools/locomotion/mixamo_retarget.py` with DUEL=1), composed and fitted by
+`tools/locomotion/make_mixamo_duel.gd`, which keeps M1's aim, contact IK and foot pins.
 
 ## Beats
 
 | Scene s | Beat | What happens |
 |---|---|---|
-| 0.00 | PlaceVictim, VictimCornered | The townsperson backs against the rock, hands up (Duel/Victim_Cornered, Kimodo take v2, feet pinned). |
-| 0.00 | PlaceAttacker, AttackerAdvance | The attacker walks in on her, sword low (Duel/Attacker_Advance, take a3). |
+| 0.00 | PlaceVictim, VictimCornered | The townsperson backs against the rock, hands up (Duel/Victim_Cornered, Mixamo victim_terrified, feet pinned). |
+| 0.00 | PlaceAttacker, AttackerAdvance | The attacker walks in on her, sword low (Duel/Attacker_Advance, Mixamo walk into the idle). |
 | 0.00 | HeroInWings | The hero waits off stage (40 m out). |
-| 1.23 | PlaceHero, HeroDrop | The hero leaps in from beside the camera (Duel/Hero_Drop, take f3; leaves the ground at 0.8 s into the clip, lands at 1.167 s). |
+| 1.43 | PlaceHero, HeroDrop | The hero leaps in from beside the camera (Duel/Hero_Drop, Mixamo gs_jump_attack trimmed 16 frames after the landing; lands 0.967 s into the clip). |
 | 2.40 | Land | ImpactBeat LAND at the point under the hero's hips: small hold, shake, dust, thud. |
-| 2.83 | Exchange | PairedActionBeat on `assets/paired_clips/exchange.tres` (M1): the attacker's overhead chop misses (4.53), the hero's sidestep thrust kills (4.93), freeze 0.9 s on the kill. |
+| 3.33 | Exchange | PairedActionBeat on `assets/paired_clips/exchange.tres` (M1): the attacker's downward slash (gs_downward_slash) misses (4.53), the hero's thrust (thrust_stabbing) kills (4.93), freeze 0.9 s on the kill, the attacker falls (death_back). |
 | 4.20 | Duck | MusicDuckBeat: the music falls to -60 dB over 0.25 s, well before the kill. |
-| 6.37 | HeroAfter | The hero lowers the sword and turns to the townsperson (Duel/Hero_After, take j3). |
-| 8.50 | Wound | HurtBeat WOUNDED on the victim, 40% HP left (she was hurt before the hero came). |
-| 8.60 | Unduck | The music comes back over 0.8 s. |
-| 9.30 | end | |
+| 8.13 | HeroAfter | The hero settles into the idle (Duel/Hero_After, ss_idle_1). |
+| 10.27 | Wound | HurtBeat WOUNDED on the victim, 40% HP left (she was hurt before the hero came). |
+| 10.37 | Unduck | The music comes back over 0.8 s. |
+| 11.07 | end | |
 
 ## Shots
 
@@ -45,18 +49,18 @@ recording runs about 1.2 s longer than the 9.3 s timeline.
 | 1.60 | S2_victim | Fixed, long lens on the victim's face over the attacker's shoulder | Stakes. The hero's leap enters this frame. |
 | 2.33 | S3_land | Fixed, low, beside the landing | The landing. Cut lands a frame before contact, not inside its hold. |
 | 3.20 | S4_behind_attacker | Orbit the attacker, looking at the hero | The chop reads along its line. |
-| 4.70 | S5_thrust_line | Orbit the hero at 148 deg, looking at the attacker | Along the thrust: the kill blow lands within 25 deg of the camera line. |
-| 5.03 | S6_floor | Fixed, 1.4 m up, looking down on the fall | Cut after the kill's freeze, onto the fall (the kill contact is marked cut AFTER). |
-| 6.50 | S7_crane | Orbit the hero, rising 4 to 30 deg and pulling out 3 to 4.2 m | Aftermath. |
+| 4.70 | S5_thrust_line | Orbit the hero at 228 deg, looking at the attacker | Along the thrust: the kill blow lands within 25 deg of the camera line. |
+| 4.97 | S6_floor | Fixed, 1.4 m up, looking down on the fall | Cut after the kill's freeze, onto the fall (the kill contact is marked cut AFTER). |
+| 8.10 | S7_crane | Orbit the hero, rising 4 to 30 deg and pulling out 3 to 4.2 m | Aftermath. |
 
 ## Deviations from the proposal's M2 table
 
-- **The hero leaps rather than drops.** There is no ledge in the quarry clearing; Kimodo's best
-  jump takes travel forward, so the hero jumps in from beside the camera.
-- **The landing is one-footed.** The best take (f3) lands on the right foot and steps through;
-  the two-footed takes skated more.
+- **The hero leaps rather than drops.** There is no ledge in the quarry clearing, so the hero
+  jumps in from beside the camera (Mixamo's greatsword jump attack).
+- **The motion is Mixamo, not Kimodo.** The Kimodo takes read badly; the user picked the six
+  Mixamo clips above (2026-11-20).
 - **Freeze and hit-stops take no timeline time.** They hold the timeline clock, so the authored
-  9.3 s plays as about 10.5 s.
+  11.07 s plays as about 12.3 s.
 - **The attacker's walk starts at 0**, not after the establishing shot, so he is already closing
   when the scene opens.
 - **Shot times shift +0.33 s** from the proposal so no cut falls inside the landing's hold.
