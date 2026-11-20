@@ -784,7 +784,7 @@ func _walk_step(delta: float) -> void:
 	var run: float = level.length()
 	var step: float = _owner.move_speed * delta
 	var animator: UnitAnimator = _owner.animator()
-	var loco: UnitLocomotion = animator.locomotion if animator else null
+	var loco: LocomotionDriver = animator.locomotion if animator else null
 	if loco and loco.drives():
 		step = loco.travel(delta, remaining_distance())
 	if run > 1e-4:
@@ -975,7 +975,7 @@ func _climb_step(delta: float) -> void:
 	# begins it as the clip over the edge ends): its own speed, not the
 	# climb's.
 	var animator: UnitAnimator = _owner.animator()
-	var loco: UnitLocomotion = animator.locomotion if animator else null
+	var loco: LocomotionDriver = animator.locomotion if animator else null
 	if landing_leg and _climb_up and loco and loco.drives():
 		step = loco.travel(delta, remaining_distance())
 	var level := Vector3(to_target.x, 0.0, to_target.z)

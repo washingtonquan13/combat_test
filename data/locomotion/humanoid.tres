@@ -311,6 +311,7 @@ right_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0.310817, 0.613628, 1, 
 
 [resource]
 script = ExtResource("2_0ods0")
+simple = true
 idle = SubResource("Resource_6nq0i")
 walk = SubResource("Resource_8brq0")
 jog = SubResource("Resource_0ods0")

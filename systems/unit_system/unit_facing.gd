@@ -42,7 +42,7 @@ func face_direction(direction: Vector3, delta: float) -> void:
 		return
 	var target_yaw: float = yaw_facing(direction)
 	var animator: UnitAnimator = _owner.animator()
-	var loco: UnitLocomotion = animator.locomotion if animator else null
+	var loco: LocomotionDriver = animator.locomotion if animator else null
 	var standing: bool = not _owner.is_moving()
 	if loco and not animator.is_claimed_for_cutscene() \
 			and (loco.turning() or (standing and loco.turn_to(target_yaw))):

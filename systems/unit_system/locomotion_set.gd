@@ -17,6 +17,9 @@ extends Resource
 ##
 ## Owned by the unit system (docs/systems/unit.md, "Locomotion").
 
+## Driven by SimpleLocomotion (the idle and the run, the unit moving on its
+## own curve and the run's playback following it) instead of UnitLocomotion.
+@export var simple: bool = false
 @export var idle: LocomotionClip
 @export var walk: LocomotionClip
 @export var jog: LocomotionClip

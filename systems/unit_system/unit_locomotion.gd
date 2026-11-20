@@ -1,5 +1,5 @@
 class_name UnitLocomotion
-extends RefCounted
+extends LocomotionDriver
 ## How a humanoid walks a route: the clips of its LocomotionSet, shown to
 ## follow the unit as gameplay moves it, in the manner of Baldur's Gate 3.
 ##
@@ -168,13 +168,6 @@ var _runs: bool = false
 var _run_to_walk: bool = false
 ## The speed the stops begin at, on average (a run brakes to it).
 var _entry_speed: float = 0.0
-## Held: the order is steering (hold-to-move), with no stop at its end.
-var held: bool = false:
-	set(value):
-		if value != held:
-			held = value
-			_steer_left = -1.0
-			_last_gap = INF
 ## The one-shot playing (start, stop) and how far into it, seconds: it plays
 ## at 1x, so this keeps time with it.
 var _clip: LocomotionClip = null
@@ -212,17 +205,11 @@ var _route: float = 0.0
 var _lean: float = 0.0
 ## The head and chest's lead into a turn (null on a body with no skeleton).
 var _turn_lead: BodyTurnLead = null
-## The planted feet held to the ground (null on a body with no skeleton).
-var foot_lock: BodyFootLock = null
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
 ## A move ordered during a turn in place: it starts as the turn ends.
 var _go_after_turn: bool = false
-## Where a stop or turn comes to rest, if not the set's idle: called with a
-## blend, it plays the rest itself (a drawn weapon's guard) and returns
-## true, or returns false for the set's idle (UnitAnimator sets it).
-var rest: Callable
 
 
 func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: Node3D) -> void:
@@ -236,6 +223,12 @@ func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: No
 		if not skeletons.is_empty():
 			foot_lock = BodyFootLock.attach(skeletons[0] as Skeleton3D)
 			_turn_lead = BodyTurnLead.attach(skeletons[0] as Skeleton3D)
+
+
+## Held: the order is steering (hold-to-move), with no stop at its end.
+func _held_changed() -> void:
+	_steer_left = -1.0
+	_last_gap = INF
 
 
 ## The idle the set's stops and turns hand to.

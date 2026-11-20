@@ -61,7 +61,7 @@ extends Node
 var playback: BodyAnimationTree = null
 ## How a walk on the ground is shown and paced, for a body with a
 ## LocomotionSet (CharacterModel.locomotion); null for one without.
-var locomotion: UnitLocomotion = null
+var locomotion: LocomotionDriver = null
 var _locomotion_set: LocomotionSet = null
 
 @export_group("Clip Names")
@@ -248,7 +248,10 @@ func _ready() -> void:
 
 	playback = BodyAnimationTree.attach(animation_player)
 	if _locomotion_set:
-		locomotion = UnitLocomotion.new(unit, playback, _locomotion_set, animation_player.get_parent() as Node3D)
+		if _locomotion_set.simple:
+			locomotion = SimpleLocomotion.new(unit, playback, _locomotion_set)
+		else:
+			locomotion = UnitLocomotion.new(unit, playback, _locomotion_set, animation_player.get_parent() as Node3D)
 		locomotion.rest = _rest_in_own
 	# Hands and feet held on the rungs while a climb clip shows.
 	if climb_animation != "" and animation_player.has_animation(climb_animation):
