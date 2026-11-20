@@ -147,8 +147,15 @@ func editor_source() -> Callable:
 		if mark_name != &"":
 			spot = stage.local_mark(mark_name)
 		elif role != &"":
+			# A role is framed at its head, as CameraFraming._read_source
+			# frames the body at runtime.
 			var marker: StageRole = stage.role_marker(role)
-			spot = marker.preview_body() if marker else null
+			if marker == null:
+				return {}
+			return {
+				"origin": marker.preview_head(),
+				"facing": -marker.preview_body().global_transform.basis.z,
+			}
 		if spot == null:
 			return {}
 		return {

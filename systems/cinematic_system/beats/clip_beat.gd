@@ -41,6 +41,16 @@ func _fire(owner_stage: CinematicStage) -> void:
 	owner_stage.clip(role, animation_name, claims, layer, blend)
 
 
+## The clip on the role's preview body (StageRole.preview_unit), held on
+## its last frame once it has played through. BODY layer only: the editor
+## has no layered tree to put an UPPER or FLINCH clip over the legs with.
+func preview(seconds_since_fire: float) -> void:
+	var owner_stage: CinematicStage = stage()
+	if owner_stage == null or seconds_since_fire < 0.0 or layer != BodyAnimationTree.Layer.BODY:
+		return
+	_preview_clip(owner_stage, role, animation_name, seconds_since_fire)
+
+
 func _beat_warnings(owner_stage: CinematicStage) -> PackedStringArray:
 	var warnings := PackedStringArray()
 	_check_role(warnings, owner_stage, "role", role)

@@ -208,6 +208,11 @@ func preview(seconds_since_fire: float) -> void:
 	var travelled: float = _length() * progress
 	shown.global_position = _at(travelled)
 	_preview_face(shown, shown.global_position + _heading(travelled))
+	if progress < 1.0:
+		var moving: String = animation_name if animation_name != "" else _preview_walk(owner_stage, role)
+		_preview_clip(owner_stage, role, moving, seconds_since_fire)
+	else:
+		_preview_clip(owner_stage, role, _preview_idle(owner_stage, role), seconds_since_fire - seconds)
 
 
 func _beat_warnings(owner_stage: CinematicStage) -> PackedStringArray:

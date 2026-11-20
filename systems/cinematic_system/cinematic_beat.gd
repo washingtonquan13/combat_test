@@ -188,6 +188,25 @@ func _check_spot(warnings: PackedStringArray, owner_stage: CinematicStage,
 # --- Preview helpers -----------------------------------------------
 
 
+## Asks `role`'s preview body for `clip`, `seconds` into it (see
+## StageRole.pose_preview). Nothing happens for a capsule.
+func _preview_clip(owner_stage: CinematicStage, role: StringName, clip: String, seconds: float) -> void:
+	var marker: StageRole = owner_stage.role_marker(role)
+	if marker and clip != "":
+		marker.preview_clip(clip, seconds)
+
+
+## `role`'s preview body's idle and walk clips, "" for a capsule.
+func _preview_idle(owner_stage: CinematicStage, role: StringName) -> String:
+	var marker: StageRole = owner_stage.role_marker(role)
+	return marker.preview_idle_clip() if marker else ""
+
+
+func _preview_walk(owner_stage: CinematicStage, role: StringName) -> String:
+	var marker: StageRole = owner_stage.role_marker(role)
+	return marker.preview_walk_clip() if marker else ""
+
+
 ## The stand-in for `role`, or null.
 func _stand_in(owner_stage: CinematicStage, role: StringName) -> Node3D:
 	var marker: StageRole = owner_stage.role_marker(role)

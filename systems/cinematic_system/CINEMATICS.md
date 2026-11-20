@@ -92,7 +92,7 @@ You get:
 - empty `Marks` and `Beats`
 - a `Timeline` with an empty 3-second `scene` animation
 
-The capsules are **stand-ins**. They exist only in the editor and are never saved.
+The capsules are **stand-ins**. They exist only in the editor and are never saved. Give a role a body by setting its `preview_unit` (step 5): the capsule is then replaced by that unit's model, posed by the beats as you scrub.
 
 ### 2. Open the timeline and pin it
 
@@ -128,6 +128,7 @@ You now have a cut from the wide shot to the close-up at 3.5 s.
 ### 5. Add the stranger's role and marks
 
 1. Right-click `Roles` > **Add Child Node...** > `StageRole`. Rename it `stranger`. The node name is the role name.
+   - Set its `preview_unit` to `res://data/units/npcs/townsperson.tres`, and the leader's to `res://data/units/companions/player_character.tres`. The capsules become real bodies (editor only; who actually plays the role is still decided in game).
 2. Right-click `Marks` > **Add Child Node...** > `Marker3D`. Rename it `Entry`. Move it a few metres from the leader in the viewport.
 3. Add another Marker3D under `Marks` named `Meet`, about 1.8 m in front of the leader. In the stage's own space, **-Z** is "ahead".
 
@@ -172,8 +173,8 @@ The warning clears.
 ### 8. Preview by scrubbing
 
 1. Drag the timeline cursor. The stand-ins show what happens:
-   - the stranger's capsule is hidden before 0.5 s and appears on `Entry` after it
-   - it slides to `Meet` from 0.8 s
+   - the stranger's body is hidden before 0.5 s and appears on `Entry` after it
+   - it walks to `Meet` from 0.8 s, playing the unit's walk clip, and stands in idle when it gets there
    - it turns at 3.4 s
    - the line floats over its head from 3.5 s
 2. Scrub backwards and everything undoes. The preview depends only on the cursor time.
@@ -187,6 +188,15 @@ The warning clears.
 5. Untick **Preview** to get the normal editor view back.
 
 The preview camera follows whichever shot `shot` names at the cursor time.
+
+**Making a shot by flying the viewport.** Instead of typing rig numbers, you can frame the shot by eye:
+
+1. Untick **Preview** (while it is on, the viewport shows the preview camera and its own camera does not move).
+2. Fly the 3D viewport to where the camera should stand and point it at what it should see.
+3. Select the root stage node and click **New shot from view**. You get a new rig `Shots/S<n>_view` standing on a new mark `Marks/cam_S<n>_view` and aimed at `Marks/S<n>_view_look` (on the head of whoever is nearest the middle of the view, else 5 m ahead), with the view's field of view and `framed_roles` set to everyone in view. It becomes the live shot and is selected. Key `shot` to cut to it.
+4. To change a shot later, make it live (scrub to it, or set `shot`), fly the view, and click **Update live shot from view**. A shot framed on a role becomes a fixed camera on marks.
+
+Both buttons are one undo step (Ctrl+Z). For a camera move, key the camera mark's `position` once (`Marks/cam_S<n>_view:position`, Continuous); after that **Update live shot from view** adds a key at the playhead instead of moving the mark, so you build the move by scrubbing, flying and clicking.
 
 ### 10. Save and play it
 
@@ -214,12 +224,12 @@ Each beat has two behaviours:
 | **WaitBeat** | none | Holds the timeline until the player continues. Only the "Continue" prompt shows. | Nothing | Nothing |
 | **PlaceBeat** | `role`, `mark` (role or mark) | Puts the actor on the mark instantly, position **and** rotation. | Same as fire | Stand-in jumps to the mark |
 | **FaceBeat** | `role`, `target` (role or mark) | Turns the actor to face the target instantly. | Same as fire | Stand-in turns |
-| **WalkToBeat** | `role`, `mark` (role or mark)<br>`speed` (m/s, 0 = unit's own)<br>`duration` (seconds, overrides speed) | Turns toward the mark, plays the walk clip, moves in a **straight line**, and stops exactly on the mark in idle. | Actor lands on the mark, facing the way it walked | Stand-in slides along the line (4 m/s if speed is 0) |
-| **WalkPathBeat** | `role`, `path` (a Path3D, usually under the stage's `Paths/`)<br>`speed`, `duration` (as WalkToBeat)<br>`animation_name` (empty = the unit's walk clip)<br>`follows_ground` (default on) | Walks the drawn curve at an even pace, turning as the line turns, and stops on its last point in idle. Starts from wherever the actor stands: a straight leg to the path's first point is walked first, inside the same duration. With `follows_ground` each step is dropped onto the floor within 1.5 m of the drawn height. | Actor lands on the path's last point, facing the way the path ends | Stand-in follows the curve at the drawn heights |
+| **WalkToBeat** | `role`, `mark` (role or mark)<br>`speed` (m/s, 0 = unit's own)<br>`duration` (seconds, overrides speed) | Turns toward the mark, plays the walk clip, moves in a **straight line**, and stops exactly on the mark in idle. | Actor lands on the mark, facing the way it walked | Stand-in slides along the line (4 m/s if speed is 0), in the walk clip, then idle |
+| **WalkPathBeat** | `role`, `path` (a Path3D, usually under the stage's `Paths/`)<br>`speed`, `duration` (as WalkToBeat)<br>`animation_name` (empty = the unit's walk clip)<br>`follows_ground` (default on) | Walks the drawn curve at an even pace, turning as the line turns, and stops on its last point in idle. Starts from wherever the actor stands: a straight leg to the path's first point is walked first, inside the same duration. With `follows_ground` each step is dropped onto the floor within 1.5 m of the drawn height. | Actor lands on the path's last point, facing the way the path ends | Stand-in follows the curve at the drawn heights, in `animation_name` (else the walk clip), then idle |
 | **SpawnBeat** | `role`, `definition`<br>`prop_key` (wins when set)<br>`at` (optional) | Creates the unit, gives it the role, and stands it on `at`. | Same as fire | Hidden before the key, on `at` after |
 | **DespawnBeat** | `role` | Removes the unit from the world (frees it). | Same as fire | Hidden after the key |
-| **ClipBeat** | `role`, `animation_name` (typed)<br>`claims` (default on) | Plays the named clip on the actor's model. With `claims`, gameplay stops animating it until the scene ends. | Nothing | Nothing |
-| **PairedActionBeat** | `lead`, `partner`, `clip` (a PairedClip)<br>`mark` (optional: where the lead stands)<br>`blend` | Two actors do one thing together. Starts both halves of the clip on the same frame and slides and turns both bodies onto the places the clip was made for before its contact frame. With no `mark` the pair is set where the two already stand. When it ends the lead stands, and so does a partner left alive; each is moved to where its clip carried it (`lead_end`, `partner_end`), so a lunge stays in and nothing slides back. A clip with `kills_partner` leaves the partner dead where they fell. An exchange of several blows is one PairedClip with every touch in `contacts`. Bring the actors within about half a metre first. Made for level ground. | Both on their places, partner dead | The two stand-ins sliding onto their places |
+| **ClipBeat** | `role`, `animation_name` (typed)<br>`claims` (default on) | Plays the named clip on the actor's model. With `claims`, gameplay stops animating it until the scene ends. | Nothing | The clip, on a body (`preview_unit`). Body layer only |
+| **PairedActionBeat** | `lead`, `partner`, `clip` (a PairedClip)<br>`mark` (optional: where the lead stands)<br>`blend` | Two actors do one thing together. Starts both halves of the clip on the same frame and slides and turns both bodies onto the places the clip was made for before its contact frame. With no `mark` the pair is set where the two already stand. When it ends the lead stands, and so does a partner left alive; each is moved to where its clip carried it (`lead_end`, `partner_end`), so a lunge stays in and nothing slides back. A clip with `kills_partner` leaves the partner dead where they fell. An exchange of several blows is one PairedClip with every touch in `contacts`. Bring the actors within about half a metre first. Made for level ground. | Both on their places, partner dead | The two stand-ins sliding onto their places, playing both halves; afterwards the lead stands where its clip ended and a killed partner holds the last frame of the fall |
 | **HurtBeat** | `role`, `outcome` (WOUNDED / DEAD)<br>`hp_left` (WOUNDED: part of max HP left)<br>`lies_in` (DEAD: the clip the body was shown falling in) | Leaves the actor as the scene says they end up, for the fight after it. WOUNDED sets HP, not damage, so nothing is rolled. DEAD kills the unit; with `lies_in` it dies on that clip's last frame instead of falling again. Shows nothing: put the fall and the stagger on ClipBeats on the same key. | Same as fire | Nothing |
 | **AreaBeat** | `method` | Calls that method on the area the stage stands in (the goblin quarry's `break_gate`): a change to the place itself that outlives the scene. | Same as fire | Nothing |
 | **EffectBeat** | `vfx` (a VfxEffect)<br>`from`, `to` (`to` empty = at `from`) | Plays the effect. On a role it plays at the chest. | Nothing | Nothing |
@@ -370,6 +380,10 @@ The camera stays on the last shot when the scene finishes. If that shot stands o
 A **StageRole** under `Roles/` is a placeholder for one person. The node name is the role name. You can set `role` to use a different name, but leaving it empty and naming the node is simpler.
 
 The stage never moves the real unit into the cutscene scene. The unit stays in its world. The role marker and the unit are kept in step instead.
+
+### preview_unit: a body to author on
+
+Set a StageRole's `preview_unit` to a UnitDefinition and the editor shows that unit's body instead of the capsule. The beats pose it as you scrub: a ClipBeat's clip, a paired action's halves, the walk clip during a walk, the idle otherwise. Shots on that role aim at the body's head bone, which is where they aim in game. It is editor only: in game the role is whoever the scene is handed. Scripts on the body do not run in the editor, so it shows undressed (no clothes, hair, held weapon or face).
 
 ### drives_actor
 
@@ -589,7 +603,9 @@ These appear while the game runs, not in the editor:
 
 **Lines wait by default.** A scene with three LineBeats needs three presses. Turn `wait_for_advance` off for lines spoken over action.
 
-**Things that do not preview.** World marks, ClipBeat, EffectBeat and SoundBeat show nothing in the editor. Check those in game.
+**Things that do not preview.** World marks, EffectBeat, SoundBeat, ImpactBeat and MusicDuckBeat show nothing in the editor. Clips preview only on a role with a `preview_unit`, and only the body layer: upper-body and flinch layers, blends, clothes, hair, weapons and faces show in game only. Check those in game.
+
+**Role shots aim at the head in the editor too.** With a `preview_unit` set, a shot framed on a role aims at the body's head bone, as it does in game. Before bodies, the editor aimed at the capsule, so an older shot may look different in the editor now; the game view did not change.
 
 **The dialogue binding needs a speaker change.** A bound scene starts on the first line of its node only if that line's speaker is different from the previous line's.
 

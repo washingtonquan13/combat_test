@@ -118,6 +118,24 @@ const PREVIEW_REFRESH_FRAMES: int = 15
 ## Scene dock, which is the only other way to select it.
 @export_tool_button("Look through preview camera", "Camera3D")
 var look_through_preview: Callable = _look_through_preview
+## Makes a shot of what the 3D viewport is looking at: a camera mark
+## where the view stands (Marks/cam_<shot>), a look mark ahead of it
+## (Marks/<shot>_look, on the person nearest the middle of the view, else
+## 5 m out), and a FramingRig under Shots/ sitting on the one and aimed at
+## the other, with the view's field of view. It becomes the live shot and
+## is selected; key `shot` to cut to it. One undo step.
+## Turn the viewport's Preview off first: while previewing, the viewport
+## shows the preview camera but its own camera stays where it was.
+@export_tool_button("New shot from view", "Camera3D")
+var new_shot_from_view: Callable = _new_shot_from_view
+## Moves the live shot to the 3D viewport's view: its camera and look
+## marks go where the view stands and looks (made if it has none), and it
+## takes the view's field of view. A shot framed on a role becomes a fixed
+## camera. A mark whose position is keyed on the Timeline gets a key at the
+## playhead instead, so a camera move is built by scrubbing, flying the
+## view and pressing this. One undo step.
+@export_tool_button("Update live shot from view", "Camera3D")
+var update_shot_from_view: Callable = _update_shot_from_view
 ## The music this scene is scored to: a name in music/transitions.json, or
 ## empty to leave whatever is playing. MusicManager asks for it as the scene
 ## starts, and holds the first frame until it has (see
@@ -1090,6 +1108,9 @@ func _preview_beats(now: float) -> void:
 		marker.reset_preview()
 	for pair in timed_beats():
 		(pair[0] as BeatNode).preview(now - float(pair[1]))
+	# Bodies last, so the clip a later beat asked for is the one shown.
+	for marker in roles():
+		marker.pose_preview(now)
 
 
 func _preview_shot() -> void:
@@ -1132,6 +1153,190 @@ func _preview_camera() -> Camera3D:
 	_preview.name = PREVIEW_NAME
 	add_child(_preview)
 	return _preview
+
+
+## How far ahead a new look mark sits when no one is near the view's middle.
+const VIEW_LOOK_DISTANCE: float = 5.0
+## How far off the middle of the view (degrees) a person may be and still
+## be what the look mark lands on.
+const VIEW_LOOK_CONE: float = 20.0
+
+
+func _new_shot_from_view() -> void:
+	var view: Camera3D = _editor_view()
+	if view == null:
+		return
+	var editor: Object = Engine.get_singleton(&"EditorInterface")
+	var root: Node = editor.call(&"get_edited_scene_root")
+	var undo: Object = editor.call(&"get_editor_undo_redo")
+	var n: int = shots().size() + 1
+	var shot_name: String = "S%d_view" % n
+	while _view_name_taken(shot_name):
+		n += 1
+		shot_name = "S%d_view" % n
+	undo.call(&"create_action", "New shot from view", 0, self)
+	var marks: Node3D = _view_holder(undo, root, MARKS_NAME)
+	var holder: Node3D = _view_holder(undo, root, SHOTS_NAME)
+	var eye: Marker3D = _view_mark(undo, root, marks, "cam_" + shot_name)
+	eye.transform = _local_to(marks, Transform3D(view.global_basis.orthonormalized(), view.global_position))
+	var aim: Marker3D = _view_mark(undo, root, marks, shot_name + "_look")
+	aim.position = _local_to(marks, Transform3D(Basis(), _view_look_point(view))).origin
+	var rig := FramingRig.new()
+	rig.name = shot_name
+	rig.subject_role = &""
+	rig.subject_mark = StringName(eye.name)
+	rig.distance = 0.0
+	rig.azimuth_degrees = 0.0
+	rig.elevation_degrees = 0.0
+	rig.fov_degrees = view.fov
+	rig.look_mark = StringName(aim.name)
+	rig.framed_roles.assign(_roles_in_view(view))
+	_view_add(undo, root, holder, rig)
+	undo.call(&"add_do_property", self, &"shot", StringName(shot_name))
+	undo.call(&"add_undo_property", self, &"shot", shot)
+	undo.call(&"commit_action")
+	var selection: Object = editor.call(&"get_selection")
+	selection.call(&"clear")
+	selection.call(&"add_node", rig)
+
+
+func _update_shot_from_view() -> void:
+	var view: Camera3D = _editor_view()
+	var rig: FramingRig = live_shot()
+	if view == null:
+		return
+	if rig == null:
+		push_warning("%s: no live shot to update; use New shot from view." % name)
+		return
+	var editor: Object = Engine.get_singleton(&"EditorInterface")
+	var root: Node = editor.call(&"get_edited_scene_root")
+	var undo: Object = editor.call(&"get_editor_undo_redo")
+	undo.call(&"create_action", "Update %s from view" % rig.name, 0, self)
+	var marks: Node3D = _view_holder(undo, root, MARKS_NAME)
+	var eye: Marker3D = local_mark(rig.subject_mark) as Marker3D
+	if eye == null:
+		eye = _view_mark(undo, root, marks, _view_free_mark("cam_" + String(rig.name)))
+	var aim: Marker3D = local_mark(rig.look_mark) as Marker3D
+	if aim == null or aim == eye:
+		aim = _view_mark(undo, root, marks, _view_free_mark(String(rig.name) + "_look"))
+	if rig.subject_mark == &"" and rig.subject_role != &"":
+		push_warning("%s was framed on '%s'; it is now a fixed camera on mark %s." % [rig.name, rig.subject_role, eye.name])
+	_view_move(undo, eye, _local_to(marks, Transform3D(view.global_basis.orthonormalized(), view.global_position)))
+	var ahead: Transform3D = Transform3D(aim.transform.basis, _local_to(marks, Transform3D(Basis(), _view_look_point(view))).origin)
+	_view_move(undo, aim, ahead)
+	var settings := {
+		subject_role = &"", subject_mark = StringName(eye.name), distance = 0.0,
+		azimuth_degrees = 0.0, elevation_degrees = 0.0, pan_degrees = 0.0,
+		look_role = &"", look_mark = StringName(aim.name), look_offset = Vector3.ZERO,
+		fov_degrees = view.fov,
+	}
+	for property: StringName in settings:
+		undo.call(&"add_do_property", rig, property, settings[property])
+		undo.call(&"add_undo_property", rig, property, rig.get(property))
+	undo.call(&"commit_action")
+
+
+## The 3D viewport's own camera, when this stage is the scene being edited.
+func _editor_view() -> Camera3D:
+	if not Engine.is_editor_hint():
+		return null
+	if not _in_edited_scene():
+		push_warning("%s: open the stage's own scene to make shots from the view." % name)
+		return null
+	var editor: Object = Engine.get_singleton(&"EditorInterface")
+	var viewport: Viewport = editor.call(&"get_editor_viewport_3d", 0) as Viewport if editor else null
+	return viewport.get_camera_3d() if viewport else null
+
+
+## Where the view is looking: the head of the person nearest the middle of
+## the view, at their depth, else VIEW_LOOK_DISTANCE straight ahead.
+func _view_look_point(view: Camera3D) -> Vector3:
+	var forward: Vector3 = -view.global_basis.z.normalized()
+	var best: float = deg_to_rad(VIEW_LOOK_CONE)
+	var depth: float = VIEW_LOOK_DISTANCE
+	for marker in roles():
+		var to: Vector3 = marker.preview_head() - view.global_position
+		if to.dot(forward) <= 0.1:
+			continue
+		var off: float = forward.angle_to(to)
+		if off < best:
+			best = off
+			depth = to.dot(forward)
+	return view.global_position + forward * depth
+
+
+func _roles_in_view(view: Camera3D) -> Array[StringName]:
+	var seen: Array[StringName] = []
+	for marker in roles():
+		if view.is_position_in_frustum(marker.preview_head()):
+			seen.append(marker.role_name())
+	return seen
+
+
+## Marks/ or Shots/, made in the same undo step when the stage has none.
+func _view_holder(undo: Object, root: Node, holder_name: StringName) -> Node3D:
+	var holder: Node3D = get_node_or_null(NodePath(holder_name)) as Node3D
+	if holder:
+		return holder
+	holder = Node3D.new()
+	holder.name = holder_name
+	_view_add(undo, root, self, holder)
+	return holder
+
+
+func _view_mark(undo: Object, root: Node, marks: Node3D, mark_name: String) -> Marker3D:
+	var mark := Marker3D.new()
+	mark.name = mark_name
+	_view_add(undo, root, marks, mark)
+	return mark
+
+
+func _view_add(undo: Object, root: Node, parent: Node, node: Node) -> void:
+	undo.call(&"add_do_method", parent, &"add_child", node, true)
+	undo.call(&"add_do_method", node, &"set_owner", root)
+	undo.call(&"add_do_reference", node)
+	undo.call(&"add_undo_method", parent, &"remove_child", node)
+
+
+## Moves a mark, or keys it at the playhead if its position is keyed.
+func _view_move(undo: Object, mark: Node3D, to: Transform3D) -> void:
+	var animation: Animation = performance()
+	if animation:
+		var at: float = _editor_time()
+		var path: NodePath = NodePath("%s/%s:position" % [MARKS_NAME, mark.name])
+		var track: int = animation.find_track(path, Animation.TYPE_VALUE)
+		if track >= 0:
+			var old: int = animation.track_find_key(track, at, Animation.FIND_MODE_APPROX)
+			undo.call(&"add_do_method", animation, &"track_insert_key", track, at, to.origin)
+			if old >= 0:
+				undo.call(&"add_undo_method", animation, &"track_insert_key", track, at, animation.track_get_key_value(track, old))
+			else:
+				undo.call(&"add_undo_method", animation, &"track_remove_key_at_time", track, at)
+	undo.call(&"add_do_property", mark, &"transform", to)
+	undo.call(&"add_undo_property", mark, &"transform", mark.transform)
+
+
+func _view_name_taken(shot_name: String) -> bool:
+	var holder: Node = get_node_or_null(NodePath(SHOTS_NAME))
+	return (holder != null and holder.has_node(NodePath(shot_name))) \
+		or local_mark(StringName("cam_" + shot_name)) != null \
+		or local_mark(StringName(shot_name + "_look")) != null
+
+
+func _view_free_mark(base: String) -> String:
+	var mark_name: String = base
+	var n: int = 2
+	while local_mark(StringName(mark_name)) != null:
+		mark_name = "%s_%d" % [base, n]
+		n += 1
+	return mark_name
+
+
+## `global` in the space of `holder` (which may not be in the tree yet: a
+## new holder sits on the stage).
+func _local_to(holder: Node3D, global: Transform3D) -> Transform3D:
+	var frame: Transform3D = holder.global_transform if holder.is_inside_tree() else global_transform
+	return frame.affine_inverse() * global
 
 
 func _look_through_preview() -> void:

@@ -46,6 +46,20 @@ extends Marker3D
 ## commoner case and the safer one: a stage that drives an actor it should
 ## not have owns that actor's position for the whole scene.
 @export var drives_actor: bool = false
+## Who plays this role in the editor preview. The stand-in wears this
+## unit's body (its look's body_scene, else its model_scene) instead of the
+## capsule, and the beats pose it: a ClipBeat's clip, a paired action's two
+## clips, the walk while a walk beat moves it, the idle otherwise. So a shot
+## is framed on a person in the pose they will be in, not on a tube.
+##
+## Editor only. At runtime the role is whoever the scene is handed; this is
+## never read. Scripts on the body do not run in the editor, so it shows
+## undressed: no look, no hair, no held weapon, no face.
+@export var preview_unit: UnitDefinition = null:
+	set(value):
+		preview_unit = value
+		if Engine.is_editor_hint() and is_inside_tree():
+			_build_preview_model()
 
 ## Roughly a person, so an author laying out a shot sees bodies rather
 ## than three-axis crosses. Editor-only and NEVER SAVED — added without an
@@ -63,14 +77,28 @@ const PLACEHOLDER_RADIUS: float = 0.35
 const PLACEHOLDER_NAME: StringName = &"__StageRolePlaceholder"
 ## Where a previewed line floats, above the stand-in's head.
 const LABEL_HEIGHT: float = PLACEHOLDER_HEIGHT + 0.4
+const CAPSULE_NAME: StringName = &"Capsule"
+const MODEL_NAME: StringName = &"__PreviewModel"
+## A body's HEAD anchor when it declares none, as a share of its height:
+## CharacterModel._fallback_ratio(HEAD). The runtime frames a role there.
+const HEAD_RATIO: float = 0.85
+## CharacterModel.height's default, for a body that sets none.
+const DEFAULT_HEIGHT: float = 2.0
 
 var _placeholder: Node3D = null
 var _label: Label3D = null
+var _model: Node3D = null
+var _player: AnimationPlayer = null
+## What the beats asked this preview pass: a clip and the seconds into it.
+## A later beat's ask wins, as a later clip does at runtime.
+var _pending_clip: String = ""
+var _pending_at: float = 0.0
 
 
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		_build_placeholder()
+		_build_preview_model()
 
 
 ## The role this marker plays, falling back to its node name.
@@ -122,6 +150,82 @@ func reset_preview() -> void:
 	paint_stand_in(Color(0, 0, 0, 0))
 	if is_instance_valid(_label):
 		_label.visible = false
+	_pending_clip = ""
+	_pending_at = 0.0
+
+
+## A beat's preview asking for `clip`, `seconds` into it. Nothing is posed
+## until pose_preview(), after every beat has had its say.
+func preview_clip(clip: String, seconds: float) -> void:
+	_pending_clip = clip
+	_pending_at = seconds
+
+
+## Poses the preview body on what the beats asked for, or on its idle at
+## the timeline time `now` when nothing did. Called by the stage after
+## every beat's preview. A looping clip wraps; a one-shot holds its ends.
+## A clip the body does not have leaves it in its last pose.
+func pose_preview(now: float) -> void:
+	if not is_instance_valid(_player):
+		return
+	var clip: String = _pending_clip
+	var at: float = _pending_at
+	if clip == "":
+		clip = preview_idle_clip()
+		at = now
+	if clip == "" or not _player.has_animation(clip):
+		return
+	var animation: Animation = _player.get_animation(clip)
+	if animation.loop_mode != Animation.LOOP_NONE and animation.length > 0.0:
+		at = fposmod(at, animation.length)
+	else:
+		at = clampf(at, 0.0, animation.length)
+	if _player.assigned_animation != clip:
+		_player.assigned_animation = clip
+	_player.seek(at, true)
+
+
+## The preview body, or null when the stand-in is the capsule.
+func preview_model() -> Node3D:
+	return _model if is_instance_valid(_model) else null
+
+
+## The preview body's standing and walking clips ("" with no body).
+func preview_idle_clip() -> String:
+	return _model_text(&"idle_animation")
+
+
+func preview_walk_clip() -> String:
+	return _model_text(&"walk_animation")
+
+
+## Where the runtime frames this role: its body's HEAD anchor
+## (CharacterModel.anchor_position). In the editor that is the skeleton's
+## Head bone, so it follows the pose; a body with no Head bone falls back on
+## a share of its height. The capsule stands for a body of the default
+## height.
+func preview_head() -> Vector3:
+	var body: Node3D = preview_body()
+	var model: Node3D = preview_model()
+	if model == null:
+		return body.global_position + Vector3.UP * DEFAULT_HEIGHT * HEAD_RATIO
+	var declared: Variant = model.get(&"head_anchor")
+	var anchor: Node3D = null
+	if declared is Node3D:
+		anchor = declared
+	elif declared is NodePath and not (declared as NodePath).is_empty():
+		anchor = model.get_node_or_null(declared) as Node3D
+	if anchor:
+		return anchor.global_position
+	# In the editor the body's script does not run, so it has no sockets;
+	# its Head bone is where the runtime's head socket sits.
+	var skeleton: Skeleton3D = model.find_child("GeneralSkeleton", true, false) as Skeleton3D
+	var bone: int = skeleton.find_bone("Head") if skeleton else -1
+	if bone >= 0:
+		return skeleton.global_transform * skeleton.get_bone_global_pose(bone).origin
+	var height: Variant = model.get(&"height")
+	var tall: float = float(height) if (height is float or height is int) else DEFAULT_HEIGHT
+	return model.global_position + Vector3.UP * tall * model.global_basis.get_scale().y * HEAD_RATIO
 
 
 ## A SilhouetteBeat's preview: the stand-in painted one flat colour. A
@@ -147,6 +251,7 @@ func _build_placeholder() -> void:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
 	var mesh := MeshInstance3D.new()
+	mesh.name = CAPSULE_NAME
 	mesh.mesh = capsule
 	mesh.material_override = material
 	# Feet on the marker, which is where a mark means. A capsule's origin
@@ -159,6 +264,74 @@ func _build_placeholder() -> void:
 	# No owner is set on purpose: an unowned child is not packed, so the
 	# stand-in exists in the editor viewport and in no saved file.
 	add_child(_placeholder)
+
+
+## The preview_unit's body under the stand-in, turned by its unit's facing
+## offset as a unit turns its model, with the capsule hidden. Unowned like
+## the stand-in, so never saved.
+func _build_preview_model() -> void:
+	if not is_instance_valid(_placeholder):
+		return
+	if is_instance_valid(_model):
+		_placeholder.remove_child(_model)
+		_model.free()
+	_model = null
+	_player = null
+	var scene: PackedScene = _preview_scene()
+	if scene:
+		_model = scene.instantiate() as Node3D
+	if _model:
+		_model.name = MODEL_NAME
+		_model.rotation.y = deg_to_rad(_facing_offset())
+		_placeholder.add_child(_model)
+		_player = _find_player()
+	var capsule: Node3D = _placeholder.get_node_or_null(NodePath(CAPSULE_NAME)) as Node3D
+	if capsule:
+		capsule.visible = _model == null
+
+
+func _preview_scene() -> PackedScene:
+	if preview_unit == null:
+		return null
+	var look: Variant = preview_unit.get(&"look")
+	if look is Resource:
+		var path: Variant = (look as Resource).get(&"body_scene")
+		if path is String and path != "" and ResourceLoader.exists(path):
+			var body: PackedScene = load(path) as PackedScene
+			if body:
+				return body
+	return preview_unit.get(&"model_scene") as PackedScene
+
+
+## The unit's facing_offset_degrees as its scene sets it: a model facing
+## +Z is turned half round so it faces the way the unit does.
+func _facing_offset() -> float:
+	var scene: Variant = preview_unit.get(&"unit_scene") if preview_unit else null
+	if scene is PackedScene:
+		var state: SceneState = (scene as PackedScene).get_state()
+		for i in state.get_node_property_count(0):
+			if state.get_node_property_name(0, i) == &"facing_offset_degrees":
+				return float(state.get_node_property_value(0, i))
+	return 0.0
+
+
+## The body's own AnimationPlayer (CharacterModel.animation_player), else
+## the first one under it.
+func _find_player() -> AnimationPlayer:
+	var path: Variant = _model.get(&"animation_player")
+	if path is AnimationPlayer:
+		return path
+	if path is NodePath and not (path as NodePath).is_empty():
+		var named: AnimationPlayer = _model.get_node_or_null(path) as AnimationPlayer
+		if named:
+			return named
+	var found: Array[Node] = _model.find_children("*", "AnimationPlayer", true, false)
+	return found[0] as AnimationPlayer if not found.is_empty() else null
+
+
+func _model_text(property: StringName) -> String:
+	var value: Variant = _model.get(property) if is_instance_valid(_model) else null
+	return value if value is String else ""
 
 
 func _get_configuration_warnings() -> PackedStringArray:

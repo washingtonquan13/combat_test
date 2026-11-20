@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
 [ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
@@ -10,6 +10,9 @@
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/hurt_beat.gd" id="8_hurt"]
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/music_duck_beat.gd" id="9_duck"]
 [ext_resource type="Script" path="res://systems/cinematic_system/contact_event.gd" id="10_contact"]
+[ext_resource type="Resource" path="res://data/units/companions/player_character.tres" id="20_hero_unit"]
+[ext_resource type="Resource" path="res://data/units/npcs/proof_hero.tres" id="21_attacker_unit"]
+[ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="22_victim_unit"]
 [ext_resource type="Resource" path="res://assets/paired_clips/exchange.tres" id="11_exchange"]
 [ext_resource type="Resource" path="res://assets/cinematics/impacts/duel_impacts.tres" id="12_impacts"]
 [ext_resource type="PackedScene" path="res://assets/level/quarry/models/rock_face_01.glb" id="13_rock1"]
@@ -294,16 +297,19 @@ world_marks = PackedStringArray("duel_m2_anchor")
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
+preview_unit = ExtResource("20_hero_unit")
 
 [node name="attacker" type="Marker3D" parent="Roles"]
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
+preview_unit = ExtResource("21_attacker_unit")
 
 [node name="victim" type="Marker3D" parent="Roles"]
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
+preview_unit = ExtResource("22_victim_unit")
 
 [node name="Marks" type="Node3D" parent="."]
 

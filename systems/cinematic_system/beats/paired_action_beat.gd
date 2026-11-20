@@ -323,7 +323,10 @@ func _forward(body: Node3D) -> Vector3:
 
 
 ## The two stand-ins sliding onto their places from wherever the earlier
-## beats left them.
+## beats left them, playing their clips. After the clip, as at runtime
+## (_end): the lead stands on its idle, moved by lead_end; the partner
+## lies on the clip's last frame for a kill, else stands moved by
+## partner_end. A capsule has no clip, so it is not moved at the end.
 func preview(seconds_since_fire: float) -> void:
 	var owner_stage: CinematicStage = stage()
 	if owner_stage == null or clip == null or seconds_since_fire < 0.0:
@@ -340,6 +343,31 @@ func preview(seconds_since_fire: float) -> void:
 		shown[i].global_position = shown[i].global_position.lerp(to[i][0], part)
 		if part >= 1.0:
 			_preview_face(shown[i], shown[i].global_position + to[i][1])
+	if seconds_since_fire < clip.length:
+		_preview_clip(owner_stage, lead, clip.lead_clip, seconds_since_fire)
+		_preview_clip(owner_stage, partner, clip.partner_clip, seconds_since_fire)
+		return
+	var after: float = seconds_since_fire - clip.length
+	_preview_clip(owner_stage, lead, _preview_idle(owner_stage, lead), after)
+	_preview_stand_down(owner_stage, lead, first, clip.lead_end)
+	if clip.kills_partner:
+		_preview_clip(owner_stage, partner, clip.partner_clip, clip.length)
+	else:
+		_preview_clip(owner_stage, partner, _preview_idle(owner_stage, partner), after)
+		_preview_stand_down(owner_stage, partner, second, clip.partner_end)
+
+
+## _stand_down's move on a stand-in: `moved` is in the body's own space.
+func _preview_stand_down(owner_stage: CinematicStage, role: StringName, shown: Node3D, moved: Transform3D) -> void:
+	var marker: StageRole = owner_stage.role_marker(role)
+	var model: Node3D = marker.preview_model() if marker else null
+	if model == null or moved.is_equal_approx(Transform3D.IDENTITY):
+		return
+	var step: Vector3 = model.global_basis.orthonormalized() * moved.origin
+	step.y = 0.0
+	var ahead: Vector3 = (-shown.global_transform.basis.z).rotated(Vector3.UP, moved.basis.get_euler().y)
+	shown.global_position += step
+	_preview_face(shown, shown.global_position + ahead)
 
 
 func _beat_warnings(owner_stage: CinematicStage) -> PackedStringArray:

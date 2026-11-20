@@ -138,6 +138,10 @@ func preview(seconds_since_fire: float) -> void:
 	var progress: float = 1.0 if seconds <= 0.0 else clampf(seconds_since_fire / seconds, 0.0, 1.0)
 	_preview_face(body, to)
 	body.global_position = from.lerp(to, progress)
+	if progress < 1.0:
+		_preview_clip(owner_stage, role, _preview_walk(owner_stage, role), seconds_since_fire)
+	else:
+		_preview_clip(owner_stage, role, _preview_idle(owner_stage, role), seconds_since_fire - seconds)
 
 
 func _beat_warnings(owner_stage: CinematicStage) -> PackedStringArray:
