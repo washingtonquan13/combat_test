@@ -35,9 +35,11 @@ extends Resource
 @export_range(0.0, 60.0, 0.01, "suffix:s") var length: float = 1.0
 ## The partner's clip ends with them dead on the ground.
 @export var kills_partner: bool = false
-## Every time the two touch, in order, contact_time first. Empty = only
-## contact_time.
-@export var contacts: PackedFloat32Array = PackedFloat32Array()
+## Every time the two touch, in order, contact_time first: what touched,
+## how hard and what the cut wants (ContactEvent). A PairedActionBeat hands
+## each to its stage's impact dispatcher as the clip crosses it. Empty =
+## the clip has no impacts.
+@export var contacts: Array[ContactEvent] = []
 ## Where the lead's place is on the last frame, from its first, in the
 ## lead's own space (+Z ahead). Flat.
 @export var lead_end: Transform3D = Transform3D.IDENTITY

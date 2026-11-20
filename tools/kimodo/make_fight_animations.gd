@@ -58,6 +58,14 @@ const CONTACTS := [
 	{lead = 113, partner = 114, kind = "hit"},
 ]
 const SEARCH := 4
+## How hard each contact lands and what the cut wants there (ContactEvent):
+## a first parry cut on, a heavier second parry and the hit cut after, onto
+## the reaction.
+const IMPACT := [
+	{strength = 0.4, cut = ContactEvent.Cut.ON},
+	{strength = 0.6, cut = ContactEvent.Cut.AFTER},
+	{strength = 0.9, cut = ContactEvent.Cut.AFTER},
+]
 ## Along the guarding blade, from its grip, where the blow lands on it.
 const CROSS := 0.4
 ## Along the striking blade, from its grip, where it meets the guard.
@@ -138,11 +146,19 @@ func _bake() -> void:
 	pair.lead_clip = "Fight/Duel_Lead"
 	pair.partner_clip = "Fight/Duel_Partner"
 	pair.partner_from_lead = placed
-	var times := PackedFloat32Array()
+	var events: Array[ContactEvent] = []
 	for c: Dictionary in met:
-		times.append(c.lead / Retarget.FPS)
-	pair.contacts = times
-	pair.contact_time = times[0]
+		var kind: ContactEvent.Kind = ContactEvent.Kind.PARRY if c.kind == "parry" else ContactEvent.Kind.HIT
+		var event := ContactEvent.make(c.lead / Retarget.FPS, kind, IMPACT[events.size()].strength,
+				IMPACT[events.size()].cut)
+		if c.kind == "parry" and CONTACTS[events.size()].get("blocker", "") == "lead":
+			event.striker = ContactEvent.Who.PARTNER
+			event.target_side = ContactEvent.Who.LEAD
+		if kind == ContactEvent.Kind.HIT:
+			event.target = &"LeftUpperArm"
+		events.append(event)
+	pair.contacts = events
+	pair.contact_time = events[0].time
 	pair.length = last / Retarget.FPS
 	pair.kills_partner = false
 	pair.lead_end = _travel(lead)

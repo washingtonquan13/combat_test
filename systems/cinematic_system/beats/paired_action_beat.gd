@@ -35,6 +35,14 @@ extends BeatNode
 ## partner dies as the clip ends, lying as the clip left them, not falling a
 ## second time in their own death clip.
 ##
+## IMPACTS. Each of the clip's contacts (ContactEvent) goes to the stage's
+## impact dispatcher on the frame the clip crosses it, with `impacts` saying
+## what plays there. The beat first puts both bodies on the contact's exact
+## time, so the hit-stop that follows holds the touch itself, not a frame
+## past it. The sound is started one frame ahead (impact_heard), the rest on
+## the frame. Hold time does not count as clip time: the stage ticks this
+## beat with no time while it holds.
+##
 ## RUNS IN REAL TIME for the clip's length, and keeps the scene open until
 ## it is done. Skipped, both are on their places and the partner is dead on
 ## the ground.
@@ -62,11 +70,17 @@ const SETTLED: float = 0.75
 		_changed()
 ## Seconds to blend into the clips over. Below 0 = each body's own.
 @export_range(-1.0, 3.0, 0.05, "suffix:s") var blend: float = -1.0
+## What the clip's contacts look and sound like. Empty = the contacts still
+## hold and shake, with nothing seen or heard.
+@export var impacts: ImpactKit = null
 
 ## [position, flat facing] each body started from and is going to.
 var _from: Array = []
 var _to: Array = []
 var _elapsed: float = 0.0
+## The next of clip.contacts to fire, and whether its sound already has.
+var _next: int = 0
+var _heard: bool = false
 
 
 func _validate_property(property: Dictionary) -> void:
@@ -84,6 +98,8 @@ func _fire(owner_stage: CinematicStage) -> void:
 		push_warning("PairedActionBeat '%s': '%s', '%s' or the clip does not resolve." % [name, lead, partner])
 		return
 	_elapsed = 0.0
+	_next = 0
+	_heard = false
 	owner_stage.clip(lead, clip.lead_clip, true, BodyAnimationTree.Layer.BODY, blend)
 	owner_stage.clip(partner, clip.partner_clip, true, BodyAnimationTree.Layer.BODY, blend)
 	owner_stage.run(self)
@@ -94,6 +110,7 @@ func tick(delta: float) -> bool:
 	if owner_stage == null or _to.is_empty():
 		return false
 	_elapsed += delta
+	_contact(owner_stage, delta)
 	_stand(owner_stage, _settled(_elapsed))
 	if _elapsed < clip.length:
 		return true
@@ -113,6 +130,89 @@ func _skip(owner_stage: CinematicStage) -> void:
 		return
 	_stand(owner_stage, 1.0)
 	_end(owner_stage)
+
+
+## Fires the contact this frame crossed, and starts the sound of one the
+## next frame will cross (a frame being as long as this one).
+func _contact(owner_stage: CinematicStage, delta: float) -> void:
+	if _next >= clip.contacts.size():
+		return
+	var event: ContactEvent = clip.contacts[_next]
+	if event == null:
+		_next += 1
+		return
+	if _elapsed >= event.time:
+		_elapsed = event.time
+		for role: StringName in [lead, partner]:
+			var tree: BodyAnimationTree = BodyAnimationTree.of(owner_stage.body(role))
+			if tree:
+				tree.seek(event.time, true)
+		var roles: Array[StringName] = _roles(event)
+		owner_stage.impact(event, roles[0], roles[1], impact_point(owner_stage, event), impacts)
+		_next += 1
+		_heard = false
+	elif not _heard and delta > 0.0 and _elapsed + delta >= event.time:
+		_heard = true
+		owner_stage.impact_heard(event, impact_point(owner_stage, event), impacts)
+
+
+## [striker role, target role] on this stage.
+func _roles(event: ContactEvent) -> Array[StringName]:
+	var striker: StringName = lead if event.striker == ContactEvent.Who.LEAD else partner
+	var target: StringName = lead if event.target_side == ContactEvent.Who.LEAD else partner
+	return [striker, target]
+
+
+## Where `event` touches, in the world, from the two bodies as they stand:
+## the midpoint of the closest points of two blades, or the point on the
+## striker's blade (or bone) nearest the target bone.
+func impact_point(owner_stage: CinematicStage, event: ContactEvent) -> Vector3:
+	var roles: Array[StringName] = _roles(event)
+	var striking: CharacterModel = StandIn.body_of(owner_stage.actor(roles[0]))
+	var struck: CharacterModel = StandIn.body_of(owner_stage.actor(roles[1]))
+	if striking == null or struck == null:
+		return owner_stage.point(roles[1])
+	var edge: PackedVector3Array = blade(striking)
+	if event.target == ContactEvent.BLADE or event.target == ContactEvent.BLADE_TIP:
+		var guard: PackedVector3Array = blade(struck)
+		if edge.is_empty() or guard.is_empty():
+			return owner_stage.point(roles[1])
+		if event.target == ContactEvent.BLADE_TIP:
+			guard = PackedVector3Array([guard[1], guard[1]])
+		var closest: PackedVector3Array = Geometry3D.get_closest_points_between_segments(
+				edge[0], edge[1], guard[0], guard[1])
+		return (closest[0] + closest[1]) * 0.5
+	var spot: Vector3 = bone_point(struck, event.target)
+	if edge.is_empty():
+		return spot
+	if event.effector == ContactEvent.BLADE_TIP:
+		return edge[1].lerp(spot, 0.5)
+	return Geometry3D.get_closest_point_to_segment(spot, edge[0], edge[1])
+
+
+## [grip, point] of the weapon in `model`'s main hand, in the world: along
+## the grip's +Y, as far as the weapon's meshes reach. Empty with no weapon.
+static func blade(model: CharacterModel) -> PackedVector3Array:
+	var grip: Node3D = model.main_hand_grip if model else null
+	if grip == null or grip.get_child_count() == 0:
+		return PackedVector3Array()
+	var reach: float = 0.0
+	var space: Transform3D = grip.global_transform.affine_inverse()
+	for mesh: MeshInstance3D in grip.find_children("*", "MeshInstance3D", true, false):
+		var box: AABB = mesh.get_aabb()
+		var local: Transform3D = space * mesh.global_transform
+		for corner in 8:
+			reach = maxf(reach, (local * box.get_endpoint(corner)).y)
+	var hold: Transform3D = grip.global_transform
+	return PackedVector3Array([hold.origin, hold * Vector3(0.0, reach, 0.0)])
+
+
+static func bone_point(model: CharacterModel, bone: StringName) -> Vector3:
+	var skeleton: Skeleton3D = model.find_child("GeneralSkeleton", true, false) as Skeleton3D
+	var index: int = skeleton.find_bone(String(bone)) if skeleton else -1
+	if index < 0:
+		return model.global_position + Vector3.UP * 1.3
+	return skeleton.global_transform * skeleton.get_bone_global_pose(index).origin
 
 
 ## How far onto its place a body is, 0 to 1, `seconds` into the clip.

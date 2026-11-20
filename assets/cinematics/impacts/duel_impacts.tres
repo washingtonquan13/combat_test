@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ImpactKit" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/impact_kit.gd" id="1"]
+[ext_resource type="Resource" path="res://assets/cinematics/impacts/parry_vfx.tres" id="2"]
+[ext_resource type="Resource" path="res://assets/cinematics/impacts/parry_sfx.tres" id="3"]
+[ext_resource type="Resource" path="res://assets/cinematics/impacts/hit_vfx.tres" id="4"]
+[ext_resource type="Resource" path="res://assets/cinematics/impacts/hit_sfx.tres" id="5"]
+
+[resource]
+script = ExtResource("1")
+parry_vfx = ExtResource("2")
+parry_sfx = ExtResource("3")
+hit_vfx = ExtResource("4")
+hit_sfx = ExtResource("5")

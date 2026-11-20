@@ -29,6 +29,22 @@ extends Node3D
 ## FRAMES, RELEASES: the claim is held until release() is called, not for
 ## the length of one scene, because a conversation frames once per line and
 ## must not hand the screen back between them.
+##
+## HIT-STOP AND SHAKE (CinematicStage.impact). hold() stops a transit where
+## it is; the stage stops ticking the shot, so the framing holds too. shake()
+## adds trauma, 0..1, decaying linearly to nothing over the seconds given.
+## The camera is displaced from where the framing put it by trauma SQUARED
+## times the limits below, read from smooth noise, so a light knock barely
+## moves and a heavy one jolts. The displacement rides on top of every
+## framing, so a cut during a shake keeps shaking.
+
+## Displacement at trauma 1: metres sideways and up, degrees of yaw and
+## pitch, degrees of roll.
+const SHAKE_OFFSET := 0.05
+const SHAKE_TURN := 1.2
+const SHAKE_ROLL := 1.5
+## How fast the noise is read, per second. Higher is a buzz, lower a sway.
+const SHAKE_RATE := 18.0
 
 var _camera: Camera3D
 var _lens: CameraAttributesPractical = CameraAttributesPractical.new()
@@ -39,6 +55,17 @@ var _transit: float = 0.0
 var _ease: float = -2.0
 var _elapsed: float = 0.0
 var _claimed: bool = false
+var _locked: bool = false
+var _hold_left: float = 0.0
+var _hold_from: int = -1
+## Whether the last _process() held the framing (for measuring).
+var held_this_frame: bool = false
+var _trauma: float = 0.0
+var _trauma_fall: float = 0.0
+var _shake_clock: float = 0.0
+var _noise: FastNoiseLite = null
+## Where the framing put the camera, before any shake.
+var _base: Transform3D = Transform3D.IDENTITY
 
 
 func _ready() -> void:
@@ -73,7 +100,8 @@ func frame(framing: CameraFraming, cast: SceneCast, transit_seconds: float = 0.0
 	_elapsed = 0.0
 	_to = framing
 	_claim()
-	set_process(not locked_off)
+	_locked = locked_off
+	set_process(not locked_off or _trauma > 0.0)
 	_apply()
 
 
@@ -84,6 +112,8 @@ func release() -> void:
 	_to = null
 	_from = null
 	_cast = null
+	_trauma = 0.0
+	_hold_left = 0.0
 	if _claimed:
 		_claimed = false
 		CameraDirector.deactivate_cinematic_camera()
@@ -112,9 +142,82 @@ func transit_progress() -> float:
 ## wants a shot to stop following simply frames a mark instead, once phase
 ## 3 adds them.
 func _process(delta: float) -> void:
-	if _transit > 0.0 and _elapsed < _transit:
-		_elapsed += delta
-	_apply()
+	# A hold ends on the frame less than half a frame of it is left, as the
+	# stage's does (CinematicStage._drive), so the two let go together.
+	# The frame the hold was set on is the contact frame: it frames as usual,
+	# and the hold counts from the next one, as the stage's does.
+	held_this_frame = false
+	if _hold_left > 0.0 and Engine.get_process_frames() != _hold_from:
+		if _hold_left > 0.5 * delta:
+			_hold_left -= delta
+			held_this_frame = true
+		else:
+			_hold_left = 0.0
+	if not held_this_frame:
+		if not _locked:
+			if _transit > 0.0 and _elapsed < _transit:
+				_elapsed += delta
+			_apply()
+	if _trauma > 0.0:
+		_trauma = maxf(0.0, _trauma - _trauma_fall * delta)
+		_shake_clock += delta
+		_shaken()
+	elif _locked and _hold_left <= 0.0:
+		set_process(false)
+
+
+## Holds the framing where it is for `seconds`: a transit stops moving. The
+## shake does not hold; it is what a hit-stop is felt through.
+## 0 lets go now.
+func hold(seconds: float) -> void:
+	_hold_left = seconds
+	_hold_from = Engine.get_process_frames()
+	set_process(true)
+
+
+## Adds `amount` of trauma (0..1, capped at 1), all of which decays away
+## over `seconds`.
+func shake(amount: float, seconds: float) -> void:
+	if amount <= 0.0 or seconds <= 0.0:
+		return
+	if _noise == null:
+		_noise = FastNoiseLite.new()
+		_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		_noise.frequency = 1.0
+		_noise.seed = 7
+	_trauma = minf(1.0, _trauma + amount)
+	_trauma_fall = _trauma / seconds
+	set_process(true)
+
+
+func trauma() -> float:
+	return _trauma
+
+
+func is_holding() -> bool:
+	return _hold_left > 0.0
+
+
+## How far the shake has moved the camera from its framing, in metres.
+func shake_offset() -> float:
+	return _camera.global_position.distance_to(_base.origin)
+
+
+## The camera at its framing, moved by the current shake.
+func _shaken() -> void:
+	if _trauma <= 0.0 or _noise == null:
+		_camera.global_transform = _base
+		return
+	var power: float = _trauma * _trauma
+	var t: float = _shake_clock * SHAKE_RATE
+	var side: float = _noise.get_noise_2d(t, 0.0)
+	var up: float = _noise.get_noise_2d(t, 100.0)
+	var yaw: float = _noise.get_noise_2d(t, 200.0)
+	var pitch: float = _noise.get_noise_2d(t, 300.0)
+	var roll: float = _noise.get_noise_2d(t, 400.0)
+	var moved: Transform3D = _base.translated_local(Vector3(side, up, 0.0) * SHAKE_OFFSET * power)
+	moved.basis = moved.basis 		* Basis(Vector3.UP, deg_to_rad(yaw * SHAKE_TURN * power)) 		* Basis(Vector3.RIGHT, deg_to_rad(pitch * SHAKE_TURN * power)) 		* Basis(Vector3.BACK, deg_to_rad(roll * SHAKE_ROLL * power))
+	_camera.global_transform = moved
 
 
 func _apply() -> void:
@@ -133,6 +236,9 @@ func _apply() -> void:
 		_camera.look_at(target, CameraFraming.up_for(eye, target))
 	_camera.fov = showing.fov_degrees
 	_focus(showing.focus_blur, eye.distance_to(target))
+	_base = _camera.global_transform
+	if _trauma > 0.0:
+		_shaken()
 
 
 ## Focuses on whatever is `reach` away and blurs the rest by `blur`. The

@@ -247,6 +247,22 @@ A walk keeps moving while a line holds the timeline. That lets someone talk whil
 
 For a sound or mesh that is part of the stage itself, use a normal AnimationPlayer track on a child node, such as an Audio track on an AudioStreamPlayer3D or a visibility track. Those scrub in the editor. SoundBeat and EffectBeat are for things that happen **at a unit or a world mark**.
 
+### Impacts: hit-stop, shake, sparks and blood
+
+Every touch in a PairedClip's `contacts` is a **ContactEvent** (`contact_event.gd`): its `time` in the clip, its `kind` (parry, hit, kill, grab, miss), who strikes with what (`striker`, `effector`: a bone, `blade` or `blade_tip`), who is met where (`target_side`, `target`), a `strength` from 0 to 1, and a `cut` hint (none, a cut ON the contact, or a cut AFTER it onto the reaction).
+
+Give the PairedActionBeat an **ImpactKit** in its `impacts` field (`impact_kit.gd`: a spark and sound for a parry, blood and sound for a hit, an optional flinch clip). Then each contact, on its exact frame, does all of this at once, from the one record:
+
+| What | How much |
+|---|---|
+| Hit-stop: both bodies, the timeline and the shot stand still; sound and music keep playing | 50 ms at strength 0 to 120 ms at strength 1, rounded to whole frames |
+| Camera shake, from trauma; the camera moves by trauma squared | Decays to nothing in 0.3 s at strength 0 to 0.6 s at strength 1. A miss or a grab has no hold, so no shake |
+| Spark (parry) or blood (hit) | At the point the blades meet, or where the blade touches the body |
+| Sound | Starts on the frame before the contact |
+| The struck body's recoil | Plays on its flinch layer the frame the hold lets go |
+
+Leave `impacts` empty and the contacts do nothing. Key the shot cuts against the contacts' cut hints: an ON cut within one frame of the contact, an AFTER cut 1 to 3 frames after it. A cut can never fall inside a hold, because the timeline is stopped. `stage.cut_problems()` lists any hint the shots break; the duel walkthrough (`tools/fight_test_demo.tscn`) prints it with the measured holds and shakes.
+
 ---
 
 ## Shots and the camera

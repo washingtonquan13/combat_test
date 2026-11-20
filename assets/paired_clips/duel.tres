@@ -1,6 +1,40 @@
-[gd_resource type="Resource" script_class="PairedClip" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="PairedClip" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/cinematic_system/paired_clip.gd" id="1_csuit"]
+[ext_resource type="Script" path="res://systems/cinematic_system/contact_event.gd" id="2_event"]
+
+[sub_resource type="Resource" id="c0"]
+script = ExtResource("2_event")
+time = 0.666667
+kind = 0
+striker = 0
+effector = &"blade"
+target_side = 1
+target = &"blade"
+strength = 0.4
+cut = 1
+
+[sub_resource type="Resource" id="c1"]
+script = ExtResource("2_event")
+time = 1.73333
+kind = 0
+striker = 1
+effector = &"blade"
+target_side = 0
+target = &"blade"
+strength = 0.6
+cut = 2
+
+[sub_resource type="Resource" id="c2"]
+script = ExtResource("2_event")
+time = 2.76667
+kind = 1
+striker = 0
+effector = &"blade_tip"
+target_side = 1
+target = &"LeftUpperArm"
+strength = 0.9
+cut = 2
 
 [resource]
 script = ExtResource("1_csuit")
@@ -10,6 +44,6 @@ partner_from_lead = Transform3D(-0.939693, 0, 0.34202, 0, 1, 0, -0.34202, 0, -0.
 contact_time = 0.666667
 length = 4.26667
 kills_partner = false
-contacts = PackedFloat32Array(0.666667, 1.73333, 2.76667)
+contacts = Array[ExtResource("2_event")]([SubResource("c0"), SubResource("c1"), SubResource("c2")])
 lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0924277, 0, 0.520444)
 partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0208521, 0, -0.00396222)

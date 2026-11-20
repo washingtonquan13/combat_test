@@ -5,7 +5,11 @@ extends Node
 ## male body against the townsperson on the CC female body, a sword each.
 ## The log prints how far apart the blades are at the two parries, how far
 ## the point is from the shoulder at the hit, and how far each body's hips
-## jump on the frame the duel hands back to standing.
+## jump on the frame the duel hands back to standing. Then, per contact,
+## the impact layer as it played (CinematicStage.impact): frames held and
+## how far the bodies moved inside the hold, how long the camera shook, how
+## many frames early the sound started, whether the spark or blood spawned,
+## the frame the struck body's reaction began, and the cut check.
 ##
 ##   Godot --resolution 1600x900 --write-movie <out.avi> --fixed-fps 30 res://tools/fight_test_demo.tscn
 
@@ -16,8 +20,7 @@ const SCENE: PackedScene = preload("res://cinematics/fight_test.tscn")
 const PAIR: PairedClip = preload("res://assets/paired_clips/duel.tres")
 const SWORD: PackedScene = preload("res://scenes/weapons/iron_sword.tscn")
 const BLADE := 0.787
-## What each contact is: two blades meeting, or the lead's point in a body.
-const KINDS: Array[String] = ["parry", "parry", "hit"]
+const FRAME := 1.0 / 30.0
 
 
 func _ready() -> void:
@@ -52,40 +55,111 @@ func _run() -> void:
 	var cast := SceneCast.new().track_unit(&"lead", lead).track_unit(&"partner", partner)
 	var result: Array = []
 	_play(cast, result)
-	var next := 0
+	var seen := 0
 	var was_fighting := false
 	var hips_before: Array = []
+	# One per impact: what the frames after it measured.
+	var watch: Array[Dictionary] = []
 	while result.is_empty():
-		await get_tree().process_frame
+		# After every node's _process this frame, before it is drawn: what is
+		# read here is what this frame shows.
+		await RenderingServer.frame_pre_draw
 		var a: CharacterModel = StandIn.body_of(lead)
 		var b: CharacterModel = StandIn.body_of(partner)
 		var tree: BodyAnimationTree = BodyAnimationTree.of(a)
-		if tree == null:
+		var stage: CinematicStage = CinematicDirector.current_stage()
+		var camera: CinematicCamera = CinematicDirector.camera()
+		if tree == null or stage == null:
 			continue
+		var frame: int = Engine.get_process_frames()
+		for w: Dictionary in watch:
+			_follow(w, stage, camera, a, b, frame)
+		var impacts: Array = stage.impact_log.filter(func(r: Dictionary) -> bool: return r.has("hold"))
+		while seen < impacts.size():
+			var record: Dictionary = impacts[seen]
+			var event: ContactEvent = record.event
+			var w: Dictionary = {i = seen, record = record, held = 0, camera_held = 0,
+				released = -1, shake_end = -1, peak = 0.0, flinch = -1, moved = 0.0,
+				still = 0, still_done = false,
+				pose = [_bone(a, "Hips"), _bone(b, "Hips"), _bone(a, "RightHand"), _bone(b, "RightHand")]}
+			for earlier: Dictionary in watch:
+				earlier.peak_done = true  # a new shake starts; the last one's peak is taken
+			watch.append(w)
+			if event.kind == ContactEvent.Kind.PARRY:
+				print("DEMO contact %d (parry) at %.3f s: blades %.3f m apart" % [seen, event.time,
+					_gap(_blade(a), _blade(b))])
+			else:
+				var shoulder: Vector3 = _bone(b, "LeftUpperArm")
+				var edge: Array = _blade(a)
+				print("DEMO contact %d (hit) at %.3f s: point %.3f m from the shoulder, blade %.3f m" % [seen, event.time,
+					(edge[1] as Vector3).distance_to(shoulder),
+					shoulder.distance_to(Geometry3D.get_closest_point_to_segment(shoulder, edge[0], edge[1]))])
+			_follow(w, stage, camera, a, b, frame)
+			seen += 1
 		var fighting: bool = String(tree.current_animation) == PAIR.lead_clip
 		if fighting:
 			hips_before = [_bone(a, "Hips"), _bone(b, "Hips")]
-			var t: float = tree.current_animation_position
-			if next < PAIR.contacts.size() and t >= PAIR.contacts[next]:
-				if KINDS[next] == "parry":
-					print("DEMO contact %d (parry) at %.3f s: blades %.3f m apart" % [next, t,
-						_gap(_blade(a), _blade(b))])
-				else:
-					var shoulder: Vector3 = _bone(b, "LeftUpperArm")
-					var edge: Array = _blade(a)
-					print("DEMO contact %d (hit) at %.3f s: point %.3f m from the shoulder, blade %.3f m" % [next, t,
-						(edge[1] as Vector3).distance_to(shoulder),
-						shoulder.distance_to(Geometry3D.get_closest_point_to_segment(shoulder, edge[0], edge[1]))])
-				next += 1
 		elif was_fighting:
 			await get_tree().process_frame
 			print("DEMO hand-back hips jump: lead %.3f m, partner %.3f m" % [
 				_flat(hips_before[0] - _bone(a, "Hips")), _flat(hips_before[1] - _bone(b, "Hips"))])
 		was_fighting = fighting
+	for w: Dictionary in watch:
+		var record: Dictionary = w.record
+		var event: ContactEvent = record.event
+		var early: int = record.frame - record.heard_frame if record.heard_frame >= 0 else -99
+		print("DEMO impact %d %s: hold asked %.0f ms, held %d frames = %.0f ms (camera %d frames, contact pose shown %d more frames), bodies moved %.4f m in the hold" % [
+			w.i, event.describe(), record.hold * 1000.0, w.held, w.held * FRAME * 1000.0, w.camera_held, w.still, w.moved])
+		print("DEMO impact %d: trauma %.2f, shake asked %.2f s, shook %.3f s to zero, peak offset %.4f m" % [
+			w.i, record.trauma, record.shake, (w.shake_end - record.frame) * FRAME if w.shake_end >= 0 else -1.0, w.peak])
+		print("DEMO impact %d: sound %d frame(s) early, %s spawned at %s, reaction %s" % [
+			w.i, early, "blood" if event.draws_blood() else "spark", "yes" if record.get("vfx", false) else "NO",
+			"n/a (parry)" if event.kind == ContactEvent.Kind.PARRY else
+				("frame %d after release" % (w.flinch - w.released)) if w.flinch >= 0 and w.released >= 0 else "NONE"])
+	var problems: PackedStringArray = _cut_problems
+	print("DEMO cut check: shot changes at %s; problems: %s" % [_cut_times, "none" if problems.is_empty() else "; ".join(problems)])
 	print("DEMO partner alive: ", partner.is_alive())
 	await _wait(1.0)
 	print("DEMO done")
 	get_tree().quit()
+
+
+var _cut_problems := PackedStringArray()
+var _cut_times := PackedFloat32Array()
+
+
+## One frame of what an impact did, from its contact frame on.
+func _follow(w: Dictionary, stage: CinematicStage, camera: CinematicCamera,
+		a: CharacterModel, b: CharacterModel, frame: int) -> void:
+	_cut_problems = stage.cut_problems()
+	_cut_times = stage.shot_change_times()
+	var record: Dictionary = w.record
+	if frame == record.frame:
+		return
+	var now: Array = [_bone(a, "Hips"), _bone(b, "Hips"), _bone(a, "RightHand"), _bone(b, "RightHand")]
+	var drift: float = 0.0
+	for k in 4:
+		drift = maxf(drift, (now[k] as Vector3).distance_to(w.pose[k]))
+	# Frames after the contact frame that show the contact pose again.
+	if not w.still_done:
+		if drift < 0.00001:
+			w.still += 1
+		else:
+			w.still_done = true
+	if stage.held_this_frame and w.released < 0:
+		w.held += 1
+		w.moved = maxf(w.moved, drift)
+		if camera and camera.held_this_frame:
+			w.camera_held += 1
+	elif w.released < 0:
+		w.released = frame
+	if camera and not w.get("peak_done", false) and w.shake_end < 0:
+		w.peak = maxf(w.peak, camera.shake_offset())
+		if w.shake_end < 0 and camera.trauma() <= 0.0:
+			w.shake_end = frame
+	var tree: BodyAnimationTree = BodyAnimationTree.of(b)
+	if w.flinch < 0 and tree and tree.is_flinching():
+		w.flinch = frame
 
 
 func _spawn(definition: UnitDefinition, at: Vector3) -> Unit:
