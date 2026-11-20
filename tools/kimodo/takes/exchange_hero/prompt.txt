@@ -1,0 +1,13 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 2
+50 frames: A person holding a sword in the right hand stands in a fighting stance and watches.
+18 frames: A person holding a sword quickly sidesteps to the right, staying facing forward.
+20 frames: A person lunges forward and stabs straight ahead with a sword held in the right hand, and holds it there.
+40 frames: A person holds a sword out in front still, then pulls it back.
+constraints:
+root 50 0 0
+heading 50 0
+root 68 -0.35 0
+heading 68 0
+root 88 -0.35 0.3
+heading 88 0
+joint 88 RightHand -0.40 1.05 0.90

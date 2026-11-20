@@ -1,0 +1,16 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 8
+30 frames: A person stands in a fighting stance holding a sword in the right hand.
+24 frames: A person slowly raises a sword high above the head with both hands, leaning back to wind up a heavy blow.
+18 frames: A person chops a sword straight down hard in front of the body with the right hand, the blade ending low in front of them.
+14 frames: A person off balance pulls a heavy sword back up and turns toward the side.
+40 frames: A person is stabbed in the stomach, doubles over and staggers backward clutching the belly.
+constraints:
+root 52 0 0
+heading 52 0
+joint 52 RightHand -0.15 1.85 -0.05
+root 54 0 0
+heading 54 0
+root 70 0 0.05
+heading 70 0
+joint 70 RightHand -0.15 0.85 0.55
+heading 86 0

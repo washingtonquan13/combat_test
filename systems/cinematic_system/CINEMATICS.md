@@ -263,6 +263,20 @@ Give the PairedActionBeat an **ImpactKit** in its `impacts` field (`impact_kit.g
 
 Leave `impacts` empty and the contacts do nothing. Key the shot cuts against the contacts' cut hints: an ON cut within one frame of the contact, an AFTER cut 1 to 3 frames after it. A cut can never fall inside a hold, because the timeline is stopped. `stage.cut_problems()` lists any hint the shots break; the duel walkthrough (`tools/fight_test_demo.tscn`) prints it with the measured holds and shakes.
 
+### Making a fight exchange from Kimodo takes
+
+The exchange (overhead miss, sidestep, killing thrust: `assets/paired_clips/exchange.tres`) shows the whole path from generated motion to a paired clip.
+
+1. **Generate several seeds per fighter** with kimodo.cpp, one prompt line per segment and a constraints file. A `joint` constraint needs a `root` constraint on the same frame, and Kimodo follows joint constraints only loosely (misses of 45 to 90 cm are normal), so pin the root and heading and let the scorer judge the rest.
+2. **Score them**: `python -I tools/kimodo/score_take.py --role attacker --contact 70 --cons <file> out/take1 out/take2 ...`. It prints foot skate, root jerk, floor penetration, constraint miss, time-to-contact error, drift, swing speed and wind-up length, best first. Keep the top three and pick by eye from them; copy the pick into `tools/kimodo/takes/<name>/` with its `prompt.txt`.
+3. **Bake**: `godot --headless --path . -s res://tools/kimodo/make_exchange_animations.gd`. It retargets both takes, fits the partner's place and turn by grid search so the miss clears and the kill can reach, retimes the partner's clock onto the contacts, and then applies the only two corrections allowed:
+   - **Contact IK** on the striking arm: it closes what is left of the tip's miss on the kill, easing in over 5 frames and out over 8, and never moves the hand more than 15 cm.
+   - **Foot pins**: every planted foot (low and slow for 3 frames or more) holds where it stood on the plant's first frame. The pass runs twice, because a pin's easing can make the frames beside a plant read as part of it.
+
+   Posture is never corrected. If a take hunches or leans, re-prompt or pick another seed. The bake prints `M1 EXCHANGE MEASURES`: the miss's clearance, the kill's distance before and after IK, the largest hand move, and each foot's worst travel while planted. The spec is 3 cm or less at contact (1 cm in a shot closer than 2.5 m) and 1 cm or less for a planted foot.
+
+The clips land in `assets/exchange_animations.tres`, library `Exchange` on both CC model scenes.
+
 ---
 
 ## Shots and the camera

@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="PairedClip" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/contact_event.gd" id="1_bvti5"]
+[ext_resource type="Script" path="res://systems/cinematic_system/paired_clip.gd" id="2_4aknm"]
+
+[sub_resource type="Resource" id="Resource_yo8fa"]
+script = ExtResource("1_bvti5")
+time = 1.73333
+kind = 4
+striker = 1
+effector = &"blade_tip"
+target_side = 0
+target = &"Head"
+strength = 0.0
+cut = 0
+
+[sub_resource type="Resource" id="Resource_41qig"]
+script = ExtResource("1_bvti5")
+time = 2.13333
+kind = 2
+striker = 0
+effector = &"blade_tip"
+target_side = 1
+target = &"Spine"
+strength = 1.0
+cut = 2
+
+[resource]
+script = ExtResource("2_4aknm")
+lead_clip = "Exchange/Exchange_Hero"
+partner_clip = "Exchange/Exchange_Attacker"
+partner_from_lead = Transform3D(-0.984808, 0, -0.173648, 0, 1, 0, 0.173648, 0, -0.984808, -0.96, 0, 1.12)
+contact_time = 2.13333
+length = 3.5
+kills_partner = true
+contacts = Array[ExtResource("1_bvti5")]([SubResource("Resource_yo8fa"), SubResource("Resource_41qig")])
+lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.303345, 0, 0.127369)
+partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0315539, 0, -0.0215391)
