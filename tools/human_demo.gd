@@ -72,7 +72,7 @@ func _ready() -> void:
 			ap.seek(1.3, true)
 		CCMaterials.apply(c, "res://assets/characters/cc/%s/cc_base_%s.json" % [sex, sex])
 		var hair := "res://assets/characters/cc/hair/%s/cc_hair_%s" % [sex, sex]
-		CCMaterials.attach_hair(c, load(hair + ".fbx"), hair + ".json")
+		CCMaterials.attach_hair(c, hair + ".fbx", hair + ".json")
 		chars[sex] = c
 	_camera(int(OS.get_environment("CC_CAM")) if OS.get_environment("CC_CAM") != "" else 1)
 	_lighting(int(OS.get_environment("CC_LIGHT")) if OS.get_environment("CC_LIGHT") != "" else 0)

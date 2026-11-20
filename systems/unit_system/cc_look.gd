@@ -54,7 +54,7 @@ func _ready() -> void:
 	if preset == null:
 		return
 	if preset.hair_scene != "" and not _has_hair(body):
-		var hair := CCMaterials.attach_hair(body, load(preset.hair_scene), preset.hair_json())
+		var hair := CCMaterials.attach_hair(body, preset.hair_scene, preset.hair_json())
 		if hair:
 			hair.set_meta(HAIR_META, true)
 	CCMaterials.set_tints(body, preset.skin_tint, preset.iris_tint)
@@ -81,12 +81,11 @@ func wear(items: Array[Wearable]) -> void:
 	var masks: Array[Texture2D] = []
 	var garments: Array[MeshInstance3D] = []
 	if clothes_scene != "":
-		var clothes: PackedScene = load(clothes_scene)
 		var json := clothes_scene.get_basename() + ".json"
 		for item in items:
 			if item.cc_part == &"":
 				continue
-			var garment := CCMaterials.attach_garment(body, clothes, json, item.cc_part)
+			var garment := CCMaterials.attach_garment(body, clothes_scene, json, item.cc_part)
 			if garment == null:
 				continue
 			garment.set_meta(GARMENT_META, true)

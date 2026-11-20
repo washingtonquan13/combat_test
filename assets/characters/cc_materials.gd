@@ -15,6 +15,57 @@ const SHADERS := "res://assets/characters/shaders/cc/"
 
 static var _cache := {}
 
+## Dressing work kept between runs (beside the CC assets, untracked like
+## them): a hairstyle and each garment bound to a base, and which triangles
+## each layer drops under what is over it (uncovered). Worked out the first
+## time it is needed and saved when running from the editor; loaded after.
+## Keyed by what it was made from (file paths, the drop's numbers), so a
+## change makes a new entry; a re-export or reimport of the same files
+## needs the folder emptied (an index past a mesh's vertices is rejected).
+const BAKED := "res://assets/characters/cc/baked/"
+## Raised when what is baked changes meaning.
+const BAKE_VERSION := 1
+## A mesh's meta: the file of the mesh it was rebuilt from.
+const SOURCE_META := &"cc_source"
+
+
+## The name a mesh or skin goes by across runs: its file (an import's
+## sub-resource has one), or the file it was rebuilt from; "" for one made
+## at run time from nothing saved.
+static func _stable_id(r: Resource) -> String:
+	if r == null:
+		return ""
+	if r.resource_path != "":
+		return r.resource_path
+	return r.get_meta(SOURCE_META, "")
+
+
+static func _baked_path(key: String, ext: String) -> String:
+	return BAKED + ("%d|%s" % [BAKE_VERSION, key]).md5_text() + ext
+
+
+## Running from the editor with a real renderer: the headless one keeps no
+## blend shape data, so what it would save could be short.
+static func _can_bake() -> bool:
+	return OS.has_feature("editor") and DisplayServer.get_name() != "headless"
+
+
+static func _load_baked(key: String) -> Resource:
+	var path := _baked_path(key, ".res")
+	return ResourceLoader.load(path) if ResourceLoader.exists(path) else null
+
+
+## Saves r under key and gives it that file, so what is made from it can
+## be baked too. Only when running from the editor (a build's res:// is
+## read-only).
+static func _save_baked(key: String, r: Resource) -> void:
+	if not _can_bake():
+		return
+	DirAccess.make_dir_recursive_absolute(BAKED)
+	var path := _baked_path(key, ".res")
+	if ResourceSaver.save(r, path, ResourceSaver.FLAG_COMPRESS) == OK:
+		r.take_over_path(path)
+
 
 ## Puts the CC materials on `root` and every mesh under it, from `json_path`.
 static func apply(root: Node, json_path: String) -> void:
@@ -74,6 +125,7 @@ static func _rebuild(src: ArrayMesh) -> ArrayMesh:
 		out.surface_set_material(s, src.surface_get_material(s))
 		out.surface_set_name(s, src.surface_get_name(s))
 	out.resource_name = src.resource_name
+	out.set_meta(SOURCE_META, _stable_id(src))
 	return out
 
 
@@ -96,7 +148,30 @@ static func clear(root: Node) -> void:
 ## hair from the dialog would make that step a no-op. Its blend shapes
 ## (CC's face morphs, there so the hair can follow brow and scalp shapes) are
 ## dropped: the hair does not follow expressions. Returns the hair mesh.
-static func attach_hair(character: Node3D, hair: PackedScene, json_path: String) -> MeshInstance3D:
+static func attach_hair(character: Node3D, hair: String, json_path: String) -> MeshInstance3D:
+	var bs := character.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
+	var body := _body(character)
+	var key := "hair|%s|%s" % [hair, _stable_id(body.skin if body else null)]
+	var baked := _load_baked(key) as ArrayMesh if body else null
+	if baked == null:
+		baked = _bind_hair(character, load(hair) as PackedScene)
+		if baked == null:
+			return null
+		if body:
+			_save_baked(key, baked)
+	var out := MeshInstance3D.new()
+	out.name = baked.get_meta(&"cc_name")
+	out.mesh = baked
+	out.skin = baked.get_meta(&"cc_skin")
+	bs.add_child(out)
+	out.skeleton = NodePath("..")
+	apply(out, json_path)
+	return out
+
+
+## The hair mesh of `hair` without its shapes, bound to character's
+## skeleton: its skin and name as metas (cc_skin, cc_name).
+static func _bind_hair(character: Node3D, hair: PackedScene) -> ArrayMesh:
 	var src := hair.instantiate() as Node3D
 	var hs := src.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
 	var bs := character.find_children("*", "Skeleton3D", true, false)[0] as Skeleton3D
@@ -124,14 +199,10 @@ static func attach_hair(character: Node3D, hair: PackedScene, json_path: String)
 				best = b
 		skin.add_named_bind(bs.get_bone_name(best),
 				bs.get_bone_global_rest(best).affine_inverse() * at * mesh.skin.get_bind_pose(i))
-	var out := MeshInstance3D.new()
-	out.name = mesh.name
-	out.mesh = _without_shapes(mesh.mesh as ArrayMesh)
-	out.skin = skin
-	bs.add_child(out)
-	out.skeleton = NodePath("..")
+	var out := _without_shapes(mesh.mesh as ArrayMesh)
+	out.set_meta(&"cc_name", String(mesh.name))
+	out.set_meta(&"cc_skin", skin)
 	src.free()
-	apply(out, json_path)
 	return out
 
 
@@ -152,12 +223,12 @@ static func attach_hair(character: Node3D, hair: PackedScene, json_path: String)
 ## undone. Blend shapes are dropped, as for the hair.
 static var _garments := {}
 
-static func attach_garment(character: Node3D, clothes: PackedScene, json_path: String, part: StringName) -> MeshInstance3D:
+static func attach_garment(character: Node3D, clothes: String, json_path: String, part: StringName) -> MeshInstance3D:
 	var body := _body(character)
 	if body == null or body.skin == null:
 		return null
 	var bs := body.get_node(body.skeleton) as Skeleton3D
-	var key := "%s|%s|%d" % [clothes.resource_path, String(part).to_lower(), body.skin.get_instance_id()]
+	var key := "%s|%s|%d" % [clothes, String(part).to_lower(), body.skin.get_instance_id()]
 	if not _garments.has(key):
 		_garments[key] = _garment(clothes, part, body.skin)
 	var built: Array = _garments[key]
@@ -177,7 +248,21 @@ static func attach_garment(character: Node3D, clothes: PackedScene, json_path: S
 
 ## [mesh, skin, offset] of `part` in `clothes`, bound to `body_skin`; empty
 ## for none.
-static func _garment(clothes: PackedScene, part: StringName, body_skin: Skin) -> Array:
+static func _garment(clothes: String, part: StringName, body_skin: Skin) -> Array:
+	var key := "garment|%s|%s|%s" % [clothes, String(part).to_lower(), _stable_id(body_skin)]
+	var stable := _stable_id(body_skin) != ""
+	var baked := _load_baked(key) as ArrayMesh if stable else null
+	if baked:
+		return [baked, baked.get_meta(&"cc_skin"), baked.get_meta(OFFSET_META)]
+	var out := _bind_garment(load(clothes) as PackedScene, part, body_skin)
+	if stable and not out.is_empty():
+		out[0].set_meta(&"cc_skin", out[1])
+		out[0].set_meta(OFFSET_META, out[2])
+		_save_baked(key, out[0])
+	return out
+
+
+static func _bind_garment(clothes: PackedScene, part: StringName, body_skin: Skin) -> Array:
 	var src := clothes.instantiate()
 	var mesh: MeshInstance3D = null
 	for m: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
@@ -299,6 +384,10 @@ const UNDERWEAR_DEPTH := 0.05
 const UNDER_SEAM := 0.001
 ## Metres: two vertices this near are one, for finding a cover's boundary.
 const UNDER_WELD := 0.0001
+## Metres: the cover grid's smallest cell. A cell is at least the reach
+## (depth and side) wide, so a triangle is listed in a few cells, not hundreds:
+## at 2 cm an underwear cover (8 cm reach) filled 729 cells per triangle,
+## tens of seconds and gigabytes on a new game.
 const UNDER_CELL := 0.02
 static var _uncovered := {}
 
@@ -324,8 +413,84 @@ static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: flo
 	var key := "%d|%s|%f|%f" % [mesh.get_instance_id(), ids, side, depth]
 	if _uncovered.has(key):
 		return _uncovered[key]
+	var disk := _uncovered_key(mesh, offset, covers, side, depth)
+	var kept_by_surface: Variant = _load_kept(disk, mesh)
+	if kept_by_surface == null:
+		kept_by_surface = _kept(mesh, offset, covers, side, depth)
+		if disk != "" and _can_bake():
+			DirAccess.make_dir_recursive_absolute(BAKED)
+			var f := FileAccess.open(_baked_path(disk, ".idx"), FileAccess.WRITE)
+			if f:
+				f.store_var(kept_by_surface)
+	var result: ArrayMesh = mesh if (kept_by_surface as Array).is_empty() else _with_indices(mesh, kept_by_surface)
+	_uncovered[key] = result
+	return result
+
+
+## uncovered()'s name across runs, "" if a mesh in it has none.
+static func _uncovered_key(mesh: ArrayMesh, offset: Vector3, covers: Array, side: float, depth: float) -> String:
+	var parts := []
+	for c in covers:
+		var id := _stable_id(c[0])
+		if id == "":
+			return ""
+		parts.append("%s@%s%s" % [id, c[1], "b" if c.size() > 2 and c[2] else ""])
+	parts.sort()
+	var id := _stable_id(mesh)
+	if id == "":
+		return ""
+	return "uncovered|%s@%s|%s|%f|%f|%f|%f|%f|%d" % [id, offset, parts, side, depth, UNDER_SEAM, UNDER_WELD, UNDER_CELL, UNDER_ISLAND]
+
+
+## The baked kept triangles per surface for key, null if none or they do
+## not fit mesh.
+static func _load_kept(key: String, mesh: ArrayMesh) -> Variant:
+	if key == "":
+		return null
+	var path := _baked_path(key, ".idx")
+	if not FileAccess.file_exists(path):
+		return null
+	var f := FileAccess.open(path, FileAccess.READ)
+	var kept: Variant = f.get_var() if f else null
+	if not kept is Array:
+		return null
+	if (kept as Array).is_empty():
+		return kept
+	if (kept as Array).size() != mesh.get_surface_count():
+		return null
+	for s in mesh.get_surface_count():
+		var idx: Variant = kept[s]
+		if not idx is PackedInt32Array:
+			return null
+		var count: int = mesh.surface_get_array_len(s)
+		for i in idx:
+			if i < 0 or i >= count:
+				return null
+	return kept
+
+
+## mesh with each surface's triangles as in kept.
+static func _with_indices(mesh: ArrayMesh, kept: Array) -> ArrayMesh:
+	var out := ArrayMesh.new()
+	out.blend_shape_mode = mesh.blend_shape_mode
+	for k in mesh.get_blend_shape_count():
+		out.add_blend_shape(mesh.get_blend_shape_name(k))
+	for s in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(s)
+		arrays[Mesh.ARRAY_INDEX] = kept[s]
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, mesh.surface_get_blend_shape_arrays(s), {},
+				mesh.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		out.surface_set_material(s, mesh.surface_get_material(s))
+		out.surface_set_name(s, mesh.surface_get_name(s))
+	out.resource_name = mesh.resource_name
+	return out
+
+
+## Each surface's kept triangles (uncovered), or [] when none is dropped.
+static func _kept(mesh: ArrayMesh, offset: Vector3, covers: Array, side: float, depth: float) -> Array:
 	var grid := {}
 	var reach := Vector3.ONE * (depth + maxf(side, UNDER_SEAM))
+	var cell := maxf(UNDER_CELL, reach.x)
 	for c in covers:
 		var cm: ArrayMesh = c[0]
 		var behind: bool = c.size() > 2 and c[2]
@@ -355,8 +520,8 @@ static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: flo
 			for k in t[2]:
 				margins.append(side if edges[k] == 1 else UNDER_SEAM)
 			var tri := [ps[0], ps[1], ps[2], t[1], margins, t[3] if behind else 0.0]
-			var lo := Vector3i(((ps[0].min(ps[1]).min(ps[2]) - reach) / UNDER_CELL).floor())
-			var hi := Vector3i(((ps[0].max(ps[1]).max(ps[2]) + reach) / UNDER_CELL).floor())
+			var lo := Vector3i(((ps[0].min(ps[1]).min(ps[2]) - reach) / cell).floor())
+			var hi := Vector3i(((ps[0].max(ps[1]).max(ps[2]) + reach) / cell).floor())
 			for x in range(lo.x, hi.x + 1):
 				for y in range(lo.y, hi.y + 1):
 					for z in range(lo.z, hi.z + 1):
@@ -364,10 +529,7 @@ static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: flo
 						if not grid.has(k):
 							grid[k] = []
 						grid[k].append(tri)
-	var out := ArrayMesh.new()
-	out.blend_shape_mode = mesh.blend_shape_mode
-	for k in mesh.get_blend_shape_count():
-		out.add_blend_shape(mesh.get_blend_shape_name(k))
+	var by_surface := []
 	var dropped := 0
 	for s in mesh.get_surface_count():
 		var arrays := mesh.surface_get_arrays(s)
@@ -381,7 +543,7 @@ static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: flo
 			for j in 3:
 				var vi: int = idx[i + j]
 				if not hidden.has(vi):
-					hidden[vi] = _hidden(grid, v[vi] + offset, depth)
+					hidden[vi] = _hidden(grid, cell, v[vi] + offset, depth)
 				if not hidden[vi]:
 					all = false
 					break
@@ -395,15 +557,8 @@ static func uncovered(mesh: ArrayMesh, offset: Vector3, covers: Array, side: flo
 		dropped += (stray - kept.size()) / 3
 		if kept.is_empty():
 			kept = PackedInt32Array([idx[0], idx[0], idx[0]])
-		arrays[Mesh.ARRAY_INDEX] = kept
-		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, mesh.surface_get_blend_shape_arrays(s), {},
-				mesh.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
-		out.surface_set_material(s, mesh.surface_get_material(s))
-		out.surface_set_name(s, mesh.surface_get_name(s))
-	out.resource_name = mesh.resource_name
-	var result: ArrayMesh = out if dropped > 0 else mesh
-	_uncovered[key] = result
-	return result
+		by_surface.append(kept)
+	return by_surface if dropped > 0 else []
 
 
 ## Triangles: a piece of a layer this small, cut off by the drop, is a
@@ -474,8 +629,8 @@ static func _edge_key(a: Vector3, b: Vector3) -> String:
 ## triangles' planes (behind it only, for a level layer: t[5] is the side
 ## its normals face, 0 for either), and over that triangle by each edge's
 ## margin.
-static func _hidden(grid: Dictionary, p: Vector3, reach: float) -> bool:
-	for t in grid.get(Vector3i((p / UNDER_CELL).floor()), []):
+static func _hidden(grid: Dictionary, cell: float, p: Vector3, reach: float) -> bool:
+	for t in grid.get(Vector3i((p / cell).floor()), []):
 		var n: Vector3 = t[3]
 		var depth: float = (p - t[0]).dot(n)
 		if absf(depth) >= reach or depth * t[5] > UNDER_SEAM:
