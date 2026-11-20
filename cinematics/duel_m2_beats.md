@@ -2,6 +2,7 @@
 
 Showcase 1 of `docs/plans/bg3_cinematics.md`, milestone M2. Stage: [duel_m2.tscn](duel_m2.tscn).
 Walkthrough and measurements: `tools/duel_m2_demo.tscn` (plays it once, then again with a skip).
+Render: `tools/render_movie.sh res://tools/duel_m2_demo.tscn recordings/bg3/m2_duel.avi`.
 
 Cast: `hero` (player character, CC male body, sword), `attacker` (proof_hero / wanderer, CC body,
 sword), `victim` (townsperson, CC female body). The stage stands on one world mark,
