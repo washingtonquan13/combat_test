@@ -11,7 +11,7 @@ extends SceneTree
 # answers with a lunge that runs the attacker through the belly.
 #
 #   Exchange_Hero       the hero's half (lead), baked on the male CC body
-#   Exchange_Attacker   the attacker's half (partner), on the female CC body
+#   Exchange_Attacker   the attacker's half (partner), on the male CC body
 #
 # Each half is one Kimodo take (tools/kimodo/takes/exchange_hero and
 # exchange_attacker, with the text and constraints that made them), picked
@@ -36,7 +36,7 @@ const Retarget := preload("res://tools/kimodo/soma_retarget.gd")
 const OUT := "res://assets/exchange_animations.tres"
 const PAIR := "res://assets/paired_clips/exchange.tres"
 const LEAD_MODEL := "res://scenes/character_models/cc_male_model.tscn"
-const PARTNER_MODEL := "res://scenes/character_models/cc_female_model.tscn"
+const PARTNER_MODEL := "res://scenes/character_models/cc_male_model.tscn"
 const TAKES := "res://tools/kimodo/takes/"
 const LEAD_TAKE := "exchange_hero"
 const PARTNER_TAKE := "exchange_attacker"

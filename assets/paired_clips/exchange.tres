@@ -35,4 +35,4 @@ length = 3.5
 kills_partner = true
 contacts = Array[ExtResource("1_bvti5")]([SubResource("Resource_yo8fa"), SubResource("Resource_41qig")])
 lead_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.303345, 0, 0.127369)
-partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0315539, 0, -0.0215391)
+partner_end = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0341826, 0, -0.0233335)
