@@ -7,10 +7,11 @@ extends Node
 ##
 ## The log prints every number docs/plans/bg3_cinematics.md's M2 exit asks
 ## for: per impact the shake, sound lead and reaction, and that nothing
-## stops on it (no hit-stop); the contact times and their gaps; the camera
-## against the strike line at the kill; the kill contact gap; how far the
-## music duck leads the kill; the cut check; the end states; and how flat
-## the ground is under the marks.
+## stops on it (no hit-stop); the contact times and their gaps; the kill
+## contact gap; how far the music duck leads the kill; the cut check; the
+## framing check (FramingCheck: who is on screen, how big, heads in frame,
+## the 180-degree line); the end states; and how flat the ground is under
+## the marks.
 ##
 ##   Godot --resolution 1600x900 --write-movie <out.avi> --fixed-fps 30 res://tools/duel_m2_demo.tscn
 
@@ -22,6 +23,9 @@ const SCENE: PackedScene = preload("res://cinematics/duel_m2.tscn")
 const SWORD: PackedScene = preload("res://scenes/weapons/iron_sword.tscn")
 const BLADE := 0.787
 const FRAME := 1.0 / 30.0
+## Preloaded, not named: a new class_name is unknown to a run until an editor
+## has rescanned the project.
+const FRAMING_CHECK := preload("res://systems/cinematic_system/framing_check.gd")
 ## The stage's marks, stage-local, read from duel_m2.tscn itself.
 var MARKS := {}
 
@@ -110,8 +114,13 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 	var duck_frame := -1
 	var kill_frame := -1
 	var facing_printed := false
+	var framing: RefCounted = FRAMING_CHECK.new()
 	while result.is_empty():
 		await RenderingServer.frame_pre_draw
+		# Framing first: the attacker's unit can go away once he is dead, and
+		# the aftermath still has to be measured.
+		if CinematicDirector.current_stage():
+			framing.sample(CinematicDirector.current_stage())
 		if not is_instance_valid(attacker) or not is_instance_valid(hero):
 			continue
 		var a: CharacterModel = StandIn.body_of(hero)
@@ -153,15 +162,6 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 				kill_frame = frame
 				var edge: Array = _blade(a)
 				print("DEMO kill contact: point %.4f m from the attacker's Spine" % (edge[1] as Vector3).distance_to(_bone(b, "Spine")))
-				if camera:
-					var look: Vector3 = -camera.camera().global_basis.z
-					var line: Vector3 = _bone(b, "Hips") - _bone(a, "Hips")
-					var angle: float = rad_to_deg(Vector2(look.x, look.z).angle_to(Vector2(line.x, line.z)))
-					angle = absf(angle)
-					if angle > 90.0:
-						angle = 180.0 - angle
-					print("DEMO strike line at the kill: camera %.1f deg off the hero-attacker line (limit 25), shot %s" % [
-						angle, stage.live_shot().name if stage.live_shot() else "?"])
 			_follow(w, stage, camera, a, b, frame)
 			seen += 1
 	var times: PackedFloat32Array = []
@@ -187,6 +187,12 @@ func _watch_run(hero: Unit, attacker: Unit, victim: Unit) -> void:
 		times, gaps, times[-1] - times[0] if times.size() > 1 else 0.0, "YES" if even else "no"])
 	if kill_frame >= 0:
 		print("DEMO music duck reached -59 dB %.3f s before the kill (need >= 0.5)" % ((kill_frame - duck_frame) * FRAME if duck_frame >= 0 else -99.0))
+	for line: String in framing.report():
+		print("DEMO framing " + line)
+	var framing_problems: PackedStringArray = framing.problems()
+	print("DEMO framing check: %s" % ("no problems" if framing_problems.is_empty() else "%d problem(s)" % framing_problems.size()))
+	for line: String in framing_problems:
+		print("DEMO framing problem: " + line)
 	print("DEMO cut check: shot changes at %s; problems: %s" % [_cut_times, "none" if _cut_problems.is_empty() else "; ".join(_cut_problems)])
 	print("DEMO played run: attacker %s; victim alive %s, HP %d -> %d of %d; hero alive %s" % [
 		_state(attacker), victim.is_alive(), hp_before, victim.get_pool(StatIds.HP),
@@ -302,3 +308,4 @@ func _flat(v: Vector3) -> float:
 
 func _wait(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
+

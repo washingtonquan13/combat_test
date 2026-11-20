@@ -117,6 +117,19 @@ func is_framing() -> bool:
 	return _to != null
 
 
+## Stops re-resolving: the camera stays where the framing last put it, as
+## if `locked_off` had been asked. A stage calls this when it unbinds, since
+## its marks go with it and a framing on them has nothing left to resolve.
+## A shake in progress still runs out.
+func lock_off(cast: SceneCast) -> void:
+	if _to == null or cast != _cast:
+		return
+	_locked = true
+	_from = null
+	_transit = 0.0
+	set_process(_trauma > 0.0)
+
+
 ## Exposed so a test can assert where the camera actually ended up rather
 ## than that a method was called.
 func camera() -> Camera3D:

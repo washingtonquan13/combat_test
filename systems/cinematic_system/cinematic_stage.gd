@@ -430,6 +430,12 @@ func unbind() -> void:
 	_active.clear()
 	_line_owner = null
 	if _cast:
+		# The camera keeps its last framing after a scene (whether it goes
+		# back to gameplay is the caller's call), but that framing may stand
+		# on this stage's marks, which leave with it: hold it where it is.
+		var camera: CinematicCamera = CinematicDirector.camera()
+		if camera:
+			camera.lock_off(_cast)
 		_cast.use_stage_marks({})
 	_cast = null
 	_bound = false

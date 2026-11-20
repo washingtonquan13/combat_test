@@ -43,13 +43,18 @@ All body motion is Mixamo (`tools/locomotion/takes/mixamo_duel.glb`, retargeted 
 
 | From s | Shot | Framing | Why |
 |---|---|---|---|
-| 0.00 | S1_wide | Fixed, wide, from the side of the clearing | Establish all three and the rock. |
-| 1.60 | S2_victim | Fixed, long lens on the victim's face over the attacker's shoulder | Stakes. The hero's leap enters this frame. |
-| 2.33 | S3_land | Fixed, low, beside the landing | The landing. Cut lands a frame before contact. |
-| 3.20 | S4_behind_attacker | Orbit the attacker, looking at the hero | The chop reads along its line. |
-| 4.70 | S5_thrust_line | Orbit the hero at 228 deg, looking at the attacker | Along the thrust: the kill blow lands within 25 deg of the camera line. |
-| 4.97 | S6_floor | Fixed, 1.4 m up, looking down on the fall | Cut just after the kill, onto the fall (the kill contact is marked cut AFTER). |
-| 8.10 | S7_crane | Orbit the hero, rising 4 to 30 deg and pulling out 3 to 4.2 m | Aftermath. |
+| 0.00 | S1_wide | Wide, 40 deg, slow dolly in (keyed `cam_wide`) | Establish the attacker closing on the victim, the rock and the houses. |
+| 1.60 | S2_victim | Long lens (15 deg) on her face, from the hero's side | Stakes. |
+| 2.33 | S3_land | Knee-high (0.95 m) beside the landing, 44 deg | The landing, hero and attacker both full figure. Cut lands a frame before contact. |
+| 3.20 | S4_over_attacker | Over the attacker's shoulder onto the hero, victim beyond | The squaring up. |
+| 4.00 | S5_side | Side-on two-shot, 40 deg | The exchange reads across the frame: the miss and the thrust. |
+| 4.97 | S6_fall | Wide, 1.5 m up, 44 deg, all three | Cut just after the kill, onto the fall (the kill contact is marked cut AFTER). |
+| 8.10 | S7_crane | Keyed crane (`cam_crane`, `crane_look`) rising to 4.2 m and tilting down | Aftermath: the hero, the victim and the body. |
+
+Screen order holds across every cut: attacker left, hero in the middle, victim right. All cameras
+stand on the same side of the line between the fighters. The framing check
+(`systems/cinematic_system/framing_check.gd`) prints every shot's numbers and passes with no problems;
+the old shot list had 8.
 
 ## Deviations from the proposal's M2 table
 
@@ -62,8 +67,13 @@ All body motion is Mixamo (`tools/locomotion/takes/mixamo_duel.glb`, retargeted 
 - **The attacker's walk starts at 0**, not after the establishing shot, so he is already closing
   when the scene opens.
 - **Shot times shift +0.33 s** from the proposal so the landing cut sits a frame before the contact.
-- **S6 is not at floor level.** At 0.3 m the tall grass filled the frame; at 1.4 m it looks down
-  onto the fall.
+- **No strike-line rule.** The proposal put the camera within 25 deg of the strike line; shooting
+  down the thrust crossed the line between the fighters and swapped them on screen. Every camera now
+  stays on one side, and the framing check guards it.
+- **S2 is not over the attacker's shoulder.** That would cross the line; it is a long lens from the
+  hero's side.
+- **No camera low in the grass.** At 0.3 to 0.55 m the tall grass filled the frame (the framing
+  check cannot see grass); every camera is 0.95 m up or more.
 - **The stage needs level ground.** The exchange keeps each body on its own ground height, so marks
   more than a few cm apart in height miss the kill contact by that much. The demo picks a flat
   anchor (ground spread 0.000 m); an area that hosts this scene must do the same.

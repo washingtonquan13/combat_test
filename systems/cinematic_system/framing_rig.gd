@@ -45,6 +45,11 @@ extends Node3D
 @export var look_mark: StringName = &""
 @export var look_offset: Vector3 = Vector3.ZERO
 @export var pan_degrees: float = 0.0
+## Who this shot is about: the people FramingCheck expects in the picture,
+## whole-headed and big enough to read. Empty = the subject_role and
+## look_role. It changes nothing on screen; it is the shot's stated intent,
+## which the check holds the picture to.
+@export var framed_roles: Array[StringName] = []
 ## Keyed over a shot, this is a rack focus. 0 leaves the frame sharp.
 @export var focus_blur: float = 0.0
 

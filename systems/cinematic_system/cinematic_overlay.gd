@@ -82,6 +82,12 @@ func show_prompt(shown: bool) -> void:
 	_prompt.visible = shown
 
 
+## Share of the screen height each bar covers right now (0 when out, up to
+## BAR_FRACTION when fully in). FramingCheck measures the picture between them.
+func covered() -> float:
+	return BAR_FRACTION * _bars
+
+
 func _set_bars(amount: float) -> void:
 	_bars = amount
 	_top.anchor_bottom = BAR_FRACTION * amount

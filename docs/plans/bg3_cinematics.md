@@ -56,7 +56,7 @@ One `/goal` run per showcase. Between runs the user watches the result and eithe
 **M2. The nine-second duel, re-planned**
 - Beat sheet and shot list from the proposal's M2 table, written to `cinematics/` beside the stage.
 - Phrasing: threat, a burst of three events in about 2.6 s, the fall, aftermath. No three consecutive contact gaps within 15% of each other.
-- Camera within 25 degrees of the strike line on landing blows; music silent or ducked at least 0.5 s before the kill.
+- ~~Camera within 25 degrees of the strike line on landing blows~~ replaced (2026-11-20, after the user called the camera work shoddy): every camera stays on one side of the line between the fighters, and `FramingCheck` measures what each shot shows (who, how big, heads in frame, the 180-degree line). Music silent or ducked at least 0.5 s before the kill.
 - The townsperson ends dead or wounded as scripted through `HurtBeat`; skip lands in the same end state.
 - Exit: every 5.1 tolerance met and printed, contact sheet rendered (one frame per shot and per contact), full-length recording rendered, committed. **Stop for the user's verdict.**
 

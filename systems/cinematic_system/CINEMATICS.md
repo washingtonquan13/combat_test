@@ -305,6 +305,7 @@ A **FramingRig** under `Shots/` is one shot. It has no camera of its own. It des
 | `look_offset` | Shift the aim point without moving the camera, in world axes (x, y, z). This is the pan and tilt control. |
 | `pan_degrees` | Turn the camera sideways after aiming, so the subject sits on a third of the frame instead of in the middle. |
 | `focus_blur` | Depth-of-field strength. 0 leaves the frame sharp. Key it over a shot for a rack focus. |
+| `framed_roles` | Who the shot is meant to show, for the framing check. Empty means the subject and look roles. A shot on marks names its people here. |
 
 Empty look fields mean "look at the subject", which is what most shots want.
 
@@ -328,6 +329,7 @@ A move is keys on **one rig's** numbers, with the track's update mode set to **C
 | Zoom | `fov_degrees` |
 | Dolly zoom | `distance` and `fov_degrees` together, in opposite directions |
 | Pan / tilt | `look_offset` |
+| Any move of a shot on marks | The marks' own `position` (`Marks/<name>:position`, Continuous). Marks are read live, so the camera follows them: the duel's opening dolly and closing crane are keyed this way. |
 
 Name fields such as `subject_role` should never be interpolated: key them on a Discrete track. To move from one person to another, **cut** to a second rig. Don't animate one rig from one person to the other.
 
@@ -349,9 +351,17 @@ A **CameraPathRig** is a shot whose camera rides a drawn line instead of an orbi
 
 The orbit fields (`distance`, angles) are ignored; `fov_degrees`, `look_offset`, `pan_degrees` and `focus_blur` still apply. With no usable line the camera holds where it was. Cutting to or from a ride is always a hard cut, never a blend. Example: `Shots/camp_crane` in `cinematics/goblin_camp_ambush.tscn`.
 
+### Checking the framing: FramingCheck
+
+Shot numbers do not say where people land in the picture. `FramingCheck` measures it: once a frame it projects each framed person's crown, head, hips and feet through the real camera, inside the letterbox bars (`CinematicOverlay.covered()`), and per shot reports their height on screen, where their head sits, and how often they were off screen, had the head cut, or had the face hidden behind the set. `problems()` lists a shot under 0.5 s, a person off screen more than 20% of a shot, a head cut more than 10%, a head against the top edge, a person under 15% of the picture's height, a face blocked more than 25%, and any cut that swaps two people left for right (the 180-degree line crossed). Call `sample(stage)` on `RenderingServer.frame_pre_draw` while the scene plays; `tools/duel_m2_demo.gd` shows the use.
+
+Keep every camera on one side of the line between the two fighters, and the check stays green across cuts.
+
+**Grass is invisible to it.** The blocked test casts rays against collision, and grass has none. A camera low in tall grass passes the check and shows a wall of blades: keep cameras about 0.9 m up or more, and look at the render.
+
 ### When the scene ends
 
-The camera stays on the last shot when the scene finishes. Whoever started the scene decides when to hand the camera back. See [Releasing the camera](#releasing-the-camera).
+The camera stays on the last shot when the scene finishes. If that shot stands on the stage's marks, unbinding the stage locks the camera off where it is (`CinematicCamera.lock_off`), since the marks leave with the stage. Whoever started the scene decides when to hand the camera back. See [Releasing the camera](#releasing-the-camera).
 
 ---
 

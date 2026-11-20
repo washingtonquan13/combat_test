@@ -52,10 +52,10 @@ tracks/0/path = NodePath(".:shot")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 1.6, 2.33333, 3.2, 4.7, 4.96667, 8.1),
+"times": PackedFloat32Array(0, 1.6, 2.33333, 3.2, 4, 4.96667, 8.1),
 "transitions": PackedFloat32Array(1, 1, 1, 1, 1, 1, 1),
 "update": 1,
-"values": [&"S1_wide", &"S2_victim", &"S3_land", &"S4_behind_attacker", &"S5_thrust_line", &"S6_floor", &"S7_crane"]
+"values": [&"S1_wide", &"S2_victim", &"S3_land", &"S4_over_attacker", &"S5_side", &"S6_fall", &"S7_crane"]
 }
 tracks/1/type = "method"
 tracks/1/imported = false
@@ -242,26 +242,38 @@ tracks/13/keys = {
 tracks/14/type = "value"
 tracks/14/imported = false
 tracks/14/enabled = true
-tracks/14/path = NodePath("Shots/S7_crane:elevation_degrees")
+tracks/14/path = NodePath("Marks/cam_wide:position")
 tracks/14/interp = 2
 tracks/14/loop_wrap = true
 tracks/14/keys = {
-"times": PackedFloat32Array(0, 8.1, 11.0667),
-"transitions": PackedFloat32Array(1, 1, 1),
+"times": PackedFloat32Array(0, 1.6),
+"transitions": PackedFloat32Array(1, 1),
 "update": 0,
-"values": [4.0, 4.0, 30.0]
+"values": [Vector3(4.6, 1.6, -2.4), Vector3(3.9, 1.55, -2)]
 }
 tracks/15/type = "value"
 tracks/15/imported = false
 tracks/15/enabled = true
-tracks/15/path = NodePath("Shots/S7_crane:distance")
+tracks/15/path = NodePath("Marks/cam_crane:position")
 tracks/15/interp = 2
 tracks/15/loop_wrap = true
 tracks/15/keys = {
-"times": PackedFloat32Array(0, 8.1, 11.0667),
+"times": PackedFloat32Array(0, 8.4, 11.0667),
 "transitions": PackedFloat32Array(1, 1, 1),
 "update": 0,
-"values": [3.0, 3.0, 4.2]
+"values": [Vector3(2, 1.5, -1.2), Vector3(2, 1.5, -1.2), Vector3(4.8, 4.2, -0.6)]
+}
+tracks/16/type = "value"
+tracks/16/imported = false
+tracks/16/enabled = true
+tracks/16/path = NodePath("Marks/crane_look:position")
+tracks/16/interp = 2
+tracks/16/loop_wrap = true
+tracks/16/keys = {
+"times": PackedFloat32Array(0, 8.4, 11.0667),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [Vector3(-0.1, 1.3, -0.4), Vector3(-0.1, 1.3, -0.4), Vector3(0.45, 0.25, 0.65)]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_duel"]
@@ -307,28 +319,46 @@ transform = Transform3D(0.996, 0, 0.092, 0, 1, 0, -0.092, 0, 0.996, -0.7, 0, -1.
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 40)
 
 [node name="cam_wide" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1.8, 0.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6, 1.6, -2.4)
 
 [node name="wide_look" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1, 0.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1, -0.4)
 
 [node name="cam_victim" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, 1.65, 2.7)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.8, 1.4, 0.9)
 
 [node name="victim_face" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.7, 1.25, -1.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.85, 1.02, -1.25)
 
 [node name="cam_land" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.2, 0.8, -1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.7, 0.95, -1.8)
 
 [node name="land_look" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0.7, -0.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.3, 0.85, 0.3)
 
-[node name="cam_floor" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.3, 1.4, 3.4)
+[node name="cam_shoulder" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.4, 1.75, 1)
+
+[node name="shoulder_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 1.25, -0.35)
+
+[node name="cam_side" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.9, 1.3, -2.3)
+
+[node name="side_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 1, 0.45)
+
+[node name="cam_fall" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1.5, 1.2)
 
 [node name="fall_look" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.3, 0.35, 1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.6, 0.65, 0.9)
+
+[node name="cam_crane" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1.5, -1.2)
+
+[node name="crane_look" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.1, 1.3, -0.4)
 
 [node name="Set" type="Node3D" parent="."]
 
@@ -342,69 +372,73 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -0.5)
 
 [node name="S1_wide" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
+framed_roles = Array[StringName]([&"attacker", &"victim"])
 subject_mark = &"cam_wide"
 distance = 0.0
 azimuth_degrees = 0.0
 elevation_degrees = 0.0
-fov_degrees = 45.0
+fov_degrees = 40.0
 look_mark = &"wide_look"
 
 [node name="S2_victim" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
+framed_roles = Array[StringName]([&"victim"])
 subject_mark = &"cam_victim"
 distance = 0.0
 azimuth_degrees = 0.0
 elevation_degrees = 0.0
-fov_degrees = 28.0
+fov_degrees = 15.0
 look_mark = &"victim_face"
 
 [node name="S3_land" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
+framed_roles = Array[StringName]([&"hero", &"attacker"])
 subject_mark = &"cam_land"
 distance = 0.0
 azimuth_degrees = 0.0
 elevation_degrees = 0.0
-fov_degrees = 40.0
+fov_degrees = 44.0
 look_mark = &"land_look"
 
-[node name="S4_behind_attacker" type="Node3D" parent="Shots"]
+[node name="S4_over_attacker" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
-subject_role = &"attacker"
-distance = 2.0
-azimuth_degrees = 165.0
-elevation_degrees = 12.0
-fov_degrees = 40.0
-look_role = &"hero"
-look_offset = Vector3(0, -0.4, 0)
+framed_roles = Array[StringName]([&"hero", &"attacker", &"victim"])
+subject_mark = &"cam_shoulder"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 38.0
+look_mark = &"shoulder_look"
 
-[node name="S5_thrust_line" type="Node3D" parent="Shots"]
+[node name="S5_side" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
-subject_role = &"hero"
-distance = 1.5
-azimuth_degrees = 228.0
-elevation_degrees = 6.0
-fov_degrees = 35.0
-look_role = &"attacker"
-look_offset = Vector3(0, -0.3, 0)
-
-[node name="S6_floor" type="Node3D" parent="Shots"]
-script = ExtResource("3_rig")
-subject_mark = &"cam_floor"
+framed_roles = Array[StringName]([&"hero", &"attacker"])
+subject_mark = &"cam_side"
 distance = 0.0
 azimuth_degrees = 0.0
 elevation_degrees = 0.0
 fov_degrees = 40.0
+look_mark = &"side_look"
+
+[node name="S6_fall" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+framed_roles = Array[StringName]([&"attacker", &"hero", &"victim"])
+subject_mark = &"cam_fall"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
+fov_degrees = 44.0
 look_mark = &"fall_look"
 
 [node name="S7_crane" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
-subject_role = &"hero"
-distance = 3.0
-azimuth_degrees = -50.0
-elevation_degrees = 4.0
+framed_roles = Array[StringName]([&"hero", &"victim"])
+subject_mark = &"cam_crane"
+distance = 0.0
+azimuth_degrees = 0.0
+elevation_degrees = 0.0
 fov_degrees = 40.0
-look_role = &"hero"
-look_offset = Vector3(0, -0.5, 0)
+look_mark = &"crane_look"
 
 [node name="Beats" type="Node" parent="."]
 
