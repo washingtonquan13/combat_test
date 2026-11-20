@@ -171,10 +171,7 @@ static func attach_garment(character: Node3D, clothes: PackedScene, json_path: S
 	out.layers = body.layers
 	bs.add_child(out)
 	out.skeleton = NodePath("..")
-	# A garment from outside CC (Wearable.cc_scene) has no export JSON and
-	# keeps the materials it came with.
-	if FileAccess.file_exists(json_path):
-		apply(out, json_path)
+	apply(out, json_path)
 	return out
 
 
