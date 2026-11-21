@@ -5,7 +5,7 @@ All CC0 (public domain) unless noted. Re-fitted in Blender so the grip is the or
 
 - Quaternius, Ultimate Gun Pack: pistol, rifle.
   https://opengameart.org/content/low-poly-guns-pack
-- Quaternius, Medieval Weapons Pack: iron_sword, greatsword, throwing_axe,
+- Quaternius, Medieval Weapons Pack: greatsword, throwing_axe,
   longbow, wooden_shield, buckler, tower_shield.
   https://opengameart.org/content/lowpoly-medieval-weapons
 - CreativeTrio, Crossbow: crossbow. https://poly.pizza/m/kHb0kA11oD
