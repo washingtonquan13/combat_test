@@ -38,7 +38,7 @@ skip_to_end, commit_stand_ins, unbind.
   is out of sight in game and is never the one that acts: it keeps itself as authored
   (`Cutscene._authored`, taken on entering the tree, before its bodies add their sockets) and each
   play runs a copy beside it (`acting_copy()`), freed at the end. `scene_started`/`scene_finished`
-  carry an empty PackedScene for it, so a placed scene has no authored music. K in a debug build plays
+  carry an empty PackedScene for it, so a placed scene has no authored music. P in a debug build plays
   the first one in the loaded area.
 - **Clips made for one scene** live in `assets/cutscene_animations.tres` (library `Cutscene` on the
   character models; owner: `tools/cinematics/add_cutscene_clip.gd`, which takes one clip from an

@@ -74,7 +74,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_play_at_leader(HERO_PATH, HERO_ANCHOR)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_L:
 		_play_keyed(MEETING_PATH)
-	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_P:
 		_play_placed()
 
 
