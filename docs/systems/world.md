@@ -31,7 +31,7 @@ It is NOT responsible for:
 - `ResidentWorld.is_earned()` (resident_world.gd:58-80) is derived on demand from four things: pinned, a running encounter, a group whose `current_area_id` matches, and a contained member. It decides when a world is retired (world_manager.gd:504-535).
 - The arrival spawn point is derived from the destination's back-link (`_resolve_entry_spawn_point` :1213, `_find_back_link` :1226). It is never remembered.
 - AreaState is applied on entry (`_reconcile_area_state` :794-820) and captured on teardown (`_capture_area_state` :773-785). Between those two points, live nodes and the stored flags can disagree. Since the baseline there is a third moment: `record_area_states()` (world_manager.gd:799-802, called from save_manager.gd:338) captures every resident world at save time (party members skipped, `skip_party` :777-778), so a save taken inside an area records it as it is now (35c5bc9c). Capture walks the live tree only (`_collect_persistent_nodes` :844-850), so a node an area script holds out of the tree (the camp-raid raiders, goblin_quarry.gd:160-162) is not captured; that is safe today because stored state is applied before `_ready` and a held node never changes, and the area script owns the holding as POC story wiring (WLD-6).
-- AreaDatabase eagerly loads every `world_scene` (area_definition.gd:26-32), so the catalog holds PackedScene refs for all areas.
+- AreaDefinition holds its world as `scene_path`, a path; `world_scene` loads it on first read (area_definition.gd:24-42). The catalog scan loads only the small `.tres` records, so no world loads until it is entered. (A hard PackedScene field made the first `find()` load all eleven worlds: 4.4 s.)
 
 ## Public surface
 - **Calls in**

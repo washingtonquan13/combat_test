@@ -5,11 +5,9 @@ extends RefCounted
 ## SpawnableUnitDatabase. Stateless from the outside — static, no
 ## instances, not an autoload.
 ##
-## This eager scan is the whole reason doors/exits reference an area by
-## id rather than holding an AreaDefinition directly (see that field's
-## own doc comment on AreaDefinition) — get_all()/find() being the ONLY
-## code path that ever touches world_scene keeps the eager-PackedScene
-## cost confined to exactly one file.
+## The scan loads every area's .tres, which is cheap because an
+## AreaDefinition names its world by path (scene_path) and loads it only
+## when world_scene is read. Doors and exits still reference an area by id.
 ##
 ## The scan-and-cache itself is ResourceCatalog (see that file's header
 ## for the full behaviour matrix); this file only supplies its directory,

@@ -40,7 +40,7 @@ WorldManager internals (residency, focus, teardown) are documented in world.md.
 This system covers how the game boots and how a `.tscn` becomes a playable area.
 
 Boot pushes the title screen and loads no world (main_root.gd:1-20, 80-83). An area is two files:
-- an AreaDefinition `.tres` holding id, display_name and world_scene (area_definition.gd:22-32)
+- an AreaDefinition `.tres` holding id, display_name and scene_path, the world's .tscn loaded on demand (area_definition.gd:22-42)
 - a scene whose root is a GameArea or a subclass of one
 
 GameArea provides the duck-typed contract that WorldManager, GameMode and CinematicCues query (game_area.gd:3-27, 57-90).
@@ -51,7 +51,7 @@ This system does not hold residency, party embodiment or save state. Those belon
 | State | Where (file:line) | Persisted? (save key) |
 |---|---|---|
 | Area catalog, loaded lazily from res://data/areas/ | area_database.gd:21-23, 45-51 | No (static data) |
-| AreaDefinition id, display_name and world_scene | area_definition.gd:22-32 | No (static data) |
+| AreaDefinition id, display_name and scene_path | area_definition.gd:22-42 | No (static data) |
 | AreaExit target_area, target_spawn_point and arrival_point | area_exit.gd:31, 41, 52 | No (authored) |
 | GameArea entry_scene and combat_intro_scene | game_area.gd:51, 54 | Seen-flag `ENTRY_FLAG_PREFIX+id` is saved through FlagManager (cinematic_cues.gd:66-69) |
 | Overworld avatars per PartyGroup, plus the district currently shown | overworld.gd:60, 64-67 | No. The avatar writes `group.overworld_position` every physics frame (overworld_avatar.gd:122-124), and that is saved by PartyManager (party_manager.gd:487, 597) |

@@ -831,7 +831,7 @@ func _why_load_would_fail(cfg: ConfigFile) -> String:
 	var area: AreaDefinition = AreaDatabase.find(area_id)
 	if area == null:
 		return "it was taken in area '%s', which no longer exists" % area_id
-	if area.world_scene == null:
+	if not area.has_world_scene():
 		return "area '%s' has no world scene to build" % area_id
 
 	return ""

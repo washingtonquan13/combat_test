@@ -64,7 +64,7 @@ static func validate() -> Array[Issue]:
 		links[area.id] = {}
 
 	for area in areas:
-		if not area.world_scene:
+		if not area.has_world_scene():
 			continue  # already reported as an error above
 		_check_exits(area, known_ids, links, issues)
 
@@ -84,8 +84,8 @@ static func _check_definitions(areas: Array[AreaDefinition], issues: Array[Issue
 		else:
 			seen_ids[area.id] = where
 
-		if not area.world_scene:
-			issues.append(Issue.new(true, where, "world_scene is unset — travel to this area will crash"))
+		if not area.has_world_scene():
+			issues.append(Issue.new(true, where, "scene_path is unset or names no scene — travel to this area will crash"))
 
 		if area.display_name.is_empty():
 			issues.append(Issue.new(false, where, "display_name is empty"))
@@ -183,7 +183,7 @@ static func _check_exits(area: AreaDefinition, known_ids: Dictionary, links: Dic
 ## this file exists for.
 static func _check_spawn_point(exit: AreaExit, where: String, issues: Array[Issue]) -> void:
 	var target: AreaDefinition = AreaDatabase.find(exit.target_area)
-	if not target or not target.world_scene:
+	if not target or not target.has_world_scene():
 		return  # the dangling target itself is already an error
 
 	var target_world: Node = target.world_scene.instantiate()

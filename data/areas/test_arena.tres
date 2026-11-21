@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="AreaDefinition" load_steps=3 format=3 uid="uid://ca8ij2qlcnp74"]
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=2 format=3 uid="uid://ca8ij2qlcnp74"]
 
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_def"]
-[ext_resource type="PackedScene" uid="uid://c2eymxqvi7vu1" path="res://world/test_arena.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_def")
 id = &"test_arena"
 display_name = "Test Arena"
-world_scene = ExtResource("2_scene")
+scene_path = "res://world/test_arena.tscn"
 level = 2

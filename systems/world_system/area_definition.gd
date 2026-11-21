@@ -21,15 +21,26 @@ extends Resource
 
 @export var id: StringName = &""
 @export var display_name: String = ""
-## A real PackedScene reference, not a path string — editor-pickable and
-## rename-safe, matching UnitDefinition.unit_scene/Surface.ambient_scene.
-## Known cost: any .tres holding a PackedScene makes that scene an EAGER
-## dependency of whatever loads the .tres, so AreaDatabase's directory
-## scan (see that file) loads every area's world_scene up front. That
-## cost is exactly what id-indirection at every OTHER reference point
-## (doors, exits) exists to contain — nothing but AreaDatabase itself
-## ever touches this field directly.
-@export var world_scene: PackedScene
 ## Item level of what its chests roll (StashComponent.loot_rolls); its
 ## monsters drop at their own level (UnitDefinition.level).
 @export var level: int = 1
+## The world's .tscn, as a path, not a PackedScene. A PackedScene field
+## makes the scene an eager dependency of this .tres, and AreaDatabase
+## loads every area's .tres to build its catalog: with a hard reference,
+## the first find() loaded all eleven worlds (4.4 s measured 2026-11-21)
+## to enter one. A path costs nothing until world_scene is read.
+## A path is not rename-safe the way a reference is; area_validator.gd
+## reports one that no longer resolves.
+@export_file("*.tscn") var scene_path: String = ""
+## The world, loaded on first read (ResourceLoader caches it after that).
+## Null if scene_path is unset or names no scene.
+var world_scene: PackedScene:
+	get:
+		if not has_world_scene():
+			return null
+		return load(scene_path) as PackedScene
+
+
+## Whether scene_path names a scene, asked without loading it.
+func has_world_scene() -> bool:
+	return scene_path != "" and ResourceLoader.exists(scene_path)
