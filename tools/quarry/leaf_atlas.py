@@ -1,13 +1,16 @@
-"""Builds a card atlas of leafy twigs from single-leaf scans.
+"""Builds a card atlas of leafy branch clusters from single-leaf scans.
 
 Poly Haven's island tree ships eight loose leaves, which is right for a model
 with one quad per leaf but far too many quads for a tree that has to draw at a
-distance. This lays those leaves along drawn twigs, 4x4 cells to an atlas, so a
-generated tree places a whole spray of leaves with one card, the way SpeedTree
-cluster cards work.
+distance. This lays those leaves along drawn twigs, and fans several twigs
+out of one stem, 4x4 cells to an atlas. A generated tree then places a whole
+branch end with one card, the way BG3's and SpeedTree's cluster cards work:
+a few large cards instead of many small ones (docs/plans/bg3_foliage_study.md,
+change 5). The leaves inside a cluster are shaded darker toward its middle and
+bottom, so each card carries its own volume.
 
-Each cell's twig grows from the middle of its bottom edge up to the top, so the
-card's base sits on the branch and it grows along the card's V axis.
+Each cell's stem grows from the middle of its bottom edge, so the card's base
+sits on the branch and it grows along the card's V axis.
 
     python -I tools/quarry/leaf_atlas.py <leaves.png> <out.png> [--seed N]
 """
@@ -22,14 +25,14 @@ SIZE = 2048
 GRID = 4
 CELL = SIZE // GRID
 SAT = 0.58
-GAIN = 1.12
+GAIN = 1.32
 
 
 # The colour the cards end on: a pale sage like BG3's leaf textures, measured
 # 2026-11-21 (docs/plans/bg3_foliage_study.md). The rest of the colour comes
 # from the leaf shader's tints. SAT pulls each texel toward its own luminance,
 # GAIN lightens it; tuned so the opaque texels' median HSV saturation is
-# about 0.4 and their median value is 0.42.
+# about 0.4 and their median value about 0.40, as BG3's gnarly leaves.
 def grade_atlas(img, sat, gain):
     a = np.asarray(img).astype(np.float32)
     rgb = a[..., :3]
@@ -81,7 +84,7 @@ def place(canvas, leaf, base, angle, length, shade):
     canvas.alpha_composite(layer)
 
 
-def twig(draw, at, angle, length, width, rng, leaves_out, depth):
+def twig(draw, at, angle, length, width, rng, leaves_out, depth, leaf=1.0):
     # One twig from `at`, `angle` radians clockwise from up, drawn as a gentle
     # curve; leaves alternate along it and side twigs fork off the main one.
     bend = rng.uniform(-0.35, 0.35)
@@ -104,23 +107,49 @@ def twig(draw, at, angle, length, width, rng, leaves_out, depth):
         a = angle + bend * t
         side = -side
         if depth == 0 and k in (1, 3):
-            twig(draw, pts[i], a + side * rng.uniform(0.55, 0.85), length * rng.uniform(0.45, 0.6), width * 0.6, rng, leaves_out, 1)
+            twig(draw, pts[i], a + side * rng.uniform(0.55, 0.85), length * rng.uniform(0.45, 0.6), width * 0.6, rng, leaves_out, 1, leaf)
             continue
-        leaves_out.append((tuple(pts[i]), a + side * rng.uniform(0.7, 1.3), CELL * rng.uniform(0.2, 0.27) * (1.0 - 0.2 * t)))
+        leaves_out.append((tuple(pts[i]), a + side * rng.uniform(0.7, 1.3), CELL * leaf * rng.uniform(0.2, 0.27) * (1.0 - 0.2 * t)))
     end = len(pts) - 1
-    leaves_out.append((tuple(pts[end]), angle + bend + rng.uniform(-0.2, 0.2), CELL * 0.22))
+    leaves_out.append((tuple(pts[end]), angle + bend + rng.uniform(-0.2, 0.2), CELL * leaf * 0.22))
 
 
-def twig_cell(leaves, rng):
+def cluster_cell(leaves, rng):
+    # A short stem up from the bottom middle, then seven to ten twigs fanned
+    # out of its top, three short ones filling the middle and two from the
+    # stem's side, so the leaves fill a rough oval over the upper three
+    # quarters of the cell with ragged gaps at its edge. No twig reaches past
+    # the cell's side, so no leaf is cut off.
     cell = Image.new("RGBA", (CELL, CELL))
     draw = ImageDraw.Draw(cell)
     hue = rng.uniform(0.85, 1.12)
     order = []
-    twig(draw, (CELL / 2, CELL - 2), rng.uniform(-0.1, 0.1), CELL * 0.62, CELL * 0.022, rng, order, 0)
-    rng.shuffle(order)
-    for base, angle, length in order:
+    lean = rng.uniform(-0.12, 0.12)
+    top = np.array([CELL / 2 + np.sin(lean) * CELL * 0.2, CELL - 2 - np.cos(lean) * CELL * 0.2])
+    draw.line([(CELL / 2, CELL - 2), tuple(top)], fill=(70, 56, 40, 255), width=int(CELL * 0.03))
+    n = int(rng.integers(7, 11))
+    for k in range(n):
+        a = lean + np.interp(k, [0, n - 1], [-1.2, 1.2]) + rng.uniform(-0.12, 0.12)
+        reach = CELL * rng.uniform(0.38, 0.48)
+        reach = min(reach, (CELL * 0.34 - abs(top[0] - CELL / 2)) / max(abs(np.sin(a)) + 0.1, 0.5))
+        twig(draw, tuple(top), a, reach, CELL * 0.016, rng, order, 0, 0.5)
+    for k in range(3):
+        a = lean + rng.uniform(-0.6, 0.6)
+        twig(draw, tuple(top), a, CELL * rng.uniform(0.2, 0.28), CELL * 0.012, rng, order, 1, 0.5)
+    for side in (-1, 1):
+        at = (CELL / 2 + np.sin(lean) * CELL * 0.1, CELL - 2 - np.cos(lean) * CELL * 0.1)
+        twig(draw, at, lean + side * rng.uniform(0.9, 1.2), CELL * rng.uniform(0.2, 0.26), CELL * 0.012, rng, order, 1, 0.5)
+    # Back to front: the inner and lower leaves, darker, first.
+    mid = top + np.array([0.0, -CELL * 0.25])
+    def light(base):
+        r = np.linalg.norm((np.array(base) - mid) / (CELL * 0.42))
+        up = 1.0 - base[1] / CELL
+        return (0.68 + 0.36 * min(r, 1.0)) * (0.86 + 0.24 * up) * rng.uniform(0.92, 1.08)
+    lit = [(light(b), b, a, l) for b, a, l in order]
+    lit.sort(key=lambda x: x[0])
+    for k, base, angle, length in lit:
         leaf = leaves[rng.integers(len(leaves))]
-        shade = np.array([hue * rng.uniform(0.85, 1.1), rng.uniform(0.88, 1.1), 1.0], np.float32)
+        shade = np.array([hue * rng.uniform(0.85, 1.1), rng.uniform(0.88, 1.1), 1.0], np.float32) * k
         place(cell, leaf, base, angle, length, shade)
     return cell
 
@@ -136,7 +165,7 @@ def main():
     atlas = Image.new("RGBA", (SIZE, SIZE))
     for gy in range(GRID):
         for gx in range(GRID):
-            atlas.paste(twig_cell(leaves, rng), (gx * CELL, gy * CELL))
+            atlas.paste(cluster_cell(leaves, rng), (gx * CELL, gy * CELL))
     atlas = grade_atlas(atlas, SAT, GAIN)
     atlas.save(args.out)
     print("%d leaves -> %s" % (len(leaves), args.out))

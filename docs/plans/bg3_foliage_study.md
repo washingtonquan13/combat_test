@@ -3,8 +3,8 @@
 Studied 2026-11-21. The BG3 assets were read from the installed game's paks
 for reference only. None of them are, or will be, in this project. Measured
 with offline scripts (the scratchpad `bg3study/` set: `glbstat.py`,
-`trunkstat.py`, `raster.py`). Changes 1–3 are built (see "Built" at the end);
-4–8 are not.
+`trunkstat.py`, `raster.py`). Changes 1–3, 5 and 6 are built (see "Built"
+at the end); 4, 7 and 8 are not.
 
 ## What was compared
 
@@ -154,3 +154,47 @@ Limits:
 - `trunkstat.py` loses the fir trunk at the first whorl (about 3 m), so it
   measures only the plumb base. Use the side renders (`raster.py`) instead.
 
+## Built: changes 5 and 6 (2026-11-21)
+
+For the broadleaf (`gen_isle`) and the bush (`gen_bush`), which share
+`broadleaf_cards.png`. The firs and ferns are unchanged.
+
+**5. Cluster atlas.** `leaf_atlas.py` now draws each cell as a whole branch
+cluster (`cluster_cell`): a short stem fanning into 7–10 leafy twigs, lit
+brighter toward the outside of the cluster. It is graded as in change 1
+(`GAIN` 1.32 to make up for the self-shading): median V 0.40, S 0.40, mean
+RGB (0.37, 0.40, 0.24), against BG3 gnarly's (0.38, 0.40, 0.24). About 29%
+of each cell is leaf.
+
+**6. Open crowns.** `_bough` no longer places cards. It offers places for
+leaves (`_cand`), each tagged with its clump: the end of the depth-1 branch
+it grows from, with a radius of 0.8 of that branch's length. `_clusters`
+then shuffles them and keeps one only if it is inside its clump, out at the
+crown's surface (ellipsoid radius 0.35 or more, since the inside is never
+seen), and far enough from every card already kept. The spacing is
+`_card_l * _gap`, wider toward the clump's edge, and cards shrink there, so
+clumps thin out instead of ending in a wall. Between clumps the limbs show.
+Card size `_card_l` is 0.22 × height (broadleaf) or 0.42 × height (bush),
+1.26× on the far mesh.
+
+| Mesh | Cards before | Cards after | Card area before | After |
+|---|---|---|---|---|
+| `gen_isle` near (4 seeds) | ~1710 | 59–102 | ~741 m² | 91–171 m² |
+| `gen_isle` far | | 33–49 | | 82–124 m² |
+| `gen_bush` near | ~593 | 109–116 | ~67 m² | 43–44 m² |
+| `gen_bush` far | | 65–71 | | 37–39 m² |
+| BG3 Gnarly_A (10 m) | | 88 | | 74 m² |
+
+Leaf triangles on the near broadleaf go from ~13700 to 470–820, the
+gnarly tree's range. Bark is unchanged. Measured with a probe in
+`tools/_probe` (not committed); renders in the session scratchpad.
+
+Limits:
+
+- Cards reach a little past the old crown: the broadleaf's bounds grow
+  about 0.3 m in height, the bush's from 1.8 m to 2.1 m. Collision is the
+  trunk cylinder, so play is not affected.
+- Leaf normals still bend toward the crown sphere (change 4 is not built),
+  so a clump shades as one soft mass.
+- Seed 7202 grows a sparser crown (59 cards) than the others; the clumps
+  follow its branches.

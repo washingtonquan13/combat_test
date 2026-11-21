@@ -380,10 +380,21 @@ func _crown_ao(p: Vector3) -> float:
 
 # ---------------------------------------------------------------- broadleaf
 
-# Every cell of the leafy-twig atlas (tools/quarry/leaf_atlas.py) is usable.
+# Every cell of the branch-cluster atlas (tools/quarry/leaf_atlas.py) is usable.
 const BROAD_CELLS := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
+# Broad crowns are open: their leaves come in clumps, one at the end of each
+# branch off a limb, with gaps between where the limbs show
+# (docs/plans/bg3_foliage_study.md, changes 5 and 6). The boughs only offer
+# places for leaves (`_cand`: point, tangent, tint, clump centre, clump
+# radius); `_clusters` then keeps a few, far enough apart, and puts a large
+# cluster card on each.
 var _leaf_l := 0.8
+var _card_l := 1.5
+var _gap := 0.3
+var _cand: Array = []
+var _clump := Vector3.ZERO
+var _clump_r := 1.0
 var _lite := false
 var _depth_max := 3
 var _tube_max := 2
@@ -402,6 +413,9 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	_depth_max = 3 if detail >= 1.0 else 2
 	_tube_max = 2 if detail >= 1.0 else 1
 	_leaf_l = clampf(height * 0.1, 0.65, 1.2) / sqrt(detail)
+	_card_l = height * 0.22 / pow(detail, 0.25)
+	_gap = 0.3
+	_cand = []
 	var bark := Surf.new()
 	var leaf := Surf.new()
 	var r0 := height * 0.02 + 0.05
@@ -445,6 +459,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 		_phase = rng.randf()
 		var r := rf * (0.9 if i == 0 else rng.randf_range(0.65, 0.8))
 		_bough(bark, leaf, top + Vector3.DOWN * r0 * 1.5, dir, len + r0 * 1.5, r, 0, rng.randf(), r0 * TAU)
+	_clusters(leaf)
 	_broad = false
 	_cells = FIR_CELLS
 	return [bark, leaf]
@@ -464,6 +479,9 @@ func bush(seed: int, height: float, detail := 1.0) -> Array:
 	_depth_max = 3
 	_tube_max = 2 if detail >= 1.0 else 1
 	_leaf_l = clampf(height * 0.22, 0.32, 0.6) / sqrt(detail)
+	_card_l = height * 0.42 / pow(detail, 0.25)
+	_gap = 0.22
+	_cand = []
 	var bark := Surf.new()
 	var leaf := Surf.new()
 	var wide := height * rng.randf_range(0.6, 0.8)
@@ -480,6 +498,7 @@ func bush(seed: int, height: float, detail := 1.0) -> Array:
 		var len := _to_envelope(start + Vector3.UP * 0.06, dir) * rng.randf_range(0.8, 0.95)
 		_phase = rng.randf()
 		_bough(bark, leaf, start, dir, len, r0 * rng.randf_range(0.8, 1.1), 1, rng.randf(), r0 * TAU * 4.0)
+	_clusters(leaf)
 	_broad = false
 	_cells = FIR_CELLS
 	return [bark, leaf]
@@ -610,6 +629,9 @@ func _bough(bark: Surf, leaf: Surf, start: Vector3, dir: Vector3, len: float, ra
 		var sides: int = [8, 6, 4, 3][depth]
 		_tube(bark, pts, radii, sides, _phase, lerpf(0.6, 1.0, 1.0 - depth / 3.0), u_span)
 
+	if depth == 1:
+		_clump = pts[seg]
+		_clump_r = len * 0.8
 	if not terminal:
 		var count: int = [rng.randi_range(6, 8), rng.randi_range(5, 7), rng.randi_range(4, 6)][depth]
 		var az := rng.randf() * TAU
@@ -626,28 +648,62 @@ func _bough(bark: Surf, leaf: Surf, start: Vector3, dir: Vector3, len: float, ra
 			var cr := minf(lerpf(rad, rad * 0.4, s) * 0.75, rad * pow(cl / len, 1.1))
 			_bough(bark, leaf, p, cd, cl, maxf(cr, 0.003), depth + 1, tint if depth > 0 else rng.randf(), u_span)
 
-	# Leaves on the last two levels: thick on twigs, sparse on what bears them.
+	# Places for leaves on the last two levels: thick on twigs, sparse on what
+	# bears them.
 	if depth >= _depth_max - 1:
 		var step := _leaf_l * (0.38 if terminal else 0.7)
 		var s := 0.35 + rng.randf() * 0.15
 		while s < 1.0:
 			var p := _branch_at(pts, s)
 			var tan := (_branch_at(pts, minf(s + 0.05, 1.0)) - _branch_at(pts, maxf(s - 0.05, 0.0))).normalized()
-			_broad_card(leaf, p, tan, tint)
+			_cand.append([p, tan, tint, _clump, _clump_r])
 			s += step / maxf(len, 0.1) * rng.randf_range(0.8, 1.2)
-		_broad_card(leaf, pts[seg], (pts[seg] - pts[seg - 1]).normalized(), tint)
+		_cand.append([pts[seg], (pts[seg] - pts[seg - 1]).normalized(), tint, _clump, _clump_r])
 
 
-func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float) -> void:
+func _clusters(leaf: Surf) -> void:
+	# Keeps the places near their clump's centre and out at the crown's
+	# surface (nothing sees the inside), at least most of a card apart, wider
+	# apart toward a clump's edge so clumps thin out instead of ending in a
+	# wall. Shuffled first, so no branch is favoured.
+	var order := range(_cand.size())
+	for i in range(order.size() - 1, 0, -1):
+		var j := rng.randi() % (i + 1)
+		var t: int = order[i]
+		order[i] = order[j]
+		order[j] = t
+	var kept: Array[Vector3] = []
+	for i: int in order:
+		var c: Array = _cand[i]
+		var p: Vector3 = c[0]
+		var q := p.distance_to(c[3]) / float(c[4]) * rng.randf_range(0.85, 1.15)
+		if q > 1.0 or ((p - _cc) / _cr).length() < 0.35:
+			continue
+		var gap := _card_l * _gap * lerpf(1.0, 1.7, q)
+		var near := false
+		for k in kept:
+			if k.distance_squared_to(p) < gap * gap:
+				near = true
+				break
+		if near:
+			continue
+		kept.append(p)
+		_broad_card(leaf, p, c[1], c[2], lerpf(1.1, 0.75, q))
+	_cand = []
+
+
+func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float, size: float) -> void:
 	var out := (p - _cc).normalized()
 	var jitter := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1))
-	var along := (tan * 0.6 + out * 0.5 + jitter * 0.35).normalized()
+	var along := (tan * 0.5 + out * 0.6 + jitter * 0.3).normalized()
 	var side := along.cross(Vector3.UP)
 	if side.length() < 0.2:
 		side = along.cross(Vector3.RIGHT)
 	side = side.normalized().rotated(along, rng.randf_range(-0.8, 0.8))
-	var l := _leaf_l * rng.randf_range(0.8, 1.2)
-	_card(leaf, p, along, side, l * 0.95, l, rng.randi(), tint, 1.0)
+	var l := _card_l * size * rng.randf_range(0.85, 1.15)
+	# The cluster's stem is the bottom fifth of its cell, so the card's base
+	# starts a little back along the branch.
+	_card(leaf, p - along * l * 0.12, along, side, l, l, rng.randi(), tint, 1.0)
 
 
 # ---------------------------------------------------------------- output
