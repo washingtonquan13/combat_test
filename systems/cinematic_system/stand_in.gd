@@ -41,18 +41,10 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	var original := unit.get_node_or_null(NodePath(BODY_NAME)) as CharacterModel
 	if original == null:
 		return null
-	var copy := original.duplicate(DUPLICATE_SCRIPTS) as CharacterModel
+	var copy: CharacterModel = copy_body(original, true)
 	if copy == null:
 		return null
-	var twins: Dictionary = {original: copy}
-	_mirror_owners(original, copy, twins)
-	_give_own_tree(copy)
-	for solid in copy.find_children("*", "CollisionObject3D", true, false):
-		solid.free()
-	_strip_player_feedback(original, copy)
-	_point_at_own_parts(original, copy, twins)
 	copy.name = BODY_NAME
-	copy.visible = true
 
 	var stand := StandIn.new()
 	stand.name = NODE_NAME
@@ -77,6 +69,26 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 		skeleton.notification(Skeleton3D.NOTIFICATION_UPDATE_SKELETON)
 	original.visible = false
 	return stand
+
+
+## A copy of a body as it is dressed and armed right now, with none of what
+## gameplay hangs on it (collision, outline, rings). `layered` gives it a
+## BodyAnimationTree of its own, as a unit's body has; without one its
+## AnimationPlayer is left free for whoever holds the copy to play directly,
+## which is what a Cutscene's clip tracks do.
+static func copy_body(original: CharacterModel, layered: bool) -> CharacterModel:
+	var copy := original.duplicate(DUPLICATE_SCRIPTS) as CharacterModel
+	if copy == null:
+		return null
+	var twins: Dictionary = {original: copy}
+	_mirror_owners(original, copy, twins)
+	_give_own_tree(copy, layered)
+	for solid in copy.find_children("*", "CollisionObject3D", true, false):
+		solid.free()
+	_strip_player_feedback(original, copy)
+	_point_at_own_parts(original, copy, twins)
+	copy.visible = true
+	return copy
 
 
 ## Gives every node of the copy the owner its original has, as the matching
@@ -116,7 +128,7 @@ static func _point_at_own_parts(original: CharacterModel, copy: CharacterModel,
 ## copy takes that along with everything else, sharing the original's tree
 ## root and so its playback, and its flinch. Both go, and the copy gets a
 ## tree of its own on its own player, so it layers as the unit's body does.
-static func _give_own_tree(copy: CharacterModel) -> void:
+static func _give_own_tree(copy: CharacterModel, layered: bool = true) -> void:
 	for shared in copy.find_children("*", "BodyAnimationTree", true, false):
 		shared.free()
 	for shared in copy.find_children("*", "BodyFlinch", true, false):
@@ -124,7 +136,8 @@ static func _give_own_tree(copy: CharacterModel) -> void:
 	var player: AnimationPlayer = copy.resolve_animation_player()
 	if player:
 		player.active = true
-		BodyAnimationTree.attach(player)
+		if layered:
+			BodyAnimationTree.attach(player)
 
 
 ## What shows the copy's clips: its own tree.

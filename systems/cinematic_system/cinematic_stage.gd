@@ -1,6 +1,6 @@
 @tool
 class_name CinematicStage
-extends Node3D
+extends DirectedScene
 ## The root of an authored cutscene: a .tscn you can open, lay out, and
 ## SCRUB. The .tscn IS the cutscene — there is no resource per scene; a
 ## caller hands CinematicDirector.play() this scene's PackedScene.

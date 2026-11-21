@@ -46,6 +46,11 @@ const DEMO_ANCHOR: StringName = &"DemoConversation"
 const HERO_PATH: String = "res://cinematics/proof_hero_meeting.tscn"
 const HERO_ANCHOR: StringName = &"ProofHeroMeeting"
 
+## L: the first scene made the minimal way (a Cutscene keyed by hand, see
+## systems/cinematic_system/SIMPLIFICATION_PLAN.md). A raw key, not an input
+## action: it places itself on the leader and needs nothing from here.
+const MEETING_PATH: String = "res://cinematics/townsperson_meeting.tscn"
+
 const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 const PARENT_A_PATH: String = "res://data/units/demons/test_pixie.tres"
 const PARENT_B_PATH: String = "res://data/units/demons/test_wolf.tres"
@@ -67,6 +72,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		_play_at_leader(DEMO_PATH, DEMO_ANCHOR)
 	elif event.is_action_pressed("test_hero_cutscene"):
 		_play_at_leader(HERO_PATH, HERO_ANCHOR)
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_L:
+		_play_keyed(MEETING_PATH)
+
+
+func _play_keyed(path: String) -> void:
+	if CinematicDirector.is_active():
+		print("A scene is already playing.")
+		return
+	await CinematicDirector.play(load(path))
 
 
 ## The demo and the hero meeting stage themselves around the leader: the

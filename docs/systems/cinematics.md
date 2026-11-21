@@ -21,6 +21,22 @@ A staged scene never moves a gameplay unit. `StandIn.raise(unit, at, facing)` (s
 - **Held raiders**: units that must not exist until a flag are instantiated with the area, readied, then pulled out of the tree and kept in an array on the area script (`_held_raiders`, goblin_quarry.gd:54-57, 154-162, 287-291), so nothing sees, hears or saves them; chosen in 14cb4ad9 without touching detection, AI or save. This is POC story wiring in the area script (goblin ambush 6f345c96; raid 1515bdab, 14cb4ad9).
 - **Limits**: effects and floating text stay on the real unit; on a stage without `performs_on_stand_ins`, clip and walk beats animate the unit itself; the copy is taken once at raise, so gear changed mid-scene does not show.
 
+## Cutscenes keyed by hand (the minimal path)
+A second kind of scene the director plays, alongside CinematicStage. Both extend `DirectedScene`
+(`directed_scene.gd`), the small surface the director drives: bind, is_running, is_waiting, advance,
+skip_to_end, commit_stand_ins, unbind.
+
+- **Owner of the performance: the scene's own Timeline.** A `Cutscene` (`cutscene.gd`) has no beats.
+  Position keys move a `CutsceneRole`, Animation Playback keys play its body's clips, a discrete key
+  on `Cutscene.shot` cuts the camera, a Call Method key on `say(who, text)` is a line.
+- **Owner of who is in it: `CutsceneRole`** (`cutscene_role.gd`). Finds its unit (caller's cast, the
+  leader, or a unit of its definition; otherwise spawns one, which stays), swaps its preview body for
+  a copy of the unit's (`StandIn.copy_body`), hides the unit, and puts it where the body ended.
+- **Owner of where it plays: `Cutscene.anchor`** (a role whose unit already stands in the world) or
+  `anchor_mark`.
+- First scene: `cinematics/townsperson_meeting.tscn` (L in a debug build). Plan and what retires:
+  `systems/cinematic_system/SIMPLIFICATION_PLAN.md`.
+
 ## Shots
 - `FramingRig` (framing_rig.gd) mirrors every CameraFraming field, including `pan_degrees` and `focus_blur`, through `_fill`. Keying the stage's `shot` is a cut; keying a rig's numbers is a move.
 - `CameraPathRig` (camera_path_rig.gd) extends it: the eye is `path` (a Path3D, stage-owned) sampled at `progress` 0..1 by baked distance; the aim is the usual look role/mark, or `aim_path` at the same progress. Its framing (`_Riding`) never `shares_subject_with` another, so it is always a cut. No line resolves to ZERO and the camera holds.

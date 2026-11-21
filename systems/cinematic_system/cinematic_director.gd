@@ -53,7 +53,7 @@ signal scene_finished(stage: PackedScene, completed: bool)
 var _running: PackedScene = null
 ## The mounted stage while one is on screen. Also what _input asks before
 ## eating a key: with no stage there is nothing to skip or advance.
-var _stage: CinematicStage = null
+var _stage: DirectedScene = null
 ## Bumped by a cancel. A play() whose generation no longer matches knows it
 ## has been cancelled without needing a flag of its own to clear.
 var _generation: int = 0
@@ -126,10 +126,10 @@ func current_scene() -> PackedScene:
 ## The mounted stage, or null. What a beat or a test reaches for when it
 ## needs the running performance rather than the file it came from.
 func current_stage() -> CinematicStage:
-	return _stage if is_instance_valid(_stage) else null
+	return _stage as CinematicStage if is_instance_valid(_stage) else null
 
 
-## Runs `stage` (a .tscn whose root is a CinematicStage) and returns whether
+## Runs `stage` (a .tscn whose root is a Cutscene, or a CinematicStage) and returns whether
 ## it finished — false if it was aborted, refused, or had nothing to play.
 ## A skipped scene FINISHED: skip is a way of finishing.
 ##
@@ -164,7 +164,7 @@ func play(stage: PackedScene, cast: SceneCast = null, props: Dictionary = {},
 	players.tree = get_tree()
 	scene_started.emit(stage)
 
-	var mounted: CinematicStage = _mount(stage, players, props)
+	var mounted: DirectedScene = _mount(stage, players, props)
 	_stage = mounted
 	if mounted and overlay():
 		overlay().enter()
@@ -210,7 +210,7 @@ func _cancel(settle: bool) -> void:
 ## exactly that reason: it runs before the GUI and before UIStack's own
 ## Escape handling.
 func _input(event: InputEvent) -> void:
-	if current_stage() == null:
+	if not is_instance_valid(_stage):
 		return
 	if event.is_action_pressed(&"cinematic_skip"):
 		_skip_requested = true
@@ -225,15 +225,15 @@ func _input(event: InputEvent) -> void:
 ## Under WorldManager.spawn_parent(), the same place every runtime spawn
 ## goes — a Node3D only renders in the World3D of the viewport above it, so
 ## a stage parented anywhere else would be staging a scene nobody can see.
-func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> CinematicStage:
+func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> DirectedScene:
 	var parent: Node = WorldManager.spawn_parent()
 	if parent == null:
 		push_warning("CinematicDirector: nowhere to put '%s' — no world." % scene.resource_path)
 		return null
 	var built: Node = scene.instantiate()
-	var stage := built as CinematicStage
+	var stage := built as DirectedScene
 	if stage == null:
-		push_warning("CinematicDirector: '%s' root is %s, not a CinematicStage."
+		push_warning("CinematicDirector: '%s' root is %s, not a Cutscene or a CinematicStage."
 			% [scene.resource_path, built.get_class()])
 		built.free()
 		return null
@@ -245,9 +245,9 @@ func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> Cinematic
 	# not duplicated per instantiate() at runtime, so merging into it writes
 	# through to the PackedScene itself — every later play of the same stage
 	# would inherit the last caller's props.
-	var stocked: Dictionary = stage.props.duplicate()
+	var stocked: Dictionary = (stage.get(&"props") as Dictionary).duplicate()
 	stocked.merge(props, true)
-	stage.props = stocked
+	stage.set(&"props", stocked)
 	parent.add_child(stage)
 	stage.bind(cast)
 	return stage
@@ -262,7 +262,7 @@ func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> Cinematic
 ##
 ## A missing animation is a finished one. There is nothing to hold the
 ## screen for, and refusing to return would be worse than playing nothing.
-func _run_timeline(stage: CinematicStage, animation: StringName, mine: int) -> void:
+func _run_timeline(stage: DirectedScene, animation: StringName, mine: int) -> void:
 	if stage == null:
 		return
 	var timeline: AnimationPlayer = stage.timeline()
@@ -330,7 +330,7 @@ func _run_timeline(stage: CinematicStage, animation: StringName, mine: int) -> v
 ## Waits out hold_start()'s holds, polled. Stops early on a cancel, a skip
 ## (left set, so the loop after skips the scene it was asked of) or a stage
 ## that vanished, which is a cancel like the loop's own.
-func _hold_first_frame(stage: CinematicStage, mine: int) -> void:
+func _hold_first_frame(stage: DirectedScene, mine: int) -> void:
 	var since: int = Time.get_ticks_msec()
 	while mine == _generation and not _skip_requested \
 			and Time.get_ticks_msec() - since < START_HOLD_LIMIT * 1000.0:
