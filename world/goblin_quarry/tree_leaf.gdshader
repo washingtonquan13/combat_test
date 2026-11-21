@@ -1,9 +1,10 @@
 shader_type spatial;
 render_mode cull_disabled, diffuse_lambert_wrap;
 
-// Foliage cards of generated trees. Normals come from the crown's shape, not
-// the card (plant_gen.gd), and stay that way on the back face, so a crown
-// lights as one volume. COLOR.r is baked occlusion, COLOR.g a per-branch
+// Foliage cards of generated trees. Normals mix the crown's shape and the
+// card's face (plant_gen.gd: mostly the crown on firs and ferns, mostly the
+// card on broadleaves and bushes, whose `surface` map shapes each card), and
+// stay that way on the back face. COLOR.r is baked occlusion, COLOR.g a per-branch
 // random number for tint. The atlas has coverage-preserving mips.
 //
 // The atlases are a pale sage (leaf_atlas.py and the others grade them); the
@@ -27,8 +28,9 @@ uniform vec3 old = vec3(0.8, 0.88, 0.86);
 uniform float translucency = 0.6;
 uniform vec3 transmit = vec3(1.1, 1.3, 0.5);
 uniform float wrap = 0.5;
-// Scanned leaves bring their own surface (vine_atlas.py): R, G the normal's
-// x and y in the atlas, y up the image; B roughness. Off at zero. The cards
+// Scanned leaves bring their own surface (vine_atlas.py, leaf_atlas.py): R,
+// G the normal's x and y in the atlas, y up the image; B roughness. Off at
+// zero. The cards
 // carry no tangents, so the atlas's axes are found from how position and UV
 // change across the pixel.
 uniform sampler2D surface : hint_default_white, filter_linear_mipmap_anisotropic;

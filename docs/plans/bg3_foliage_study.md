@@ -3,8 +3,8 @@
 Studied 2026-11-21. The BG3 assets were read from the installed game's paks
 for reference only. None of them are, or will be, in this project. Measured
 with offline scripts (the scratchpad `bg3study/` set: `glbstat.py`,
-`trunkstat.py`, `raster.py`). Changes 1–3, 5 and 6 are built (see "Built"
-at the end); 4, 7 and 8 are not.
+`trunkstat.py`, `raster.py`). Changes 1–6 are built (see "Built" at the
+end); 7 and 8 are not.
 
 ## What was compared
 
@@ -194,7 +194,37 @@ Limits:
 - Cards reach a little past the old crown: the broadleaf's bounds grow
   about 0.3 m in height, the bush's from 1.8 m to 2.1 m. Collision is the
   trunk cylinder, so play is not affected.
-- Leaf normals still bend toward the crown sphere (change 4 is not built),
-  so a clump shades as one soft mass.
+- Leaf normals bent toward the crown sphere here, so a clump shaded as one
+  soft mass. Change 4 fixes this.
 - Seed 7202 grows a sparser crown (59 cards) than the others; the clumps
   follow its branches.
+
+## Built: change 4 (2026-11-21)
+
+**Cluster normal map.** `leaf_atlas.py` writes a second file next to the
+atlas, `broadleaf_cards_surface.png`, which `tree_leaf.gdshader` reads as
+`surface` (it already supported one; `surface_relief` 1.0). R and G are the
+normal's x and y (y up the image), B is roughness. Each leaf brings its
+scan's own normals (`_nor_gl_` and `_arm_` next to the colour scan), turned
+with the leaf, and is tilted out from its cluster's middle (`DOME` 0.55 at
+the rim, plus a random `TILT` 0.18), so a flat card shades like a dome of
+leaves. Twigs and empty texels are flat, so mipmaps don't bend leaf rims.
+The tilts draw from their own generator, so the colour atlas is unchanged
+(byte for byte). On leaf texels the normal's xy length is 0.34 (p50) and
+0.64 (p90); roughness p50 0.60.
+
+**Flatter vertex normals.** `plant_gen.gd`'s `_crown_share` sets how much of a
+broad card's normal is the crown's. Broadleaf and bush cards use 0.35
+(was 0.8), so the normal map shapes each card. Ferns keep 0.8. The card's
+own face is now turned to the crown's outside before the mix; that changes
+a few fern meshes slightly (cards that faced inward), which is correct.
+
+`regen_plants.gd` saves the texture as `meshes/broadleaf_cards_surface.res`
+and the bake (`_broad_mats`) does the same, so a future rebake agrees.
+Triangle counts are unchanged. Cost: one more texture read in the leaf
+shader, broadleaf and bush only.
+
+Checked with an offline render (scratchpad `raster4.py`: interpolated
+vertex normals plus the surface map, tangents from each triangle's UVs).
+Before, a clump lit evenly; after, each leaf catches the light on its own
+and the clump is lit on its sunward side and dark underneath.

@@ -22,7 +22,7 @@ func _initialize() -> void:
 	var fir_leaf: Material = gen.leaf_material(_atlas(fir_tex + "twig_cards_diff_2k.png", "fir_cards"))
 	var fir_bark: Material = gen.bark_material(load(fir_tex + "bark_diff_2k.jpg"), load(fir_tex + "bark_nor_gl_2k.jpg"))
 	var isle_tex := F + "models/island_tree_01_island_tree_01_"
-	var broad_leaf: Material = gen.leaf_material(_atlas(FOLIAGE + "broadleaf_cards.png", "broadleaf_cards"))
+	var broad_leaf: Material = gen.leaf_material(_atlas(FOLIAGE + "broadleaf_cards.png", "broadleaf_cards"), _surface(FOLIAGE + "broadleaf_cards_surface.png", "broadleaf_cards_surface"))
 	var broad_bark: Material = gen.bark_material(load(isle_tex + "diff_2k.jpg"), load(isle_tex + "nor_gl_2k.jpg"))
 	var fern_leaf: Material = gen.leaf_material(_atlas(FOLIAGE + "fern_fronds.png", "fern_fronds"))
 	_atlas(FOLIAGE + "vine_runs.png", "vine_runs")
@@ -55,6 +55,15 @@ func _atlas(png: String, name: String) -> Texture2D:
 	var err := ResourceSaver.save(atlas, path, ResourceSaver.FLAG_COMPRESS)
 	print("%s: err %d" % [name, err])
 	return atlas
+
+
+func _surface(png: String, name: String) -> Texture2D:
+	var path := OUT + name + ".res"
+	var tex: Texture2D = gen.surface_texture(png)
+	tex.take_over_path(path)
+	var err := ResourceSaver.save(tex, path, ResourceSaver.FLAG_COMPRESS)
+	print("%s: err %d" % [name, err])
+	return tex
 
 
 func _save(m: ArrayMesh, kind: String, v: int, lod: int) -> void:

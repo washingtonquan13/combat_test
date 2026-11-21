@@ -2881,8 +2881,12 @@ func _broad_mats() -> Array:
 		var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/broadleaf_cards.png")
 		ResourceSaver.save(atlas, OUT + "meshes/broadleaf_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 		atlas.take_over_path(OUT + "meshes/broadleaf_cards.res")
+		# The cluster normal map (bg3_foliage_study.md, change 4).
+		var relief: Texture2D = _gen.surface_texture("res://assets/level/quarry/foliage/broadleaf_cards_surface.png")
+		ResourceSaver.save(relief, OUT + "meshes/broadleaf_cards_surface.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+		relief.take_over_path(OUT + "meshes/broadleaf_cards_surface.res")
 		var tex := F + "models/island_tree_01_island_tree_01_"
-		_broad_mat = [_gen.bark_material(load(tex + "diff_2k.jpg"), load(tex + "nor_gl_2k.jpg")), _gen.leaf_material(atlas)]
+		_broad_mat = [_gen.bark_material(load(tex + "diff_2k.jpg"), load(tex + "nor_gl_2k.jpg")), _gen.leaf_material(atlas, relief)]
 	return _broad_mat
 
 

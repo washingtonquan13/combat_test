@@ -68,6 +68,10 @@ var _cells: Array = FIR_CELLS
 var _phase := 0.0
 # Broadleaf crowns are lit and shaded as an ellipsoid instead of round the spine.
 var _broad := false
+# How much of a broad leaf card's normal is the crown's (the rest is the
+# card's own face). Ferns keep 0.8; broadleaf and bush cards, which have the
+# cluster normal map, 0.35.
+var _crown_share := 0.8
 var _cc := Vector3.ZERO
 var _cr := Vector3.ONE
 
@@ -354,9 +358,14 @@ func _card(s: Surf, base: Vector3, along: Vector3, side: Vector3, w: float, l: f
 func _crown_normal(p: Vector3, card_n: Vector3) -> Vector3:
 	# Out from the trunk with an upward bias, more so near the top.
 	if _broad:
+		# The card's own face, turned to the crown's outside, mixed with the
+		# crown's by `_crown_share`. On broadleaves and bushes the cluster
+		# normal map (leaf_atlas.py's `_surface.png`) shapes each card, so
+		# the crown's share is small.
 		var g := (p - _cc) / (_cr * _cr)
 		var bn := (g.normalized() + Vector3.UP * 0.35).normalized()
-		return (bn * 0.8 + card_n * 0.2).normalized()
+		var cn := card_n if card_n.dot(bn) >= 0.0 else -card_n
+		return (bn * _crown_share + cn * (1.0 - _crown_share)).normalized()
 	var axis := _spine_at(p.y)
 	var out := Vector3(p.x - axis.x, 0.0, p.z - axis.z)
 	var r := out.length()
@@ -409,6 +418,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	rng.seed = seed
 	_h = height
 	_broad = true
+	_crown_share = 0.35
 	_cells = BROAD_CELLS
 	_depth_max = 3 if detail >= 1.0 else 2
 	_tube_max = 2 if detail >= 1.0 else 1
@@ -473,6 +483,7 @@ func bush(seed: int, height: float, detail := 1.0) -> Array:
 	rng.seed = seed
 	_h = height
 	_broad = true
+	_crown_share = 0.35
 	_cells = BROAD_CELLS
 	# A bush is all twigs, so the far mesh keeps every level and saves on
 	# bark and on fewer, bigger cards instead.
@@ -522,6 +533,7 @@ func fern(seed: int, height: float, detail := 1.0) -> Array:
 	rng.seed = seed
 	_h = height
 	_broad = true
+	_crown_share = 0.8
 	var reach := height * 1.1
 	_cr = Vector3(reach, height, reach)
 	_cc = Vector3(0.0, -height * 0.15, 0.0)
@@ -880,11 +892,24 @@ static func lod_importer(m: ArrayMesh) -> ImporterMesh:
 	return im
 
 
-func leaf_material(atlas: Texture2D) -> ShaderMaterial:
+func leaf_material(atlas: Texture2D, surface: Texture2D = null) -> ShaderMaterial:
+	# `surface` is an atlas's normal and roughness map (R, G normal x, y with
+	# y up the image, B roughness), as leaf_atlas.py and vine_atlas.py write.
 	var m := ShaderMaterial.new()
 	m.shader = load(LEAF_SHADER)
 	m.set_shader_parameter("atlas", atlas)
+	if surface != null:
+		m.set_shader_parameter("surface", surface)
+		m.set_shader_parameter("surface_relief", 1.0)
 	return m
+
+
+static func surface_texture(path: String) -> ImageTexture:
+	# A leaf atlas's `_surface.png`, mipmapped, no colour space change.
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	img.convert(Image.FORMAT_RGB8)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
 
 
 func bark_material(albedo: Texture2D, normal: Texture2D) -> ShaderMaterial:
