@@ -10,11 +10,13 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // turn a fresher green, deeper in lush patches and warmer in sunny ones, and
 // straw in dry patches. INSTANCE color is per-clump variation.
 //
-// Card normals point up at the root, so a clump's base lights exactly like
-// the ground under it, and tip outward toward the top like a dome over the
-// clump, so each clump shades as a mound: lit on the sunward side, darker
-// on the far side. Roots take the ground's own colour and only the upper
-// blade carries the atlas shading, so a card's base never draws a line.
+// Card normals point up at the root and tip outward toward the top like a
+// dome over the clump (the mesh's own normals). normal_dome blends them
+// toward straight up: at 0 every card lights exactly like the ground under
+// it, as BG3's grass does, so a field reads as one lit surface; at 1 each
+// clump shades as a mound, which from the game's high camera is speckle.
+// Roots take the ground's own colour and only the upper blade carries the
+// atlas shading, so a card's base never draws a line.
 // UV is the point in the card; UV2.x is 0 at the root and 1 at the top,
 // UV2.y a random number per card. With distance a share of the cards fold
 // away, and past fade_start the clump sinks into the ground.
@@ -40,6 +42,8 @@ uniform float relief_amount = 0.0;
 uniform float occlusion_amount = 0.0;
 uniform float shape_paint = 0.0;
 uniform float grass_tile = 0.33;
+// 0: normals straight up (BG3). 1: the mesh's dome.
+uniform float normal_dome : hint_range(0.0, 1.0) = 0.25;
 uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
 // Upper blades: a fresh green, bluer and deeper in lush patches, warmer in
 // sunny ones. The roots keep the ground's colour.
@@ -129,8 +133,10 @@ void fragment() {
 	// Godot turns the normal over on a card's back face; both faces should
 	// light like the ground, so turn it back.
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
-	// Lean it as the ground's swell leans, the way the ground shader does.
-	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	// Flatten the dome toward up, then lean it as the ground's swell leans,
+	// the way the ground shader does.
+	vec3 wn = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
+	wn = mix(vec3(0.0, 1.0, 0.0), wn, normal_dome);
 	wn = wn / max(wn.y, 0.2) - vec3(swell.x, 0.0, swell.y);
 	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 	// The atlas shading is kept shallow: deep shade at the roots reads as dark

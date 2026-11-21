@@ -615,6 +615,35 @@ and without it). CPU render time rises by about 0.1-0.2 ms with grass.
 but stronger than the GTX 1060/1650 the budget in 2.9 was derived for.
 Wind moves cards slightly between frames; the counts are from one frame.
 
+## Built: change 1 (date 2026-11-21)
+
+**What.** `quarry_grass.gdshader` has a `normal_dome` uniform (0 to 1,
+default 0.25). In the fragment shader the card normal, in world space, is
+blended toward straight up by it, before the lean from the ground's swell.
+0 is BG3 (every card lights like the ground), 1 is the old dome. No rebake:
+the baked grass materials do not set it, so they take the default.
+
+**Checked** with real Godot captures of `terrain.scn` (1600 x 900, TAA,
+the quarry's sun, grass wind frozen) at stations A and B, for 0, 0.25
+and 1. Images are in the scratchpad (`grass_build/dome/`).
+
+| Station | mean pixel change, 1 vs 0 | 0.25 vs 0 | field brightness 0 / 0.25 / 1 | fine speckle (high-pass std) 0 / 0.25 / 1 |
+|---|---|---|---|---|
+| A | 4.8 / 255 | 1.5 / 255 | 0.362 / 0.361 / 0.348 | 0.0571 / 0.0569 / 0.0577 |
+| B | 2.4 / 255 | 1.0 / 255 | 0.340 / 0.339 / 0.332 | 0.0519 / 0.0518 / 0.0520 |
+
+**What the renders say.** The dome was not the speckle. Under a high sun
+with wrap lighting it only changes how bright the clumps' far sides are,
+and it darkens the field by 2-4%. The fine speckle at B is the same at all
+three values: it comes from the atlas shading (the `near` and `t.rgb`
+terms in the fragment shader), not from the normals. 0 and 0.25 are hard
+to tell apart, so the spec's 0.25 stays as the default: it keeps a hint of
+form on the clumps close to the camera at no cost from above.
+
+**Limits.** The speckle the proposal blamed on the dome is still there.
+If it needs to go, the lever is the atlas shading's contrast, not this
+uniform. That is a look decision for the developer, not part of change 1.
+
 ---
 
 ## 8. Sources
