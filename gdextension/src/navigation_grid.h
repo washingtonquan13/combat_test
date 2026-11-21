@@ -78,6 +78,22 @@ struct RampInfo {
 	float skin_depth = 0.0f;
 };
 
+// A primitive collision shape (box, sphere, cylinder, capsule, or anything
+// else filled as its bounding box) as plain numbers, read from the scene on
+// the main thread (snapshot_prim in the .cpp) so chunks can be rasterized
+// from it on any thread.
+struct PrimShape {
+	enum Kind { BOUNDS, BOX, SPHERE, CYLINDER, CAPSULE };
+	Kind kind = BOUNDS;
+	Transform3D inverse;
+	AABB aabb; // world space
+	Vector3 half_size; // box
+	float radius = 0.0f;
+	float height = 0.0f;
+	bool is_ramp = false;
+	RampInfo ramp;
+};
+
 // A mesh collision shape (ConcavePolygonShape3D, ConvexPolygonShape3D,
 // HeightMapShape3D) as world-space triangles, built once per scan
 // (build_tri_shape in the .cpp) and rasterized from its triangles rather
@@ -609,6 +625,9 @@ public:
 	// regions, links, search), each counted exclusive of the stages it
 	// calls, since the grid was made.
 	Dictionary debug_bake_profile() const;
+	// FNV-1a over every chunk's baked cell fields, so a change to how the
+	// grid is built can be checked byte for byte against the old build.
+	String debug_field_hash() const;
 	// Bakes every chunk of world_ref's world through region links, walking
 	// and flying, across cores, so no query pays a bake; returns the chunk
 	// count. Called once at area load (WorldContext); a no-op for a world
@@ -866,7 +885,13 @@ private:
 	NavChunk &ensure_chunk_dist(const Vector3i &chunk_coord);
 	// `fill`: cells to make solid before the ramp bands are marked, so the
 	// bands see them (see seal_interiors).
-	void rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill = nullptr);
+	using PrimShapes = std::unordered_map<CollisionShape3D *, PrimShape>;
+	PrimShape snapshot_prim(CollisionShape3D *cs);
+	// rasterize_chunk with `prims` given touches no scene object, so it may
+	// run off the main thread; without it, it snapshots each shape itself.
+	void rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill = nullptr, const PrimShapes *prims = nullptr);
+	// Every listed chunk not yet rasterized, across cores (see snapshot_prim).
+	void rasterize_chunks(const std::vector<int> &indices);
 	// Open means connected to the outside. Every open cell that cannot reach
 	// the world's boundary through open cells is inside geometry (the hollow
 	// of an open mesh, a pocket sealed in rock, a room with no way in) and is

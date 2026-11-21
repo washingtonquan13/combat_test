@@ -113,6 +113,40 @@ void parallel_for(int count, F &&work) {
 }
 } // namespace
 
+String NavigationGrid::debug_field_hash() const {
+	uint64_t h = 1469598103934665603ull;
+	auto mix = [&](const void *data, size_t bytes) {
+		const uint8_t *p = (const uint8_t *)data;
+		for (size_t i = 0; i < bytes; i++) {
+			h = (h ^ p[i]) * 1099511628211ull;
+		}
+	};
+	std::vector<uint8_t> u8;
+	std::vector<uint16_t> u16;
+	for (size_t i = 0; i < chunks.size(); i++) {
+		const NavChunk *c = chunks[i].get();
+		uint8_t state[4] = { (uint8_t)(c != nullptr), (uint8_t)(c && c->rasterized), (uint8_t)(c && c->support_baked), (uint8_t)(c && c->dist_baked) };
+		mix(&i, sizeof(i));
+		mix(state, sizeof(state));
+		if (!c) {
+			continue;
+		}
+		if (c->rasterized) {
+			mix(c->solid.dense(u8), BrickField<uint8_t>::CELLS);
+			mix(c->ground.dense(u8), BrickField<uint8_t>::CELLS);
+		}
+		if (c->support_baked) {
+			mix(c->no_support.dense(u8), BrickField<uint8_t>::CELLS);
+			mix(c->flight_low.dense(u8), BrickField<uint8_t>::CELLS);
+			mix(c->flight_high.dense(u8), BrickField<uint8_t>::CELLS);
+		}
+		if (c->dist_baked) {
+			mix(c->dist.dense(u16), BrickField<uint16_t>::CELLS * sizeof(uint16_t));
+		}
+	}
+	return String::num_uint64(h, 16);
+}
+
 Dictionary NavigationGrid::debug_bake_profile() const {
 	Dictionary d;
 	for (int i = 0; i < STAGE_COUNT; i++) {
@@ -163,16 +197,18 @@ bool NavigationGrid::every_chunk_baked() const {
 	return true;
 }
 
-// Whatever tiers any chunk lacks. Rasterizing reads the scene and stays on
-// this thread; each later tier reads only tiers before it and writes only
+// Whatever tiers any chunk lacks. Rasterizing spreads over the cores from
+// snapshots (rasterize_chunks); each later tier reads only tiers before it and writes only
 // its own chunk, so it runs across cores, one phase at a time. A phase must
 // finish every chunk before the next begins: a worker that found a tier
 // below it missing would bake it in a neighbour another worker is reading.
 void NavigationGrid::bake_missing_tiers() {
 	const int count = (int)chunks.size();
+	std::vector<int> all((size_t)count);
 	for (int i = 0; i < count; i++) {
-		ensure_chunk_rasterized(chunk_coord_from_index(i));
+		all[i] = i;
 	}
+	rasterize_chunks(all);
 	auto phase = [&](BakeStage stage, auto &&needs, auto &&work) {
 		StageClock clock(stage);
 		std::vector<int> todo;
@@ -287,6 +323,7 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_structure_stats", "since_search"), &NavigationGrid::debug_structure_stats, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_expansions"), &NavigationGrid::debug_expansions);
 	ClassDB::bind_method(D_METHOD("debug_bake_profile"), &NavigationGrid::debug_bake_profile);
+	ClassDB::bind_method(D_METHOD("debug_field_hash"), &NavigationGrid::debug_field_hash);
 	ClassDB::bind_method(D_METHOD("prebake", "world_ref"), &NavigationGrid::prebake);
 	ClassDB::bind_method(D_METHOD("debug_search_id"), &NavigationGrid::debug_search_id);
 	ClassDB::bind_method(D_METHOD("flight_highest_altitude", "tree", "world_ref"), &NavigationGrid::flight_highest_altitude, DEFVAL(Variant()));
@@ -1293,6 +1330,39 @@ inline float plane_height(const Vector3 &a, const Vector3 &n, float x, float z) 
 	return a.y - (n.x * (x - a.x) + n.z * (z - a.z)) / n.y;
 }
 
+// Dense ids 0, 1, 2... for 64-bit keys, in order of first sight: open
+// addressing over a flat table sized for `expected` keys. ~0 is no key.
+struct KeyIds {
+	std::vector<uint64_t> keys;
+	std::vector<uint32_t> ids;
+	uint64_t mask = 0;
+	int shift = 0;
+	uint32_t next = 0;
+	explicit KeyIds(size_t expected) {
+		size_t cap = 16;
+		int bits = 4;
+		while (cap < expected * 2) {
+			cap <<= 1;
+			bits++;
+		}
+		keys.assign(cap, ~0ull);
+		ids.resize(cap);
+		mask = cap - 1;
+		shift = 64 - bits;
+	}
+	uint32_t id(uint64_t key) {
+		for (uint64_t h = (key * 0x9E3779B97F4A7C15ull) >> shift;; h = (h + 1) & mask) {
+			if (keys[h] == key) {
+				return ids[h];
+			}
+			if (keys[h] == ~0ull) {
+				keys[h] = key;
+				return ids[h] = next++;
+			}
+		}
+	}
+};
+
 uint64_t vertex_key(const Vector3 &p) {
 	auto q = [](float f) -> uint64_t {
 		int64_t i = (int64_t)std::llround(f / 0.01f) + (1 << 20);
@@ -1489,28 +1559,37 @@ bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
 		return false;
 	}
 
-	std::unordered_map<uint64_t, int> vertex_ids;
-	auto vid = [&](const Vector3 &p) {
-		auto it = vertex_ids.emplace(vertex_key(p), (int)vertex_ids.size());
-		return (uint64_t)it.first->second;
-	};
-	std::vector<uint64_t> edges(count * 3);
-	std::unordered_map<uint64_t, int> edge_uses;
+	// Which triangles share an edge. Vertices weld by vertex_key; an edge
+	// is its two welded vertices, lower first. Dense ids through KeyIds: a
+	// terrain has hundreds of thousands of triangles, and a std hash map
+	// per vertex and per edge cost it half a second.
+	const size_t slots = count * 3;
+	KeyIds vertex_ids(slots);
+	std::vector<uint32_t> vid(slots);
+	for (size_t v = 0; v < slots; v++) {
+		vid[v] = vertex_ids.id(vertex_key(out.verts[v]));
+	}
+	KeyIds edge_ids(slots);
+	std::vector<uint32_t> edge_of(slots); // slot i * 3 + k: edge k of triangle i
+	std::vector<uint32_t> edge_uses;
 	for (size_t i = 0; i < count; i++) {
-		uint64_t ids[3] = { vid(out.verts[i * 3]), vid(out.verts[i * 3 + 1]), vid(out.verts[i * 3 + 2]) };
 		for (int k = 0; k < 3; k++) {
-			uint64_t p = ids[k], q = ids[(k + 1) % 3];
-			edges[i * 3 + k] = (std::min(p, q) << 32) | std::max(p, q);
-			edge_uses[edges[i * 3 + k]]++;
+			uint64_t p = vid[i * 3 + k], q = vid[i * 3 + (k + 1) % 3];
+			uint32_t e = edge_ids.id((std::min(p, q) << 32) | std::max(p, q));
+			if (e == edge_uses.size()) {
+				edge_uses.push_back(0);
+			}
+			edge_uses[e]++;
+			edge_of[i * 3 + k] = e;
 		}
+	}
+	bool closed = true;
+	for (uint32_t uses : edge_uses) {
+		closed &= uses == 2;
 	}
 	// A closed mesh wound inside out (negative volume) is flipped, so its
 	// normals point out of the solid either way.
 	if (closed_kind) {
-		bool closed = true;
-		for (const auto &e : edge_uses) {
-			closed &= e.second == 2;
-		}
 		float volume = 0.0f;
 		for (size_t i = 0; i < count; i++) {
 			const Vector3 &a = out.verts[i * 3], &b = out.verts[i * 3 + 1], &c = out.verts[i * 3 + 2];
@@ -1524,14 +1603,18 @@ bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
 	}
 
 	std::vector<uint8_t> walkable(count, 0);
-	std::unordered_map<uint64_t, int> walkable_uses;
 	for (size_t i = 0; i < count; i++) {
 		float tan_tilt;
 		if (tri_walkable(out.normals[i], MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
 			walkable[i] = 1;
 			out.any_walkable = true;
+		}
+	}
+	std::vector<uint32_t> walkable_uses(edge_uses.size(), 0);
+	for (size_t i = 0; i < count; i++) {
+		if (walkable[i]) {
 			for (int k = 0; k < 3; k++) {
-				walkable_uses[edges[i * 3 + k]]++;
+				walkable_uses[edge_of[i * 3 + k]]++;
 			}
 		}
 	}
@@ -1540,7 +1623,7 @@ bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
 	for (size_t i = 0; i < count; i++) {
 		if (walkable[i]) {
 			for (int k = 0; k < 3; k++) {
-				if (walkable_uses[edges[i * 3 + k]] < 2) {
+				if (walkable_uses[edge_of[i * 3 + k]] < 2) {
 					out.open_edge[i] = 1;
 					out.outer_edge[i * 3 + k] = 1;
 				}
@@ -1962,7 +2045,68 @@ static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, in
 	return true;
 }
 
-void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill) {
+PrimShape NavigationGrid::snapshot_prim(CollisionShape3D *cs) {
+	PrimShape p;
+	Ref<Shape3D> shape = cs->get_shape();
+	p.inverse = cs->get_global_transform().affine_inverse();
+	p.aabb = shape_global_aabb(cs);
+	if (BoxShape3D *box = Object::cast_to<BoxShape3D>(shape.ptr())) {
+		p.kind = PrimShape::BOX;
+		p.half_size = box->get_size() * 0.5f;
+	} else if (SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr())) {
+		p.kind = PrimShape::SPHERE;
+		p.radius = sphere->get_radius();
+	} else if (CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr())) {
+		p.kind = PrimShape::CYLINDER;
+		p.radius = cylinder->get_radius();
+		p.height = cylinder->get_height();
+	} else if (CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr())) {
+		p.kind = PrimShape::CAPSULE;
+		p.radius = capsule->get_radius();
+		p.height = capsule->get_height();
+	}
+	p.is_ramp = ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, p.ramp);
+	return p;
+}
+
+// Rasterizing reads only the triangles built at scan and the primitives'
+// snapshots, and each chunk writes only its own fields, so the chunks
+// spread over the cores. Slots and snapshots are made here first, on this
+// thread: the workers never touch the scene or the chunk list.
+void NavigationGrid::rasterize_chunks(const std::vector<int> &indices) {
+	std::vector<int> todo;
+	PrimShapes prims;
+	for (int i : indices) {
+		std::unique_ptr<NavChunk> &slot = chunks[i];
+		if (!slot) {
+			slot = std::make_unique<NavChunk>();
+		}
+		if (slot->rasterized) {
+			continue;
+		}
+		todo.push_back(i);
+		auto it = shapes_by_chunk.find(i);
+		if (it == shapes_by_chunk.end()) {
+			continue;
+		}
+		for (CollisionShape3D *cs : it->second) {
+			if (tri_shapes.find(cs) == tri_shapes.end() && prims.find(cs) == prims.end()) {
+				prims.emplace(cs, snapshot_prim(cs));
+			}
+		}
+	}
+	if (todo.empty()) {
+		return;
+	}
+	StageClock clock(STAGE_RASTERIZE);
+	parallel_for((int)todo.size(), [&](int s) {
+		const int i = todo[s];
+		rasterize_chunk(chunk_coord_from_index(i), *chunks[i], nullptr, &prims);
+		chunks[i]->rasterized = true;
+	});
+}
+
+void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill, const PrimShapes *prims) {
 	auto it = shapes_by_chunk.find(chunk_coord_index(chunk_coord));
 	if (it == shapes_by_chunk.end()) {
 		// No geometry touches this chunk: all air, nothing allocated.
@@ -1986,20 +2130,22 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 			rasterize_tri_shape(*tri->second, chunk_coord, chunk, walkable_tris);
 			continue;
 		}
-		Ref<Shape3D> shape = cs->get_shape();
-		Transform3D global_transform = cs->get_global_transform();
-		AABB aabb = shape_global_aabb(cs);
-		BoxShape3D *box = Object::cast_to<BoxShape3D>(shape.ptr());
-		bool is_box = box != nullptr;
-		Vector3 half_size = is_box ? box->get_size() * 0.5f : Vector3();
+		PrimShape own;
+		const PrimShape *prim;
+		if (prims) {
+			prim = &prims->at(cs);
+		} else {
+			own = snapshot_prim(cs);
+			prim = &own;
+		}
+		const AABB &aabb = prim->aabb;
+		const Transform3D &inverse = prim->inverse;
+		const Vector3 &half_size = prim->half_size;
 		// Round primitives are tested exactly too, in their own space.
-		SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr());
-		CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr());
-		CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr());
-		Transform3D inverse = global_transform.affine_inverse();
-		RampInfo ramp;
-		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
-			ramps.push_back(ramp);
+		const PrimShape::Kind kind = prim->kind;
+		const float r = prim->radius;
+		if (prim->is_ramp) {
+			ramps.push_back(prim->ramp);
 		}
 
 		// Only the cells whose centres can lie in the shape's bounding box:
@@ -2016,19 +2162,17 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					Vector3i cell = base + Vector3i(x, y, z);
 					Vector3 world_point = cell_center(cell);
 					bool inside;
-					if (is_box) {
+					if (kind == PrimShape::BOX) {
 						Vector3 local = inverse.xform(world_point);
 						inside = std::abs(local.x) <= half_size.x && std::abs(local.y) <= half_size.y && std::abs(local.z) <= half_size.z;
-					} else if (sphere) {
-						inside = inverse.xform(world_point).length() <= sphere->get_radius();
-					} else if (cylinder) {
+					} else if (kind == PrimShape::SPHERE) {
+						inside = inverse.xform(world_point).length() <= r;
+					} else if (kind == PrimShape::CYLINDER) {
 						Vector3 local = inverse.xform(world_point);
-						float r = cylinder->get_radius();
-						inside = std::abs(local.y) <= cylinder->get_height() * 0.5f && local.x * local.x + local.z * local.z <= r * r;
-					} else if (capsule) {
+						inside = std::abs(local.y) <= prim->height * 0.5f && local.x * local.x + local.z * local.z <= r * r;
+					} else if (kind == PrimShape::CAPSULE) {
 						Vector3 local = inverse.xform(world_point);
-						float r = capsule->get_radius();
-						float core = std::max(0.0f, capsule->get_height() * 0.5f - r);
+						float core = std::max(0.0f, prim->height * 0.5f - r);
 						local.y = std::max(0.0f, std::abs(local.y) - core);
 						inside = local.length() <= r;
 					} else {
@@ -2167,9 +2311,20 @@ std::vector<int> NavigationGrid::seal_interiors() {
 		shaped[i] = shapes_by_chunk.find(i) != shapes_by_chunk.end();
 	}
 
-	// Label every chunk with shapes whose labels are stale: rasterize on
-	// this thread (it reads the scene), then label across cores (each
-	// reads only its own solid[] and writes only its own labels).
+	// Label every chunk with shapes whose labels are stale: rasterize
+	// across cores (rasterize_chunks), then label across cores too (each
+	// reads only its own solid[] and writes only its own labels). Labels
+	// describe the raw raster; one about to be laid makes them stale.
+	std::vector<int> unrasterized;
+	for (int i = 0; i < n; i++) {
+		if (shaped[i] && (!chunks[i] || !chunks[i]->rasterized)) {
+			unrasterized.push_back(i);
+			if (chunks[i]) {
+				chunks[i]->seal.valid = false;
+			}
+		}
+	}
+	rasterize_chunks(unrasterized);
 	std::vector<int> stale;
 	std::vector<uint8_t> relabelled((size_t)n, 0);
 	for (int i = 0; i < n; i++) {

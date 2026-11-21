@@ -33,4 +33,4 @@ So:
 - A room with walls and a roof and no opening is solid inside too. A room meant to be entered needs an opening, at least one cell (0.25 m) wide; a unit needs a much wider one to walk through.
 - A crack that only a diagonal step gets through does not count as an opening. No unit fits through it anyway.
 
-Cost: every chunk a shape touches is rasterized at the bake rather than lazily, and labelled by runs of open cells. A chunk no shape touches costs one node. Run Godot with `--verbose` to see the chunk counts, the cells sealed and the time it took.
+Cost: every chunk a shape touches is rasterized at the bake rather than lazily, and labelled by runs of open cells. A chunk no shape touches costs one node. Rasterizing spreads over the cores; the scene is read once, on the main thread, when shapes are scanned. Run Godot with `--verbose` to see the chunk counts, the cells sealed and the time it took.
