@@ -227,7 +227,9 @@ func _timeline_root() -> Node:
 
 
 ## [animation name, track index, role] for every Animation Playback track
-## that plays a player inside a role's body.
+## that plays a player inside a role's body. Told by the path alone: the
+## player a track was keyed against in the editor need not exist in game
+## (the editor can show a model two players where the game builds one).
 func _clip_tracks(timeline_root: Node) -> Array:
 	var found: Array = []
 	var player: AnimationPlayer = timeline()
@@ -238,9 +240,12 @@ func _clip_tracks(timeline_root: Node) -> Array:
 		for track in clip.get_track_count():
 			if clip.track_get_type(track) != Animation.TYPE_ANIMATION:
 				continue
-			var plays: Node = timeline_root.get_node_or_null(clip.track_get_path(track))
+			var path: String = String(clip.track_get_path(track))
 			for role: CutsceneRole in _roles:
-				if plays and role.body and role.body.is_ancestor_of(plays):
+				if role.body == null:
+					continue
+				var body_path: String = String(timeline_root.get_path_to(role.body))
+				if path.begins_with(body_path + "/"):
 					found.append([clip_name, track, role])
 	return found
 

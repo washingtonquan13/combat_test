@@ -28,7 +28,9 @@ skip_to_end, commit_stand_ins, unbind.
 
 - **Owner of the performance: the scene's own Timeline.** A `Cutscene` (`cutscene.gd`) has no beats.
   Position keys move a `CutsceneRole`, Animation Playback keys play its body's clips, a discrete key
-  on `Cutscene.shot` cuts the camera, a Call Method key on `say(who, text)` is a line.
+  on `Cutscene.shot` cuts the camera, a Call Method key on `say(who, text)` is a line. A clip track
+  belongs to the role whose body its path runs through, and in game plays that body's own player,
+  whatever player it was keyed against (the editor shows CC models a second, `AnimationPlayer2`).
 - **Owner of who is in it: `CutsceneRole`** (`cutscene_role.gd`). Finds its unit (caller's cast, the
   leader, or a unit of its definition; otherwise spawns one, which stays), swaps its preview body for
   a copy of the unit's (`StandIn.copy_body`), hides the unit, and puts it where the body ended.
