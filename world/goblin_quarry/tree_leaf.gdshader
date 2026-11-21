@@ -25,6 +25,9 @@ uniform vec3 tint_a = vec3(0.78, 0.92, 0.72);
 uniform vec3 tint_b = vec3(1.02, 0.98, 0.76);
 uniform vec3 young = vec3(1.08, 1.08, 0.8);
 uniform vec3 old = vec3(0.8, 0.88, 0.86);
+// Fallen leaves round a trunk (COLOR.b, plant_gen.gd's _skirt()): this much
+// of the colour goes to a dry brown of the same brightness.
+uniform vec3 litter = vec3(1.25, 0.95, 0.6);
 uniform float translucency = 0.6;
 uniform vec3 transmit = vec3(1.1, 1.3, 0.5);
 uniform float wrap = 0.5;
@@ -50,6 +53,7 @@ void fragment() {
 		NORMAL = -NORMAL;
 	}
 	vec3 c = t.rgb * mix(tint_a, tint_b, COLOR.g) * mix(old, young, age) * COLOR.r;
+	c = mix(c, vec3(dot(c, vec3(0.333))) * litter, COLOR.b);
 	ALBEDO = c;
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;

@@ -8,6 +8,7 @@ extends RefCounted
 # need nothing per tree:
 #   COLOR.r  ambient occlusion: dark deep in the crown and low down
 #   COLOR.g  a per-branch random number, for tint
+#   COLOR.b  on leaf cards, how much a card is fallen litter (browned)
 #   COLOR.a  height up the tree, 0..1
 #   UV2.x    how far out from the trunk (metres); branches bend with it
 #   UV2.y    a per-branch phase, so branches don't move in step
@@ -470,6 +471,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 		var r := rf * (0.9 if i == 0 else rng.randf_range(0.65, 0.8))
 		_bough(bark, leaf, top + Vector3.DOWN * r0 * 1.5, dir, len + r0 * 1.5, r, 0, rng.randf(), r0 * TAU)
 	_clusters(leaf)
+	_skirt(bark, leaf, r0, detail)
 	_broad = false
 	_cells = FIR_CELLS
 	return [bark, leaf]
@@ -716,6 +718,80 @@ func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float, size: float)
 	# The cluster's stem is the bottom fifth of its cell, so the card's base
 	# starts a little back along the branch.
 	_card(leaf, p - along * l * 0.12, along, side, l, l, rng.randi(), tint, 1.0)
+
+
+# ---------------------------------------------------------------- skirt
+
+func _skirt(bark: Surf, leaf: Surf, r0: float, detail: float) -> void:
+	# What a trunk stands in (change 7 of docs/plans/bg3_foliage_study.md):
+	# roots running on out of the bole's buttresses and down into the soil,
+	# and a ring of fallen leaf clusters. Call it straight after the trunk's
+	# _tube(), whose lobes it follows. Its own generator, so the crown above
+	# doesn't change.
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = hash(rng.seed * 53 + 11)
+	var sides := 6 if detail >= 1.0 else 4
+	for k in _lobes:
+		# Where the bole's lobe is fullest (see _bole_r()), round the
+		# trunk's base ring, whose angle 0 points along -z and pi/2 along +x.
+		var a := (TAU * k - _lobe_off) / _lobes
+		var strength := 1.0 + 0.4 * sin(a + _lobe_off * 1.7)
+		_root(bark, r2, a, r0, r0 * 0.7 * strength, r0 * r2.randf_range(3.5, 5.5) * strength, sides, detail)
+	# A few thinner roots between the buttresses.
+	if detail >= 1.0:
+		for k in r2.randi_range(1, 3):
+			var a := (TAU * (r2.randi() % _lobes + 0.5) - _lobe_off) / _lobes
+			_root(bark, r2, a, r0, r0 * 0.35, r0 * r2.randf_range(2.5, 4.0), 4, detail)
+	# Litter: leaf clusters lying flat round the base, browned (COLOR.b).
+	# They dip outward a little, about the slope a tree stands on, so the
+	# ground swallows their rims rather than letting them float.
+	var cells := 14 if detail >= 1.0 else 7
+	var reach := maxf(_h * 0.16, r0 * 6.0)
+	for i in cells:
+		var az := TAU * (i + r2.randf_range(-0.35, 0.35)) / cells
+		var d := r0 * 2.0 + reach * sqrt(r2.randf())
+		var l := clampf(_h * 0.09, 0.35, 0.9) * r2.randf_range(0.8, 1.25) / sqrt(maxf(detail, 0.4))
+		var along := _h_dir(r2.randf() * TAU)
+		var side := Vector3.UP.cross(along).normalized()
+		var centre := _h_dir(az) * d
+		var cell: int = _cells[r2.randi() % _cells.size()]
+		var c0 := Vector2(cell % 4, cell / 4) * 0.25 + Vector2(0.004, 0.004)
+		var c1 := c0 + Vector2(0.242, 0.242)
+		var dead := r2.randf_range(0.55, 1.0)
+		var tint := r2.randf()
+		var first := leaf.v.size()
+		for r in 2:
+			for c in 2:
+				var q := centre + along * (r - 0.5) * l + side * (c - 0.5) * l
+				q.y = 0.03 - Vector2(q.x, q.z).length() * 0.18
+				leaf.vert(q, Vector3.UP, Vector2(lerpf(c0.x, c1.x, c), lerpf(c1.y, c0.y, r)),
+					Vector2.ZERO, Color(r2.randf_range(0.5, 0.7), tint, dead, 0.0))
+		leaf.tri(first, first + 2, first + 1)
+		leaf.tri(first + 1, first + 2, first + 3)
+
+
+func _root(bark: Surf, r2: RandomNumberGenerator, a: float, r0: float, rad: float, length: float, sides: int, detail: float) -> void:
+	# Out of the buttress, along the ground half sunk, then down under it.
+	var out := Vector3(sin(a), 0.0, -cos(a))
+	var wander := r2.randf_range(-0.35, 0.35)
+	var pts: Array[Vector3] = []
+	var radii: Array[float] = []
+	var steps := 7 if detail >= 1.0 else 4
+	for i in steps + 1:
+		var t := float(i) / steps
+		var d := lerpf(r0 * 1.2, length, t)
+		var dir := out.rotated(Vector3.UP, wander * t * t + 0.12 * sin(t * 7.0 + a * 3.0))
+		var r := rad * lerpf(1.0, 0.3, t)
+		# From high in the bole down its flank, then along the ground with
+		# about a third of the root above it, then diving under.
+		var y := lerpf(r0 * 1.8, -r * 0.4, smoothstep(0.0, 0.4, t)) - smoothstep(0.55, 1.0, t) * (r * 1.6 + 0.08)
+		pts.append(dir * d + Vector3.UP * y)
+		radii.append(r)
+	var first := bark.v.size()
+	_tube(bark, pts, radii, sides, 0.0, 0.85, r0 * TAU)
+	# Rooted in the ground: no wind (UV2.x is reach from the trunk).
+	for i in range(first, bark.v.size()):
+		bark.uv2[i] = Vector2.ZERO
 
 
 # ---------------------------------------------------------------- output

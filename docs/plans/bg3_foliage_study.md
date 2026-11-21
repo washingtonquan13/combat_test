@@ -3,8 +3,8 @@
 Studied 2026-11-21. The BG3 assets were read from the installed game's paks
 for reference only. None of them are, or will be, in this project. Measured
 with offline scripts (the scratchpad `bg3study/` set: `glbstat.py`,
-`trunkstat.py`, `raster.py`). Changes 1–6 are built (see "Built" at the
-end); 7 and 8 are not.
+`trunkstat.py`, `raster.py`). Changes 1–7 are built (see "Built" at the
+end); 8 is not.
 
 ## What was compared
 
@@ -228,3 +228,57 @@ Checked with an offline render (scratchpad `raster4.py`: interpolated
 vertex normals plus the surface map, tangents from each triangle's UVs).
 Before, a clump lit evenly; after, each leaf catches the light on its own
 and the clump is lit on its sunward side and dark underneath.
+
+## Built: change 7 (2026-11-21)
+
+**Roots.** `plant_gen.gd`'s `_skirt()` runs at the end of `broadleaf()`. One
+root grows out of each of the bole's buttress lobes (`_lobes`, at the angle
+where `_bole_r` is fullest, thicker on the stronger lobes), 0.7·r0 thick
+and 3.5–5.5·r0 long, tapering to 0.3. Each starts inside the flare, bends
+down to the ground within its first 40%, wanders a little sideways, and
+dives below the ground over its last half, so the tip sinks instead of
+ending in a cap. Near meshes add 1–3 thinner roots between lobes. Roots
+are bark (same tube code, AO 0.85) with UV2 zero, so the wind leaves them
+still. The bark shader's own moss (up-facing, near the ground) lands on
+their tops.
+
+**Leaf litter.** A ring of flat leaf-cluster cards on the ground around
+the trunk (14 near, 7 far), out to the larger of 16% of the height and
+6·r0, dipping slightly outward so they sit on gentle slopes. They are leaf
+cards (same atlas and material), UV2 zero, with the new `COLOR.b` set to
+how dead each is (0.55–1.0). `tree_leaf.gdshader` greys and browns a card
+by that amount (`litter`, default (1.25, 0.95, 0.6) on the grey).
+
+The roots and litter draw from their own generator, so the trunk and crown
+are unchanged.
+
+| | near bark | near leaf | far bark | far leaf |
+|---|---|---|---|---|
+| isle 0 | 4552 → 5112 | 696 → 724 | 1552 → 1744 | 90 → 104 |
+| isle 1 | 6048 → 6552 | 816 → 844 | 1824 → 1952 | 98 → 112 |
+| isle 2 | 3240 → 3800 | 472 → 500 | 1104 → 1296 | 66 → 80 |
+| isle 3 | 3696 → 4312 | 728 → 756 | 1104 → 1296 | 88 → 102 |
+
+About +560 triangles near and +170 far, per tree. The study guessed a few
+hundred.
+
+**Not built:**
+- **The dirt ring.** It would be ground paint around each tree, which means
+  a quarry rebake. The litter covers the same seam.
+- **The moss card layer on the bark.** `tree_bark.gdshader` already grows
+  moss on up-facing, shaded bark near the ground, which now includes the
+  roots.
+
+**Limits.**
+- Broadleaves only. Firs already get the quarry's `pine_roots` meshes, and
+  bushes have no trunk.
+- The roots assume flat ground. On a steep slope the downhill roots can
+  hover; the bake stands trees on the lowest ground under the trunk, which
+  hides most of it.
+- Other `gen_*` meshes changed by a few bytes in this regen: they now
+  reference `tree_leaf.gdshader` by its new uid. Their geometry is
+  unchanged.
+
+Checked with an offline render (scratchpad `raster7.py`, tilted 28°, geometry
+below the ground cut away).
+
