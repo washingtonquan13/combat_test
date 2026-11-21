@@ -74,6 +74,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_play_at_leader(HERO_PATH, HERO_ANCHOR)
 	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_L:
 		_play_keyed(MEETING_PATH)
+	elif event is InputEventKey and event.pressed and not event.echo and event.physical_keycode == KEY_K:
+		_play_placed()
 
 
 func _play_keyed(path: String) -> void:
@@ -81,6 +83,19 @@ func _play_keyed(path: String) -> void:
 		print("A scene is already playing.")
 		return
 	await CinematicDirector.play(load(path))
+
+
+## Plays the first Cutscene sitting in the area that is loaded.
+func _play_placed() -> void:
+	if CinematicDirector.is_active():
+		print("A scene is already playing.")
+		return
+	for found in get_tree().root.find_children("*", "Cutscene", true, false):
+		var placed := found as Cutscene
+		if placed and not placed.acting:
+			await CinematicDirector.play_placed(placed)
+			return
+	print("No Cutscene is placed in this area.")
 
 
 ## The demo and the hero meeting stage themselves around the leader: the

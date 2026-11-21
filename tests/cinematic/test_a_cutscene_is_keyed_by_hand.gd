@@ -75,6 +75,48 @@ func run() -> void:
 			StandIn.body_of(hero).visible and StandIn.body_of(visitor).visible)
 		free_spawned()
 		await get_tree().process_frame
+	await _placed(scene)
+
+
+## The same scene sitting in the area: played where it sits, twice, and
+## still there afterwards.
+func _placed(scene: PackedScene) -> void:
+	var hero: Unit = _spawn(HERO, Vector3(30.0, 0.0, 0.0))
+	var placed := scene.instantiate() as Cutscene
+	_spawn_parent().add_child(placed)
+	placed.global_position = hero.global_position
+	await get_tree().process_frame
+	check("placed: out of sight until it plays", not placed.is_visible_in_tree())
+	for turn in 2:
+		var result: Array = []
+		_play_placed(placed, SceneCast.new().track_unit(&"Hero", hero), result)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var acting := CinematicDirector._stage as Cutscene
+		check("placed %d: a copy acts, in sight, beside the placed one" % turn,
+			acting != null and acting != placed and acting.is_visible_in_tree()
+			and acting.get_parent() == placed.get_parent())
+		var visitor: Unit = _townsperson(hero)
+		if visitor and not _spawned.has(visitor):
+			_spawned.append(visitor)
+		CinematicDirector._skip_requested = true
+		while result.is_empty():
+			await get_tree().process_frame
+		await get_tree().process_frame
+		check("placed %d: the scene finished" % turn, result[0] == true)
+		check("placed %d: the placed scene is still there, whole and out of sight" % turn,
+			is_instance_valid(placed) and not placed.is_visible_in_tree()
+			and (placed.get_node("Townsperson") as CutsceneRole).body != null
+			and not is_instance_valid(acting))
+		check("placed %d: the units are shown again" % turn,
+			StandIn.body_of(hero).visible and visitor != null and StandIn.body_of(visitor).visible)
+	placed.queue_free()
+	free_spawned()
+	await get_tree().process_frame
+
+
+func _play_placed(placed: Cutscene, cast: SceneCast, result: Array) -> void:
+	result.append(await CinematicDirector.play_placed(placed, cast))
 
 
 func _play(scene: PackedScene, cast: SceneCast, result: Array) -> void:

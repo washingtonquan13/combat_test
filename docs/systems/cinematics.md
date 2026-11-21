@@ -34,6 +34,12 @@ skip_to_end, commit_stand_ins, unbind.
   a copy of the unit's (`StandIn.copy_body`), hides the unit, and puts it where the body ended.
 - **Owner of where it plays: `Cutscene.anchor`** (a role whose unit already stands in the world) or
   `anchor_mark`.
+- **A Cutscene can sit in an area** (owner: `CinematicDirector.play_placed(node)`). The placed node
+  is out of sight in game and is never the one that acts: it keeps itself as authored
+  (`Cutscene._authored`, taken on entering the tree, before its bodies add their sockets) and each
+  play runs a copy beside it (`acting_copy()`), freed at the end. `scene_started`/`scene_finished`
+  carry an empty PackedScene for it, so a placed scene has no authored music. K in a debug build plays
+  the first one in the loaded area.
 - First scene: `cinematics/townsperson_meeting.tscn` (L in a debug build). Plan and what retires:
   `systems/cinematic_system/SIMPLIFICATION_PLAN.md`.
 

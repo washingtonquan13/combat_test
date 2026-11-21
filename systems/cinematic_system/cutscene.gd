@@ -44,9 +44,39 @@ extends DirectedScene
 var _bound: bool = false
 var _waiting: bool = false
 var _roles: Array = []
+## Set by the director on a scene it puts into the world to act.
+var acting: bool = false
+## A cutscene sitting in an area keeps itself as it was authored, taken
+## before its bodies set themselves up, to make each play's copy from.
+var _authored: Cutscene = null
+
+
+func _enter_tree() -> void:
+	if not Engine.is_editor_hint() and not acting and _authored == null:
+		_authored = duplicate() as Cutscene
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and is_instance_valid(_authored):
+		_authored.free()
+
+
+## A fresh copy of this scene as authored, for the director to play.
+func acting_copy() -> Cutscene:
+	var copy := (_authored if _authored else self).duplicate() as Cutscene
+	if copy:
+		copy.acting = true
+	return copy
+
+
+func _ready() -> void:
+	# A cutscene sitting in an area is out of sight until it plays.
+	if not Engine.is_editor_hint() and not _bound:
+		visible = false
 
 
 func bind(cast: SceneCast) -> void:
+	visible = true
 	_roles.clear()
 	for found in find_children("*", "Node3D", true, false):
 		if found is CutsceneRole:

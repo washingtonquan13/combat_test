@@ -199,6 +199,9 @@ static func authored(scene: PackedScene, property: StringName, fallback: Variant
 	if scene == null:
 		return fallback
 	var state := scene.get_state()
+	# A scene played from a node in the area has no file behind it.
+	if state.get_node_count() == 0:
+		return fallback
 	for i in state.get_node_property_count(0):
 		if state.get_node_property_name(0, i) == property:
 			return state.get_node_property_value(0, i)

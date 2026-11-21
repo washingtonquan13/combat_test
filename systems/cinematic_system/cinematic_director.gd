@@ -148,6 +148,27 @@ func play(stage: PackedScene, cast: SceneCast = null, props: Dictionary = {},
 		animation: StringName = &"scene") -> bool:
 	if stage == null:
 		return false
+	return await _perform(stage, _mount.bind(stage, props), cast, animation)
+
+
+## Plays a Cutscene that already sits in the area, where it sits. The node
+## itself is left alone and can be played again: a copy of it does the
+## acting and goes when the scene ends.
+##
+## Listeners are handed a scene with no file, since there is none.
+func play_placed(placed: Cutscene, cast: SceneCast = null,
+		animation: StringName = &"scene") -> bool:
+	if not is_instance_valid(placed) or not placed.is_inside_tree():
+		return false
+	var token := PackedScene.new()
+	token.resource_name = String(placed.name)
+	return await _perform(token, _mount_copy.bind(placed), cast, animation)
+
+
+## `mount` is called with the cast and returns the scene put into the
+## world and bound, or null.
+func _perform(stage: PackedScene, mount: Callable, cast: SceneCast,
+		animation: StringName) -> bool:
 	if _running != null:
 		push_warning("CinematicDirector.play refused: '%s' is already running."
 			% _running.resource_path)
@@ -164,7 +185,7 @@ func play(stage: PackedScene, cast: SceneCast = null, props: Dictionary = {},
 	players.tree = get_tree()
 	scene_started.emit(stage)
 
-	var mounted: DirectedScene = _mount(stage, players, props)
+	var mounted: DirectedScene = mount.call(players) as DirectedScene
 	_stage = mounted
 	if mounted and overlay():
 		overlay().enter()
@@ -225,7 +246,7 @@ func _input(event: InputEvent) -> void:
 ## Under WorldManager.spawn_parent(), the same place every runtime spawn
 ## goes — a Node3D only renders in the World3D of the viewport above it, so
 ## a stage parented anywhere else would be staging a scene nobody can see.
-func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> DirectedScene:
+func _mount(cast: SceneCast, scene: PackedScene, props: Dictionary) -> DirectedScene:
 	var parent: Node = WorldManager.spawn_parent()
 	if parent == null:
 		push_warning("CinematicDirector: nowhere to put '%s' — no world." % scene.resource_path)
@@ -248,9 +269,22 @@ func _mount(scene: PackedScene, cast: SceneCast, props: Dictionary) -> DirectedS
 	var stocked: Dictionary = (stage.get(&"props") as Dictionary).duplicate()
 	stocked.merge(props, true)
 	stage.set(&"props", stocked)
+	if stage is Cutscene:
+		stage.acting = true
 	parent.add_child(stage)
 	stage.bind(cast)
 	return stage
+
+
+## A copy of a placed Cutscene, beside it and where it stands.
+func _mount_copy(cast: SceneCast, placed: Cutscene) -> DirectedScene:
+	var copy: Cutscene = placed.acting_copy()
+	if copy == null:
+		return null
+	placed.get_parent().add_child(copy)
+	copy.global_transform = placed.global_transform
+	copy.bind(cast)
+	return copy
 
 
 ## Runs the stage's timeline to its end, or until this play is cancelled.
