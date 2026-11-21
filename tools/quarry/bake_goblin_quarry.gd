@@ -2,7 +2,9 @@ extends SceneTree
 
 # Bakes the Old Quarry: a sculpted bowl in rolling hills, dressed with scanned
 # rocks and plants, with collision the nav grid reads as exact triangles.
-# Writes world/goblin_quarry/terrain.scn and rewrites world/goblin_quarry.tscn
+# Writes world/goblin_quarry/terrain.scn (which instances grass.scn, the grass
+# saved on its own; tools/quarry/regen_grass.gd remakes it without a rebake)
+# and rewrites world/goblin_quarry.tscn
 # from the retired blockout: the blockout's ground goes, its town, camp,
 # units, exit and ladder stay and are seated on the new ground. Across a ridge
 # to the east stands the palisade camp (tools/quarry/raid_camp_builder.gd),
@@ -148,24 +150,8 @@ func _initialize() -> void:
 		push_error("Run the quarry bake windowed: headless Godot saves every MultiMesh transform as zero.")
 		quit(1)
 		return
-	_rng.seed = 41
-	_warp.seed = 3
-	_warp.frequency = 0.09
-	_big.seed = 8
-	_big.frequency = 0.05
-	_small.seed = 12
-	_small.frequency = 0.35
-	_patch.seed = 21
-	_patch.frequency = 0.11
-	for i in STREAM.size() - 1:
-		_stream_len += (STREAM[i] as Vector2).distance_to(STREAM[i + 1])
-	_hA = _h_base(RAMP_A.x, RAMP_A.y)
-	_hB = _h_base(RAMP_B.x, RAMP_B.y)
-
 	var t0 := Time.get_ticks_msec()
-	_plan_water()
-	_bake_heights()
-	print("heights %d x %d in %d ms" % [_nx, _nz, Time.get_ticks_msec() - t0])
+	_shape()
 	if dump >= 0:
 		_plan_trees()
 		_dump_heights(args[dump + 1])
@@ -205,8 +191,12 @@ func _initialize() -> void:
 	_build_campfire(root)
 	_flush_batches(clutter)
 	_build_props()
-	_build_grass(root)
 	_own(root, root)
+	# The grass is its own scene, instanced here: regen_grass.gd remakes it
+	# alone, and terrain.scn keeps pointing at it.
+	var grass: Node = _save_grass().instantiate()
+	root.add_child(grass)
+	grass.owner = root
 	var packed := PackedScene.new()
 	packed.pack(root)
 	var err := ResourceSaver.save(packed, OUT + "terrain.scn", ResourceSaver.FLAG_COMPRESS)
@@ -227,6 +217,28 @@ func _initialize() -> void:
 	_patch_scene()
 	print("bake %s in %d ms" % ["OK" if ok else "WITH FLOOD FAILURES", Time.get_ticks_msec() - t0])
 	quit(0 if ok else 1)
+
+
+func _shape() -> void:
+	# The noises, the water and the height grid: everything the ground's
+	# shape and paint read. regen_grass.gd starts here too.
+	_rng.seed = 41
+	_warp.seed = 3
+	_warp.frequency = 0.09
+	_big.seed = 8
+	_big.frequency = 0.05
+	_small.seed = 12
+	_small.frequency = 0.35
+	_patch.seed = 21
+	_patch.frequency = 0.11
+	for i in STREAM.size() - 1:
+		_stream_len += (STREAM[i] as Vector2).distance_to(STREAM[i + 1])
+	_hA = _h_base(RAMP_A.x, RAMP_A.y)
+	_hB = _h_base(RAMP_B.x, RAMP_B.y)
+	var t0 := Time.get_ticks_msec()
+	_plan_water()
+	_bake_heights()
+	print("heights %d x %d in %d ms" % [_nx, _nz, Time.get_ticks_msec() - t0])
 
 
 # ---------------------------------------------------------------- shape
@@ -2083,6 +2095,9 @@ func _emit_scatter(parent: Node3D, node_name: String, mesh: Mesh, sc: Scatter, r
 	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	inst.layers = SEE_THROUGH
 	inst.visibility_range_end = range_end
+	# Wind bends the tips past the mesh's box; no GI bake or probe reads grass.
+	inst.extra_cull_margin = 0.5
+	inst.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
 	parent.add_child(inst)
 	return sc.xforms.size()
 
@@ -2091,14 +2106,35 @@ func _emit_scatter(parent: Node3D, node_name: String, mesh: Mesh, sc: Scatter, r
 const GRASS_STEP := 0.26
 
 
-func _build_grass(root: Node3D) -> void:
+## The grass's own random stream, so the rest of the bake can change without
+## moving a blade. It starts from the state the bake's shared stream had when
+## grass was last placed from it (2026-11-21, read by a dry run), so moving
+## the grass out of terrain.scn kept every clump where it was.
+const GRASS_RNG_STATE := -6527187743230277497
+var _grng := RandomNumberGenerator.new()
+
+
+func _save_grass() -> PackedScene:
+	# Builds the grass and saves it as grass.scn. Needs _shape(),
+	# _plan_trees() (the floor under trees is bare) and _walk_in_house().
+	var grass := _build_grass()
+	_own(grass, grass)
+	var packed := PackedScene.new()
+	packed.pack(grass)
+	var err := ResourceSaver.save(packed, OUT + "grass.scn", ResourceSaver.FLAG_COMPRESS | ResourceSaver.FLAG_CHANGE_PATH)
+	print("grass.scn: err %d, %d KB" % [err, FileAccess.get_file_as_bytes(OUT + "grass.scn").size() / 1024])
+	grass.free()
+	return packed
+
+
+func _build_grass() -> Node3D:
 	# Two layers. Grass: a dense carpet of short wide clumps over every grassy
 	# spot, with tall tufts standing out of it in patches. Meadow: clover in
 	# colonies, flowers in drifts of one colour, dry stalks in dry spots and
 	# the odd weed rosette, all from meadow_plants.png.
+	_grng.state = GRASS_RNG_STATE
 	var grass := Node3D.new()
 	grass.name = "Grass"
-	root.add_child(grass)
 	var tall := _card_clump(6, Vector2(20, 34), Vector2(0.36, 0.46), Vector2(0.62, 0.82), 3, 5, 3)
 	var carpet := _card_clump(6, Vector2(28, 44), Vector2(0.4, 0.5), Vector2(0.34, 0.44), 2, 9, 2)
 	var upright := _card_clump(3, Vector2(4, 12), Vector2(0.36, 0.44), Vector2(0.42, 0.52), 1, 13)
@@ -2122,23 +2158,23 @@ func _build_grass(root: Node3D) -> void:
 			# up and leave bare holes at any density.
 			var cells_n := int(chunk / GRASS_STEP)
 			for i in cells_n * cells_n:
-				var x := cx + (i % cells_n + _rng.randf()) * GRASS_STEP
-				var z := cz + (i / cells_n + _rng.randf()) * GRASS_STEP
+				var x := cx + (i % cells_n + _grng.randf()) * GRASS_STEP
+				var z := cz + (i / cells_n + _grng.randf()) * GRASS_STEP
 				var g := _grassiness(x, z)
-				if g < 0.08 or g < _rng.randf() * 0.5:
+				if g < 0.08 or g < _grng.randf() * 0.5:
 					continue
 				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
 					continue
 				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
-				var tint := Color(1.0 + v * 0.12 + _rng.randf() * 0.08, 1.0 + _rng.randf() * 0.08, 0.95 + v * 0.08)
+				var tint := Color(1.0 + v * 0.12 + _grng.randf() * 0.08, 1.0 + _grng.randf() * 0.08, 0.95 + v * 0.08)
 				var at := Vector3(x, _gy(x, z) - 0.02, z)
-				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
-				if _rng.randf() < lerpf(0.12, 0.7, stand) * g:
-					var size := _rng.randf_range(0.8, 1.2) * lerpf(0.6, 0.95, g) * lerpf(0.8, 1.4, stand)
+				var spin := Basis(Vector3.UP, _grng.randf() * TAU)
+				if _grng.randf() < lerpf(0.12, 0.7, stand) * g:
+					var size := _grng.randf_range(0.8, 1.2) * lerpf(0.6, 0.95, g) * lerpf(0.8, 1.4, stand)
 					t_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint, Color(0, 2, 4, 0))
 				else:
-					var size := _rng.randf_range(0.8, 1.2) * lerpf(0.55, 1.0, g)
+					var size := _grng.randf_range(0.8, 1.2) * lerpf(0.55, 1.0, g)
 					c_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint * 0.94, Color(2, 2, 4, 0))
 			var tag := "%d_%d" % [int(cx), int(cz)]
 			counts.tall += _emit_scatter(grass, "Tufts_" + tag, tall, t_sc, 48.0)
@@ -2154,37 +2190,38 @@ func _build_grass(root: Node3D) -> void:
 			var f_sc := Scatter.new()
 			var u_sc := Scatter.new()
 			for i in int(chunk * chunk * 1.4):
-				var x := cx + _rng.randf() * chunk
-				var z := cz + _rng.randf() * chunk
+				var x := cx + _grng.randf() * chunk
+				var z := cz + _grng.randf() * chunk
 				var g := _grassiness(x, z)
 				if g < 0.25:
 					continue
 				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
 					continue
 				var at := Vector3(x, _gy(x, z) - 0.01, z)
-				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
-				var shade := _rng.randf_range(0.85, 1.1)
+				var spin := Basis(Vector3.UP, _grng.randf() * TAU)
+				var shade := _grng.randf_range(0.85, 1.1)
 				var tint := Color(shade, shade, shade)
 				var clover := _patch.get_noise_2d(x * 0.6 + 90.0, z * 0.6 - 40.0)
 				var bloom := _patch.get_noise_2d(x * 0.45 - 120.0, z * 0.45 + 60.0)
 				var dry := _patch.get_noise_2d(x * 0.5 + 200.0, z * 0.5 - 11.0)
-				if clover > 0.2 and _rng.randf() < 0.85:
-					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.9, 1.4)), at), tint, Color(0, 1, 4, 0))
-				elif bloom > 0.3 and _rng.randf() < 0.6:
+				if clover > 0.2 and _grng.randf() < 0.85:
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.9, 1.4)), at), tint, Color(0, 1, 4, 0))
+				elif bloom > 0.3 and _grng.randf() < 0.6:
 					# One colour per drift, from a broad noise.
 					var hue := _patch.get_noise_2d(x * 0.12 + 300.0, z * 0.12)
 					var col := floorf(clampf(hue + 0.5, 0.0, 0.999) * 4.0)
-					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.75, 1.15)), at), tint, Color(2, 1, col, 0))
-				elif dry > 0.3 and _rng.randf() < 0.5:
-					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.8, 1.25)), at), tint, Color(3, 1, 4, 0))
-				elif _rng.randf() < 0.06:
-					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.7, 1.1)), at), tint, Color(1, 1, 4, 0))
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.75, 1.15)), at), tint, Color(2, 1, col, 0))
+				elif dry > 0.3 and _grng.randf() < 0.5:
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.8, 1.25)), at), tint, Color(3, 1, 4, 0))
+				elif _grng.randf() < 0.06:
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.7, 1.1)), at), tint, Color(1, 1, 4, 0))
 			var tag := "%d_%d" % [int(cx), int(cz)]
 			counts.flat += _emit_scatter(grass, "Low_" + tag, flat, f_sc, 40.0)
 			counts.upright += _emit_scatter(grass, "Herbs_" + tag, upright, u_sc, 44.0)
 			cz += chunk
 		cx += chunk
 	print("grass: %s" % counts)
+	return grass
 
 
 # ---------------------------------------------------------------- vines
@@ -2441,12 +2478,19 @@ func _indoors(x: float, z: float) -> bool:
 	return false
 
 
-func _build_props() -> void:
-	var g = load("res://tools/quarry/prop_gen.gd").new()
+func _walk_in_house(g: Object) -> ArrayMesh:
+	# The walk-in house, first from a fresh prop_gen. Its rooms keep the
+	# grass out (_indoors), so regen_grass.gd builds it too, unsaved.
 	g.interior = true
 	var walk_in: ArrayMesh = g.cottage(Vector3(7, 4, 6), 90, true, 1)
 	_walk_in = {roof = g.roof_mesh, colliders = g.colliders.duplicate(), rooms = g.rooms.duplicate()}
 	g.interior = false
+	return walk_in
+
+
+func _build_props() -> void:
+	var g = load("res://tools/quarry/prop_gen.gd").new()
+	var walk_in := _walk_in_house(g)
 	var plan := {
 		WALK_IN: walk_in,
 		"LevelGeometry/Town/HouseWestBack": g.cottage(Vector3(6, 5, 5), 180, false, 2),

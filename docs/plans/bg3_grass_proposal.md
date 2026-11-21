@@ -852,6 +852,82 @@ Images, scratchpad `grass_build/c4/`: `compare_p0.png`, `compare_p1.png`,
 
 ---
 
+## Built: change 5 (date 2026-11-21)
+
+**What.** The grass is its own scene now: `world/goblin_quarry/grass.scn`.
+`terrain.scn` instances it as its last child, still named `Grass`, so
+`grass_bench.gd`, `snap_terrain.gd` and anything else that looks up `Grass`
+still find it. `world/goblin_quarry.tscn` is unchanged.
+
+`bake_goblin_quarry.gd` writes `grass.scn` through a new `_save_grass()` and
+instances it into `terrain.scn`. The new `tools/quarry/regen_grass.gd`
+extends the bake and remakes only the grass. It runs the same ground shape
+(`_shape()`, split out of `_initialize`), the same tree plan (the floor under
+canopies stays bare) and the same walk-in house (`_walk_in_house()`, split
+out of `_build_props`; no grass indoors). Then it calls `_save_grass()`. It
+writes `grass.scn` and the two grass atlases, and nothing else.
+
+Every grass chunk now has `extra_cull_margin` 0.5 and `gi_mode` disabled.
+
+**Same placement without a rebake.** The bake's grass drew from the shared
+`_rng` (seed 41), after `_dress()` and the rest had used it. So a grass-only
+run could not start from the seed. A dry run of the full bake, with a saver
+that swallowed every save (139 of them, no file written), read the `_rng`
+state at the start of the grass: `-6527187743230277497`. The grass now has its
+own generator, `_grng`, set to that state (`GRASS_RNG_STATE`) at the start of
+`_build_grass()`. Nothing after the grass used `_rng`, so the rest of the bake
+is unchanged.
+
+**Migration.** Done once, with the regen output: a windowed script loaded
+`terrain.scn`, freed its `Grass` subtree, put an instance of `grass.scn` in
+the same slot and saved.
+
+**Measured.**
+- `terrain.scn`: 43,459 KB before, 32,065 KB after. `grass.scn`: 11,135 KB.
+- Grass counts are unchanged: tall 85,156, carpet 179,578, flat 6,579,
+  upright 2,886, in 647 chunks.
+- `regen_grass.gd` takes 28.5 s and 30.0 s (two runs).
+- Placement is identical. A dump of every chunk (count, hash of all instance
+  transforms, colours and custom data, mesh arrays, visibility range, shadow,
+  layers) matches between the old `Grass` subtree and `grass.scn`, all 647
+  lines. The only difference: the old materials left four uniforms unset
+  (`wind_direction`, `wind_strength`, `normal_dome`, `suppleness`), and the
+  new file stores their shader defaults. Same values.
+- A dump of all 3,170 nodes of `terrain.scn` (path, class, transform,
+  visibility, MultiMesh hash, mesh) is the same before and after.
+- Renders at stations A and B, 1600 x 900, TAA off, wind off, two frames
+  each. A: 0 pixels differ. B: 3 single pixels differ, by at most 8 of 255.
+  Two frames of the same build differ by more than that: 1.7% (A) and 2.8%
+  (B) of pixels, by 1 level.
+- A second regen run is byte-identical: `grass.scn`, `grass_tufts.res`,
+  `meadow_plants.res` and `terrain.scn` keep the same md5, and `git status`
+  does not change.
+
+**Deviations.**
+- The meshes stay embedded in `grass.scn`. No new mesh `.res` files: the
+  chunk meshes are made per chunk, and only the two atlases were already
+  files.
+- `visibility_range_end` is left as it was. The spec named only the cull
+  margin and GI mode.
+- The regen refuses to run headless. Headless Godot saves every MultiMesh
+  transform as zero. The same holds for the bake and for any script that
+  re-saves `terrain.scn`.
+- No `project.godot` globals were needed.
+
+**Limits.**
+- `gi_mode` disabled changes nothing you can see today: the quarry has no
+  SDFGI or VoxelGI.
+- The cull margin was not timed. The renders show it changes nothing on
+  screen.
+- `GRASS_RNG_STATE` is tied to the bake as it is. If a later change alters
+  what the grass reads (ground shape, tree plan, walk-in house), the regen
+  follows it. If a change makes grass draw fewer or more numbers, the
+  placement changes, as it would in a full bake.
+- The full bake was not rerun. Its new grass path is the same code the regen
+  ran, but the full bake has not written `terrain.scn` with it yet.
+
+---
+
 ## 8. Sources
 
 BG3 and Larian
