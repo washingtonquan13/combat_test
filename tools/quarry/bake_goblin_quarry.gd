@@ -1541,10 +1541,28 @@ func _xf_shut(mesh: Mesh, at: Vector3, away: Vector3, roll: float, size: float, 
 	return Transform3D(b, at + Vector3.UP * height * (0.5 - sink) - b * aabb.get_center())
 
 
+# Stones and branches lower than this cast no shadow: theirs is a smudge at
+# the foot that SSAO already draws, and the few hundred of them cost the sun's
+# shadow maps about 0.6 ms a frame. tools/quarry/drop_low_shadows.gd applies
+# the same rule to a terrain.scn already baked.
+const LOW_SHADOWLESS := ["rock_07", "rock_09", "dry_branches"]
+const LOW_SHADOWLESS_BELOW := 0.5
+
+
+static func casts_no_shadow(mesh: Mesh, xf: Transform3D) -> bool:
+	var file := mesh.resource_path.get_file()
+	for kind: String in LOW_SHADOWLESS:
+		if file.begins_with(kind):
+			return (Transform3D(xf.basis, Vector3.ZERO) * mesh.get_aabb()).size.y < LOW_SHADOWLESS_BELOW
+	return false
+
+
 func _add(mesh: Mesh, xf: Transform3D, shadow := true, solid := false, fade := -1.0, begin := 0.0, shadow_only := false) -> void:
 	# `fade`: how far away it stops drawing; by default only shadowless small
 	# things fade, at 60 m. `begin`: how far away it starts, for far LODs.
 	# `shadow_only`: drawn into shadow maps but never seen.
+	if shadow and not shadow_only and casts_no_shadow(mesh, xf):
+		shadow = false
 	var cell := Vector2i(floori(xf.origin.x / 24.0), floori(xf.origin.z / 24.0))
 	var key := [mesh, cell, shadow, fade if fade >= 0.0 else (0.0 if shadow else 60.0), begin, shadow_only]
 	if not _batches.has(key):
