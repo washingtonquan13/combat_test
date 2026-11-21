@@ -44,7 +44,7 @@ varying float age;
 void vertex() {
 	vec3 o = MODEL_MATRIX[3].xyz;
 	age = fract(sin(dot(o.xz, vec2(12.9898, 78.233))) * 43758.5453);
-	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX[3].xyz, TIME);
+	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX, TIME);
 }
 
 void fragment() {

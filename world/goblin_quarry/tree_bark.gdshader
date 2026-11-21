@@ -26,7 +26,7 @@ varying vec3 world_n;
 void vertex() {
 	above_ground = VERTEX.y * length(MODEL_MATRIX[1].xyz);
 	world_n = normalize(mat3(MODEL_MATRIX) * NORMAL);
-	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX[3].xyz, TIME);
+	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX, TIME);
 }
 
 float hash(vec2 p) {

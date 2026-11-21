@@ -723,6 +723,48 @@ Motion, from 21-frame captures every 0.5 s over 10 s (scratchpad
 - Grass GPU time at B is at the 2.0 ms budget (1.99 median, 2.02 mean).
   Changes 5-7 cut the triangles this runs on.
 
+## Built: change 3 (date 2026-11-21)
+
+**What.** `tree_wind.gdshaderinc` includes `wind.gdshaderinc` and drops its
+own `wind_dir`. Trees now take the shared `wind_direction` and
+`wind_strength`, and the gust at their root, from the same noise the grass
+uses on real time, so a gust front reaches a tree when it reaches the grass
+around it. The whole-tree sway is the shared lean (45% constant, 55% the
+smoothed triangle wave) at the tree's own slow rate (`wind_speed`, 0.15).
+`wind_sway` and `wind_bob` keep their values and now mean the amplitude at
+strength 0.5; they scale with strength. `tree_wind()` takes the model
+matrix instead of the origin, and `tree_bark.gdshader` and
+`tree_leaf.gdshader` pass `MODEL_MATRIX`.
+
+**A bug this fixed.** The old sway pushed along `wind_dir` in the tree's own
+space, so every rotated tree swayed a different way. The direction is now
+turned from world space into the model's space.
+
+**No regen.** No baked material or generator sets the tree wind uniforms
+(checked with grep over the .gd, .tres and .tscn files), so the new
+defaults reach every tree as they are. No .res file changed.
+
+**Checked** with a capture: three generated 8 m firs at yaws 0, 2.1 and
+4.0 rad, in the quarry's grass, seen across the wind (downwind is screen
+right). Rest (`wind_strength` 0) against strong wind (strength 1, tree
+`wind_sway` x10, grass `suppleness` 6). All three tree tops moved right by
+30-45 px (about 1 m), and so did the quarry's own baked trees behind them.
+The grass bands moved right by 0-1 px at that range. Images: scratchpad
+`grass_build/trees/` (`trees_rest.png`, `trees_wind.png`, `pair.png`,
+`trees_zoom.png`).
+
+At the default strength the motion is close to the old one: the sway
+peaks at the same amplitude and moves at about the same top speed
+(computed about 0.01 m/s at the top of a 10 m tree). The old sway could
+swing slightly upwind; the new one is always a lean downwind with a sway
+on top. The TAA comment is corrected: motion vectors do see this motion.
+
+**Limits.**
+- Tree motion vectors were not checked on their own. They use the same
+  TIME mechanism the grass check confirmed.
+- The Morrow overworld trees use the same shaders and now take the same
+  wind. Not captured there.
+
 ---
 
 ## 8. Sources
