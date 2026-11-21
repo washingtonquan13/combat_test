@@ -6,6 +6,12 @@ render_mode cull_disabled, diffuse_lambert_wrap;
 // lights as one volume. COLOR.r is baked occlusion, COLOR.g a per-branch
 // random number for tint. The atlas has coverage-preserving mips.
 //
+// The atlases are a pale sage (leaf_atlas.py and the others grade them); the
+// colour is put on here. tint_a and tint_b vary it per branch (COLOR.g).
+// young and old vary it per plant: each instance draws an age from where it
+// stands, so a stand of one tree mesh shows fresh yellow-green crowns beside
+// dark, cooler ones. Plants drawn as one mesh (the vines) share one age.
+//
 // Light through the leaves: the sun behind a crown shows through its far side
 // and glows round the edges. Real leaves pass it on through several layers,
 // so the crown's own shadow only dims it by half; looking toward the sun adds
@@ -14,8 +20,10 @@ render_mode cull_disabled, diffuse_lambert_wrap;
 #include "res://world/goblin_quarry/tree_wind.gdshaderinc"
 
 uniform sampler2D atlas : source_color, filter_linear_mipmap_anisotropic;
-uniform vec3 tint_a = vec3(0.82, 0.9, 0.78);
-uniform vec3 tint_b = vec3(1.0, 0.98, 0.82);
+uniform vec3 tint_a = vec3(0.78, 0.92, 0.72);
+uniform vec3 tint_b = vec3(1.02, 0.98, 0.76);
+uniform vec3 young = vec3(1.08, 1.08, 0.8);
+uniform vec3 old = vec3(0.8, 0.88, 0.86);
 uniform float translucency = 0.6;
 uniform vec3 transmit = vec3(1.1, 1.3, 0.5);
 uniform float wrap = 0.5;
@@ -26,7 +34,11 @@ uniform float wrap = 0.5;
 uniform sampler2D surface : hint_default_white, filter_linear_mipmap_anisotropic;
 uniform float surface_relief = 0.0;
 
+varying float age;
+
 void vertex() {
+	vec3 o = MODEL_MATRIX[3].xyz;
+	age = fract(sin(dot(o.xz, vec2(12.9898, 78.233))) * 43758.5453);
 	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX[3].xyz, TIME);
 }
 
@@ -35,7 +47,7 @@ void fragment() {
 	if (!FRONT_FACING) {
 		NORMAL = -NORMAL;
 	}
-	vec3 c = t.rgb * mix(tint_a, tint_b, COLOR.g) * COLOR.r;
+	vec3 c = t.rgb * mix(tint_a, tint_b, COLOR.g) * mix(old, young, age) * COLOR.r;
 	ALBEDO = c;
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;

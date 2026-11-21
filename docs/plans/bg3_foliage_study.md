@@ -3,7 +3,8 @@
 Studied 2026-11-21. The BG3 assets were read from the installed game's paks
 for reference only. None of them are, or will be, in this project. Measured
 with offline scripts (the scratchpad `bg3study/` set: `glbstat.py`,
-`trunkstat.py`, `raster.py`). Nothing here is built yet.
+`trunkstat.py`, `raster.py`). Changes 1–3 are built (see "Built" at the end);
+4–8 are not.
 
 ## What was compared
 
@@ -101,3 +102,55 @@ atlases. None adds runtime cost; 5 and 6 lower it.
 
 Steps 1–3 can be judged in one rebake of the plant meshes alone. That does
 not mean a full quarry rebake.
+
+## Built: changes 1–3 (2026-11-21)
+
+`tools/quarry/regen_plants.gd` remakes the plant meshes and leaf atlases in
+`world/goblin_quarry/meshes/` in place, from the bake's seeds, heights and
+detail levels (`FIR_GEN`, `BROAD_GEN`, `BUSH_GEN`, `FERN_GEN`). No quarry
+rebake. `terrain.scn` and `world/morrow/morrow_forest.gd` load these files,
+so both change.
+
+**1. Atlas colour.** `leaf_atlas.py`, `fern_atlas.py` and `vine_atlas.py` end
+with `grade_atlas`: each texel is pulled toward its luminance (`SAT`), then
+lightened (`GAIN`). Measured on opaque texels, as HSV medians:
+
+| Atlas | Before V / S | After V / S | Mean RGB after |
+|---|---|---|---|
+| broadleaf_cards | 0.39 / 0.66 | 0.42 / 0.40 | (0.39, 0.41, 0.25), BG3 gnarly is (0.38, 0.40, 0.24) |
+| fern_fronds | 0.35 / 0.58 | 0.40 / 0.40 | |
+| vine_runs | 0.275 / 0.53 | 0.33 / 0.40 | |
+
+On this measure BG3's leaves read 0.34–0.67 (the table above used a
+different formula). The fir atlas is Poly Haven's and already sits at 0.43,
+so it is left as it is. `tree_leaf.gdshader`'s `tint_a` and `tint_b` were
+spread wider, cooler green and warmer yellow.
+
+**2. Per-instance colour.** `tree_leaf.gdshader` hashes each instance's
+origin into an age, and mixes `old` (dark, cool) and `young` (fresh
+yellow-green) on top of the per-branch tint. Vines are one mesh per tile, so
+a tile shares one age.
+
+**3. Shape.** `_build_spine` (firs) adds a lean growing with the square of
+height (3–9% of the height at the top), and an S-bend (1.5–4%) whose plane
+twists on the way up. Both draw from their own generator, so the firs'
+layout is unchanged (same triangle counts). The broadleaf trunk leans
+4–14% of the fork height, with the offset growing as the square of height.
+`_bough` kinks limbs and their first branches sideways (an S, phase taken
+from the branch's wander), and the twig droop grows toward the tip. Changing
+a bough's shape changes its children's room, so the broadleaf and bush
+crowns reshuffle inside (triangles within ±10%); their height and spread
+hold. Ferns are unchanged.
+
+Limits:
+
+- The trunk's bottom 0.5 m is plumb, and the shape eases in by 3 m, because
+  the trunk collision (`TREE_TRUNK`, a cylinder 4 m tall) stands over the
+  root. A BG3-size lean (0.35) needs collision that follows the trunk, and a
+  quarry rebake.
+- The broadleaf forks at about 2 m, so its trunk is short and stays near
+  plumb. Its new limb kinks are mostly hidden inside the closed crown. They
+  show once crowns open (change 6).
+- `trunkstat.py` loses the fir trunk at the first whorl (about 3 m), so it
+  measures only the plumb base. Use the side renders (`raster.py`) instead.
+

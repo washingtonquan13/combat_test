@@ -120,13 +120,27 @@ func _h_dir(a: float) -> Vector3:
 
 
 func _build_spine(height: float) -> void:
-	# The trunk's centre line: a slow random walk, mostly straight.
+	# The trunk's centre line: a slow random walk, plus a lean that grows with
+	# height and an S-bend whose plane twists on the way up. The bottom stays
+	# plumb over the root, where the trunk's collision cylinder stands (the
+	# bake's TREE_TRUNK). The shape draws from its own generator, so the rest
+	# of the tree keeps the layout its seed always had.
 	_spine.clear()
+	var shape := RandomNumberGenerator.new()
+	shape.seed = hash(rng.seed * 17 + 3)
+	var lean := _h_dir(shape.randf() * TAU) * shape.randf_range(0.03, 0.09)
+	var bend := shape.randf_range(0.015, 0.04)
+	var bend_az := shape.randf() * TAU
+	var twist := shape.randf_range(-1.5, 1.5)
+	var waves := shape.randf_range(1.2, 2.0)
 	var p := Vector3.ZERO
 	var drift := Vector3.ZERO
 	var steps := int(height / 0.5) + 1
 	for i in steps + 1:
-		_spine.append(p)
+		var y := p.y
+		var t := y / height
+		var off := lean * t * t + _h_dir(bend_az + twist * t) * bend * sin(PI * waves * t)
+		_spine.append(p + off * height * smoothstep(0.5, 3.0, y))
 		drift += Vector3(rng.randf_range(-1, 1), 0, rng.randf_range(-1, 1)) * 0.004
 		drift *= 0.9
 		p += Vector3.UP * (height / steps) + drift
@@ -392,7 +406,10 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	var leaf := Surf.new()
 	var r0 := height * 0.02 + 0.05
 	var fork := height * rng.randf_range(0.28, 0.4)
-	var lean := _h_dir(rng.randf() * TAU) * rng.randf_range(0.0, 0.08)
+	# The trunk leans more than it used to, but bends into it: the offset grows
+	# with the square of height, so up to head height it stays over the root
+	# and its collision cylinder.
+	var lean := _h_dir(rng.randf() * TAU) * rng.randf_range(0.04, 0.14)
 	var top := Vector3(lean.x * fork, fork, lean.z * fork)
 	var wide := height * rng.randf_range(0.36, 0.48)
 	_cr = Vector3(wide, (height - fork) * 0.55, wide * rng.randf_range(0.85, 1.15))
@@ -405,7 +422,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	var y := -0.3
 	while true:
 		var f := clampf(y / fork, 0.0, 1.0)
-		pts.append(top * f + Vector3.DOWN * maxf(-y, 0.0))
+		pts.append(Vector3(top.x * f * f, top.y * f, top.z * f * f) + Vector3.DOWN * maxf(-y, 0.0))
 		radii.append(r0 * lerpf(1.0, 0.8, f))
 		flare.append(_flare(y, r0) * 1.1)
 		if y >= fork:
@@ -567,16 +584,26 @@ func _perp(t: Vector3, az: float) -> Vector3:
 
 func _bough(bark: Surf, leaf: Surf, start: Vector3, dir: Vector3, len: float, rad: float, depth: int, tint: float, u_span: float) -> void:
 	# One branch and, recursively, its children. Limbs curve up toward the
-	# light, small branches droop under their leaves.
+	# light, small branches droop under their leaves, more toward the tip
+	# where the leaves weigh. Limbs and their first branches kink: an S-bend
+	# sideways, its plane and phase taken from the branch's wander (no new
+	# random draws, so the crown's layout is unchanged).
 	var seg := 6 if depth == 0 else (4 if depth == 1 else 3)
-	var grav: float = [0.25, 0.05, -0.2, -0.3][depth]
+	var grav: float = [0.25, 0.05, -0.25, -0.35][depth]
 	var wander := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.3, 0.3), rng.randf_range(-1, 1)) * 0.25
 	var terminal := depth >= _depth_max
 	var pts: Array[Vector3] = [start]
 	var radii: Array[float] = [rad]
 	var d := dir
+	var kink: float = [0.9, 0.6, 0.0, 0.0][depth]
+	var aside := dir.cross(Vector3(wander.x, 0.0, wander.z) + Vector3(0.02, 0.0, 0.0))
+	aside = aside.normalized() if aside.length() > 0.001 else _perp(dir, 0.0)
+	var kink_ph := wander.y * 20.0
 	for i in range(1, seg + 1):
-		d = (d + (Vector3.UP * grav + wander) / seg).normalized()
+		var f := float(i) / seg
+		var g := grav if grav >= 0.0 else grav * (0.4 + 1.2 * f)
+		var side := aside * kink * sin(TAU * f + kink_ph)
+		d = (d + (Vector3.UP * g + wander + side) / seg).normalized()
 		pts.append(pts[i - 1] + d * len / seg)
 		radii.append(lerpf(rad, 0.003 if terminal else rad * 0.4, float(i) / seg))
 	if depth <= _tube_max and rad > 0.004:

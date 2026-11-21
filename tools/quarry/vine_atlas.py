@@ -32,6 +32,21 @@ SIZE = 2048
 GRID = 4
 SS = 2
 CELL = SIZE // GRID * SS
+SAT = 0.74
+GAIN = 1.24
+
+
+# The colour the cards end on: a pale sage like BG3's leaf textures, measured
+# 2026-11-21 (docs/plans/bg3_foliage_study.md). The rest of the colour comes
+# from the leaf shader's tints. SAT pulls each texel toward its own luminance,
+# GAIN lightens it; tuned so the opaque texels' median HSV saturation is
+# about 0.4 and their median value is 0.33.
+def grade_atlas(img, sat, gain):
+    a = np.asarray(img).astype(np.float32)
+    rgb = a[..., :3]
+    lum = rgb @ np.array([0.2126, 0.7152, 0.0722], np.float32)
+    a[..., :3] = np.clip((lum[..., None] + (rgb - lum[..., None]) * sat) * gain, 0, 255)
+    return Image.fromarray(a.round().astype(np.uint8), img.mode)
 
 # name, quarter turns anticlockwise that bring the leaf tips to the top, and
 # the leaves (in reading order) that are yellowed or spotted.
@@ -249,6 +264,7 @@ def main():
             at = (gx * SIZE // GRID, gy * SIZE // GRID)
             atlas.paste(Image.fromarray(rgba, "RGBA").resize(small, Image.LANCZOS), at)
             surface.paste(Image.fromarray(surf, "RGB").resize(small, Image.LANCZOS), at)
+    atlas = grade_atlas(atlas, SAT, GAIN)
     atlas.save(args.out)
     side = os.path.splitext(args.out)[0] + "_surface.png"
     surface.save(side)
