@@ -44,8 +44,10 @@ skip_to_end, commit_stand_ins, unbind.
   character models; owner: `tools/cinematics/add_cutscene_clip.gd`, which takes one clip from an
   FBX imported onto the humanoid skeleton). Every clip there is in place: the hips' forward travel
   is taken out, and a clip that falls by itself has that height taken out too (`drop=`), so the
-  role's position keys are the only thing that moves the body. `Cutscene/jump_down`: perched, takes
-  off at 0.45 s, feet down at 1.35 s, holds the landing crouch to 2.5 s.
+  role's position keys are the only thing that moves the body. `range=` keeps one part of a take, so
+  a jump is three clips keyed in a row and its airtime belongs to the role's keys, not the clip:
+  `Cutscene/jump_takeoff` (0.45 s, perched), `jump_fall` (0.85 s, holds its last pose if the fall is
+  longer), `jump_land` (1.2 s, keyed where the feet reach the floor). `jump_down` is the same take whole.
 - First scene: `cinematics/townsperson_meeting.tscn` (L in a debug build). Plan and what retires:
   `systems/cinematic_system/SIMPLIFICATION_PLAN.md`.
 
