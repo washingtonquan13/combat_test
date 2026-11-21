@@ -479,10 +479,12 @@ func _broadleaf(seed: int, height: float, detail: float, shape: Dictionary) -> A
 	var pts: Array[Vector3] = []
 	var radii: Array[float] = []
 	var flare: Array[float] = []
-	var y := -0.3
+	# The trunk starts above the ground; _roots() carries its lowest ring out
+	# and down into the roots, so none of it is buried.
+	var y := r0 * ROOT_JOIN
 	while true:
 		var f := clampf(y / fork, 0.0, 1.0)
-		pts.append(Vector3(top.x * f * f, top.y * f, top.z * f * f) + Vector3.DOWN * maxf(-y, 0.0))
+		pts.append(Vector3(top.x * f * f, top.y * f, top.z * f * f))
 		radii.append(r0 * lerpf(1.0, 0.8, f))
 		flare.append(_flare(y, r0) * 1.1)
 		if y >= fork:
@@ -492,7 +494,10 @@ func _broadleaf(seed: int, height: float, detail: float, shape: Dictionary) -> A
 	pts.append(top + Vector3.UP * r0 * 2.5)
 	radii.append(r0 * 0.3)
 	flare.append(0.0)
-	_tube(bark, pts, radii, 20 if detail >= 1.0 else 8, 0.0, 1.0, r0 * TAU, flare)
+	var sides := 20 if detail >= 1.0 else 8
+	var ring := bark.v.size()
+	_tube(bark, pts, radii, sides, 0.0, 1.0, r0 * TAU, flare)
+	_roots(bark, ring, sides, pts[0], radii[0], flare[0], r0, detail)
 
 	var limbs := rng.randi_range(shape.limbs[0], shape.limbs[1])
 	var turn := rng.randf() * TAU
@@ -760,24 +765,10 @@ func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float, size: float)
 
 func _skirt(bark: Surf, leaf: Surf, r0: float, detail: float) -> void:
 	# What a trunk stands in (change 7 of docs/plans/bg3_foliage_study.md):
-	# roots running on out of the bole's buttresses and down into the soil,
-	# and a ring of fallen leaf clusters. Call it straight after the trunk's
-	# _tube(), whose lobes it follows. Its own generator, so the crown above
-	# doesn't change.
+	# a ring of fallen leaf clusters. The roots are the trunk's own surface;
+	# see _roots(). Its own generator, so the crown above doesn't change.
 	var r2 := RandomNumberGenerator.new()
 	r2.seed = hash(rng.seed * 53 + 11)
-	var sides := 6 if detail >= 1.0 else 4
-	for k in _lobes:
-		# Where the bole's lobe is fullest (see _bole_r()), round the
-		# trunk's base ring, whose angle 0 points along -z and pi/2 along +x.
-		var a := (TAU * k - _lobe_off) / _lobes
-		var strength := 1.0 + 0.4 * sin(a + _lobe_off * 1.7)
-		_root(bark, r2, a, r0, r0 * 0.7 * strength, r0 * r2.randf_range(3.5, 5.5) * strength, sides, detail)
-	# A few thinner roots between the buttresses.
-	if detail >= 1.0:
-		for k in r2.randi_range(1, 3):
-			var a := (TAU * (r2.randi() % _lobes + 0.5) - _lobe_off) / _lobes
-			_root(bark, r2, a, r0, r0 * 0.35, r0 * r2.randf_range(2.5, 4.0), 4, detail)
 	# Litter: leaf clusters lying flat round the base, browned (COLOR.b).
 	# They dip outward a little, about the slope a tree stands on, so the
 	# ground swallows their rims rather than letting them float.
@@ -806,28 +797,264 @@ func _skirt(bark: Surf, leaf: Surf, r0: float, detail: float) -> void:
 		leaf.tri(first + 1, first + 2, first + 3)
 
 
-func _root(bark: Surf, r2: RandomNumberGenerator, a: float, r0: float, rad: float, length: float, sides: int, detail: float) -> void:
-	# Out of the buttress, along the ground half sunk, then down under it.
-	var out := Vector3(sin(a), 0.0, -cos(a))
-	var wander := r2.randf_range(-0.35, 0.35)
-	var pts: Array[Vector3] = []
-	var radii: Array[float] = []
-	var steps := 7 if detail >= 1.0 else 4
-	for i in steps + 1:
-		var t := float(i) / steps
-		var d := lerpf(r0 * 1.2, length, t)
-		var dir := out.rotated(Vector3.UP, wander * t * t + 0.12 * sin(t * 7.0 + a * 3.0))
-		var r := rad * lerpf(1.0, 0.3, t)
-		# From high in the bole down its flank, then along the ground with
-		# about a third of the root above it, then diving under.
-		var y := lerpf(r0 * 1.8, -r * 0.4, smoothstep(0.0, 0.4, t)) - smoothstep(0.55, 1.0, t) * (r * 1.6 + 0.08)
-		pts.append(dir * d + Vector3.UP * y)
-		radii.append(r)
-	var first := bark.v.size()
-	_tube(bark, pts, radii, sides, 0.0, 0.85, r0 * TAU)
-	# Rooted in the ground: no wind (UV2.x is reach from the trunk).
-	for i in range(first, bark.v.size()):
-		bark.uv2[i] = Vector2.ZERO
+# ---------------------------------------------------------------- roots
+
+# How high up the trunk (in trunk radii) its tube starts and the roots take over.
+const ROOT_JOIN := 0.45
+# Where the roots' rings fall between the trunk (0) and the tips (1), near and far.
+const ROOT_RINGS := [0.05, 0.12, 0.21, 0.32, 0.45, 0.6, 0.76, 0.9, 1.0]
+const ROOT_RINGS_FAR := [0.12, 0.32, 0.6, 1.0]
+# The ring's angles round each major root, and each minor one (radians).
+# A root's columns, as fractions of its half-width: they close in as it
+# narrows, so the ridge keeps its round section out to the tip.
+const ROOT_FAN := [-1.3, -0.75, -0.35, 0.0, 0.35, 0.75, 1.3]
+const ROOT_FAN_FAR := [-1.3, -0.5, 0.0, 0.5, 1.3]
+# The widest a fan spreads (radians), at the trunk; a thin root's less.
+const ROOT_FAN_CAP := 0.3
+const ROOT_FAN_CAP_MINOR := 0.09
+
+# The roots of the trunk being built: [angle, thickness, length, sway, knot] each.
+var _rts: Array = []
+var _rt_ring := 0.0
+var _rt_flare := 0.0
+var _rt_y := 0.0
+var _rt_c := Vector3.ZERO
+var _rt_sides := 8
+var _rt_poly: Array[float] = []
+
+
+func _roots(bark: Surf, ring: int, sides: int, centre: Vector3, r: float, fl: float, r0: float, detail: float) -> void:
+	# The trunk's lowest ring, carried on out and down as one surface: the
+	# ground round the trunk as a height field in rings, raised into a ridge
+	# along each root (one per buttress lobe of _bole_r(), a few thin ones
+	# between), the ridges diving under at their tips. A height field can't
+	# fold, so the roots come out broad and running outward, never forking.
+	# `ring` is the first vertex of the trunk's tube; its first ring (at
+	# height r0 * ROOT_JOIN) is shared, so trunk and roots have no seam.
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = hash(rng.seed * 59 + 13)
+	_rt_ring = r
+	_rt_flare = fl
+	_rt_c = centre
+	_rt_y = centre.y
+	_rt_sides = sides
+	_rt_poly = []
+	for k in sides + 1:
+		_rt_poly.append(_bole_r(r, fl, TAU * k / sides, _rt_y))
+	_rts = []
+	for k in _lobes:
+		# Where the lobe is fullest; the ring's angle 0 points along -z.
+		var a := wrapf((TAU * k - _lobe_off) / _lobes, 0.0, TAU)
+		var st := 1.0 + 0.4 * sin(a + _lobe_off * 1.7)
+		_rts.append([a, r0 * 0.85 * st, r0 * r2.randf_range(2.4, 3.6) * st, r2.randf_range(-0.08, 0.08), r2.randf() * TAU])
+	if detail >= 1.0:
+		for k in r2.randi_range(1, 3):
+			var a := wrapf((TAU * (r2.randi() % _lobes + 0.5) - _lobe_off) / _lobes, 0.0, TAU)
+			_rts.append([a, r0 * 0.42, r0 * r2.randf_range(1.8, 2.8), 0.0, r2.randf() * TAU])
+	# The ring's columns: the trunk's own angles, so the first band is a
+	# plain strip, plus a fan of angles round each root. Any column within a
+	# root's fan follows that root (see _root_p()), closing in as it narrows,
+	# so no two columns cross.
+	var angs: Array = []
+	for k in sides:
+		angs.append(TAU * k / sides)
+	for i in _rts.size():
+		var cap: float = ROOT_FAN_CAP if i < _lobes else ROOT_FAN_CAP_MINOR
+		for o in (ROOT_FAN_FAR if detail < 1.0 else ROOT_FAN):
+			angs.append(wrapf(_rts[i][0] + o * cap, 0.0, TAU))
+	angs.sort()
+	var filled: Array = []  # [angle at the trunk, root it follows or -1, fraction, cap]
+	for a in angs:
+		if not filled.is_empty() and (a - filled[-1][0] < 0.015 or TAU - a < 0.015):
+			continue
+		var col := [a, -1]
+		var best := INF
+		for i in _rts.size():
+			var cap: float = ROOT_FAN_CAP if i < _lobes else ROOT_FAN_CAP_MINOR
+			var o := wrapf(a - _rts[i][0], -PI, PI)
+			if absf(o) <= 1.31 * cap and absf(o) / cap < best:
+				best = absf(o) / cap
+				col = [a, i, o / cap, cap]
+		filled.append(col)
+	# Closed again at 2 pi, as the trunk's ring is.
+	filled.append([TAU] + filled[0].slice(1))
+
+	var u_wrap := maxf(1.0, roundf(r / r0 * 4.0)) / 4.0
+	var rings: Array = ROOT_RINGS_FAR if detail < 1.0 else ROOT_RINGS
+	var prev: Array[int] = []
+	var prev_a: Array[float] = []
+	for k in sides + 1:
+		prev.append(ring + k)
+		prev_a.append(TAU * k / sides)
+	# The trunk's own lowest ring takes this surface's normals too, so the
+	# join shades as one.
+	for k in sides + 1:
+		bark.n[ring + k] = (bark.n[ring + k] + _root_n([TAU * k / sides, -1], 0.0)).normalized()
+	# Path length down each column from the trunk, for the bark's v.
+	var walked: Array[float] = []
+	var last: Array[Vector3] = []
+	for x in filled:
+		walked.append(0.0)
+		last.append(_root_p(x, 0.0))
+	for si in rings.size() + 1:
+		var skirt := si == rings.size()
+		var t: float = rings[mini(si, rings.size() - 1)]
+		var ps: Array[Vector3] = []
+		for x in filled:
+			ps.append(_root_p(x, t) + (Vector3.DOWN * 0.4 if skirt else Vector3.ZERO))
+		var cur: Array[int] = []
+		var cur_a: Array[float] = []
+		for ci in filled.size():
+			var x: Array = filled[ci]
+			var a: float = x[0]
+			var p := ps[ci]
+			var nn := _root_n(x, t)
+			if skirt:
+				# A lip straight down under the ground, for slopes, facing
+				# out square to its own edge.
+				var nxt := ps[1] if ci == filled.size() - 1 else ps[ci + 1]
+				var prv := ps[-2] if ci == 0 else ps[ci - 1]
+				nn = Vector3.UP.cross(nxt - prv).normalized()
+			walked[ci] += p.distance_to(last[ci])
+			last[ci] = p
+			var rho := Vector2(p.x - centre.x, p.z - centre.z).length()
+			var rho0 := _root_base(a)
+			# Bark across a root keeps its scale: u runs with the arc out
+			# from the nearest root's middle, not with the angle.
+			var u := (a + _root_near(a, rho - rho0) * (rho / rho0 - 1.0)) / TAU * u_wrap
+			var v := -walked[ci] / (r * TAU) * u_wrap * 0.5
+			var above := p.y - _root_ground(rho - rho0)
+			var occl := lerpf(0.45, 0.78, clampf(above / (r0 * 0.5), 0.0, 1.0))
+			# Rooted in the ground: no wind (UV2).
+			cur.append(bark.vert(p, nn, Vector2(u, v), Vector2.ZERO, Color(occl, 0.0, 0.0, clampf(p.y / _h, 0.0, 1.0))))
+			cur_a.append(a)
+		_zip(bark, prev, prev_a, cur, cur_a)
+		prev = cur
+		prev_a = cur_a
+
+
+func _zip(s: Surf, inner: Array[int], ia: Array[float], outer: Array[int], oa: Array[float]) -> void:
+	# Stitches two rings of different angles: `inner` toward the trunk,
+	# `outer` further out, each from angle 0 round to 2 pi. Faces wind as
+	# _tube()'s do, the outer ring standing for its lower one.
+	var i := 0
+	var j := 0
+	while i < inner.size() - 1 or j < outer.size() - 1:
+		if j < outer.size() - 1 and (i == inner.size() - 1 or oa[j + 1] <= ia[i + 1]):
+			s.tri(outer[j], outer[j + 1], inner[i])
+			j += 1
+		else:
+			s.tri(outer[j], inner[i + 1], inner[i])
+			i += 1
+
+
+func _root_base(a: float) -> float:
+	# Where the roots start out at angle a: the trunk's shape, but never
+	# inside its lowest ring's polygon (whose flat sides cut across the hollows
+	# between buttresses), so the first band can't fold back into the trunk.
+	var step := TAU / _rt_sides
+	var w := wrapf(a, 0.0, TAU)
+	var k := mini(int(w / step), _rt_sides - 1)
+	var a1 := step * k
+	var r1: float = _rt_poly[k]
+	var r2: float = _rt_poly[k + 1]
+	# The chord between the ring's vertices k and k+1, in polar form.
+	var chord := r1 * r2 * sin(step) / (r1 * sin(w - a1) + r2 * sin(a1 + step - w))
+	return maxf(_bole_r(_rt_ring, _rt_flare, w, _rt_y), chord)
+
+
+func _root_ground(d: float) -> float:
+	# The ground the roots lie in, d out from the trunk: a little under the
+	# origin and dipping outward, so they stay sunk on a gentle slope.
+	return -0.03 - d * 0.15
+
+
+func _root_c(i: int, d: float) -> float:
+	# Root i's middle (an angle), d out from the trunk; it sways off straight.
+	var rt: Array = _rts[i]
+	return rt[0] + rt[3] * pow(clampf(d / rt[2], 0.0, 1.0), 2.0)
+
+
+func _root_near(a: float, d: float) -> float:
+	# How far round from the nearest root's middle, signed.
+	var best := PI
+	for i in _rts.size():
+		var o := wrapf(a - _root_c(i, d), -PI, PI)
+		if absf(o) < absf(best):
+			best = o
+	return best
+
+
+func _root_reach(a: float) -> float:
+	# How far out a column between roots runs: nearly as far as a root
+	# beside it, so the ground between a root's flank and the next column
+	# doesn't shear, and barely past the trunk midway between roots. (A
+	# root's own columns run to its tip; see _root_p().)
+	var reach := 0.0
+	for rt in _rts:
+		var o := wrapf(a - rt[0], -PI, PI)
+		reach = maxf(reach, rt[2] * 1.08 * exp(-pow(o / 0.45, 2.0)))
+	return _rt_ring * 0.9 + reach
+
+
+func _root_p(x: Array, t: float) -> Vector3:
+	# A point of the base: column x (see _roots()) at t from the trunk (0)
+	# to the end of its reach (1).
+	var a: float = x[0]
+	# A root's whole fan runs out to its tip, where the ridge has dived under.
+	var reach := _root_reach(a) if x[1] < 0 else _rt_ring * 0.9 + float(_rts[x[1]][2]) * 1.08
+	var d := reach * pow(t, 1.25)
+	if x[1] >= 0:
+		# A fan column: its fraction of the root's half-width out from its
+		# middle, never wider than at the trunk.
+		var i: int = x[1]
+		var hw0: float = _rts[i][1] * lerpf(1.25, 0.6, clampf(d / _rts[i][2], 0.0, 1.0))
+		a = _root_c(i, d) + float(x[2]) * minf(x[3], hw0 / (_rt_ring + d))
+	var rho := _root_base(a) + d
+	var g := _root_ground(d)
+	# Between roots the trunk's flare runs down to the ground.
+	var lift := (_rt_y - g) * (1.0 - smoothstep(0.0, _rt_ring * 0.8, d))
+	for i in _rts.size():
+		var rt: Array = _rts[i]
+		var L: float = rt[2]
+		var rad: float = rt[1]
+		var f := clampf(d / L, 0.0, 1.0)
+		var o := wrapf(a - _root_c(i, d), -PI, PI)
+		if absf(o) > 1.2:
+			continue
+		var q := rho * sin(absf(o))
+		var hw := rad * lerpf(1.25, 0.6, f)
+		if q >= hw:
+			continue
+		# Its crest: from the join, settling to most of the root above the
+		# ground, knotted and tapering gently, then diving under bluntly at the tip.
+		var crest := lerpf(_rt_y - g, rad * 0.95, smoothstep(0.0, _rt_ring * 1.4, d))
+		crest *= (1.0 - 0.3 * f) * (1.0 + 0.1 * sin(d / rad * 2.3 + rt[4]))
+		crest -= smoothstep(0.78, 1.0, f) * (rad * 0.8 + 0.1)
+		var h := crest * pow(1.0 - (q / hw) * (q / hw), 0.5)
+		# A smooth max, so a ridge meets the flare and its neighbours
+		# without a crease.
+		var k := rad * 0.3
+		var e := clampf(0.5 + 0.5 * (h - lift) / k, 0.0, 1.0)
+		lift = lerpf(lift, h, e) + k * e * (1.0 - e)
+	return Vector3(_rt_c.x, 0.0, _rt_c.z) + Vector3(sin(a), 0.0, -cos(a)) * rho + Vector3.UP * (g + lift)
+
+
+func _root_n(x: Array, t: float) -> Vector3:
+	# The base's normal, from its slope round the ring and outward.
+	var e := 0.002
+	var t0 := maxf(t - 0.01, 0.0)
+	var xa: Array = x.duplicate()
+	var xb: Array = x.duplicate()
+	if x[1] >= 0:
+		xa[2] = float(x[2]) + e / float(x[3])
+		xb[2] = float(x[2]) - e / float(x[3])
+	else:
+		xa[0] = float(x[0]) + e
+		xb[0] = float(x[0]) - e
+	var da := _root_p(xa, t) - _root_p(xb, t)
+	var dt := _root_p(x, t0 + 0.01) - _root_p(x, t0)
+	return da.cross(dt).normalized()
 
 
 # ---------------------------------------------------------------- output

@@ -231,16 +231,23 @@ and the clump is lit on its sunward side and dark underneath.
 
 ## Built: change 7 (2026-11-21)
 
-**Roots.** `plant_gen.gd`'s `_skirt()` runs at the end of `broadleaf()`. One
-root grows out of each of the bole's buttress lobes (`_lobes`, at the angle
-where `_bole_r` is fullest, thicker on the stronger lobes), 0.7·r0 thick
-and 3.5–5.5·r0 long, tapering to 0.3. Each starts inside the flare, bends
-down to the ground within its first 40%, wanders a little sideways, and
-dives below the ground over its last half, so the tip sinks instead of
-ending in a cap. Near meshes add 1–3 thinner roots between lobes. Roots
-are bark (same tube code, AO 0.85) with UV2 zero, so the wind leaves them
-still. The bark shader's own moss (up-facing, near the ground) lands on
-their tops.
+**Roots.** `plant_gen.gd`'s `_roots()` builds the roots and the trunk's
+base as one surface. The trunk tube now starts at 0.45·r0 above the ground
+instead of buried, and `_roots()` carries its lowest ring outward in rings
+(9 near, 4 far) that are stitched to it and to each other, so there is no
+seam and no mesh inside another. Each ring is a polar height field around
+the trunk: one ridge per root, blended with a smooth max, over a ground that
+dips slightly outward. A final lip drops 0.4 m below the last ring.
+
+One root grows from each of the bole's buttress lobes (`_lobes`, where
+`_bole_r` is fullest, thicker on the stronger lobes), 0.85·r0 thick and
+2.4–3.6·r0 long. Near meshes add 1–3 thinner roots between lobes. A root
+starts at the trunk's own height, settles to about its own thickness above
+the ground, keeps 60% of its width to the end, and dives under bluntly over
+its last fifth. The columns of each ring follow the trunk's 20 (far: 8)
+sides, plus a fan of extra columns across each root (7 near, 5 far) that
+bend with it. Roots are bark with UV2 zero, so the wind leaves them still,
+and `tree_bark.gdshader`'s moss lands on their tops.
 
 **Leaf litter.** A ring of flat leaf-cluster cards on the ground around
 the trunk (14 near, 7 far), out to the larger of 16% of the height and
@@ -249,18 +256,21 @@ cards (same atlas and material), UV2 zero, with the new `COLOR.b` set to
 how dead each is (0.55–1.0). `tree_leaf.gdshader` greys and browns a card
 by that amount (`litter`, default (1.25, 0.95, 0.6) on the grey).
 
-The roots and litter draw from their own generator, so the trunk and crown
-are unchanged.
+The litter (`_skirt()`) and roots (`_roots()`) draw from their own random
+generator, so the crown is unchanged; the trunk now starts higher, where the
+roots take over.
 
 | | near bark | near leaf | far bark | far leaf |
 |---|---|---|---|---|
-| isle 0 | 4552 → 5112 | 696 → 724 | 1552 → 1744 | 90 → 104 |
-| isle 1 | 6048 → 6552 | 816 → 844 | 1824 → 1952 | 98 → 112 |
-| isle 2 | 3240 → 3800 | 472 → 500 | 1104 → 1296 | 66 → 80 |
-| isle 3 | 3696 → 4312 | 728 → 756 | 1104 → 1296 | 88 → 102 |
+| isle 0 | 4552 → 5666 | 696 → 724 | 1552 → 1838 | 90 → 104 |
+| isle 1 | 6048 → 6953 | 816 → 844 | 1824 → 2020 | 98 → 112 |
+| isle 2 | 3240 → 4525 | 472 → 500 | 1104 → 1372 | 66 → 80 |
+| isle 3 | 3696 → 4848 | 728 → 756 | 1104 → 1372 | 88 → 102 |
 
-About +560 triangles near and +170 far, per tree. The study guessed a few
-hundred.
+About +1100 triangles near and +250 far, per tree. The study guessed a few
+hundred. The first version (separate root tubes pushed into a buried trunk)
+cost about half that but read as loose pieces stuck on; the ring-based
+rework that replaced it trades a few hundred triangles for one surface.
 
 **Not built:**
 - **The dirt ring.** It would be ground paint around each tree, which means
@@ -272,6 +282,12 @@ hundred.
 **Limits.**
 - Broadleaves only. Firs already get the quarry's `pine_roots` meshes, and
   bushes have no trunk.
+- Roots can't fork; each is one ridge out from the trunk.
+- A dozen or so faces per near mesh fold, nearly all below the ground and
+  cut away; one sits at the join on isle 0.
+- The limbs still start inside the trunk; only the base is one surface.
+- The bark atlas has a pale, smeared region, and the trunk's base samples
+  it on some trees.
 - The roots assume flat ground. On a steep slope the downhill roots can
   hover; the bake stands trees on the lowest ground under the trunk, which
   hides most of it.
@@ -279,7 +295,7 @@ hundred.
   reference `tree_leaf.gdshader` by its new uid. Their geometry is
   unchanged.
 
-Checked with an offline render (scratchpad `raster7.py`, tilted 28°, geometry
+Checked with an offline render (scratchpad `raster7.py`, and `raster9.py` for the rework, tilted 28°, geometry
 below the ground cut away).
 
 ## Built: change 8 (2026-11-21)
@@ -310,8 +326,10 @@ are byte for byte unchanged.
 
 | | near bark | near leaf | far bark | far leaf |
 |---|---|---|---|---|
-| oak 0 | 9168 | 5276 | 3056 | 540 |
-| oak 1 | 11752 | 4156 | 3728 | 568 |
+| oak 0 | 9470 | 5276 | 3092 | 540 |
+| oak 1 | 12167 | 4156 | 3720 | 568 |
+
+(After change 7's ring-based roots; before it, 9168 and 11752 near.)
 
 `regen_plants.gd` writes `gen_oak_{0,1}_{near,far}.res` (seeds 7500 and
 7501, `OAK_GEN`). The quarry bake doesn't make them; nothing in the quarry
