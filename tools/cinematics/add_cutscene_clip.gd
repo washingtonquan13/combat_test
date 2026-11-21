@@ -18,6 +18,9 @@ extends SceneTree
 ## keys one after another: a jump as takeoff, fall and landing, where the fall
 ## lasts as long as the role's keys say.
 ##
+## `pose=<time>` makes a looping clip that holds the pose at that time: the
+## middle of a jump, which then lasts as long as the timeline leaves it.
+##
 ##   godot --headless --path . -s res://tools/cinematics/add_cutscene_clip.gd -- \
 ##       res://assets/cinematics/clips/jump_down_menacing.fbx jump_down drop=0.45,1.3,0.85
 ##   ... jump_fall drop=0.45,1.3,0.85 range=0.45,1.3
@@ -28,7 +31,7 @@ const LIBRARY_PATH := "res://assets/cutscene_animations.tres"
 func _init() -> void:
 	var args: PackedStringArray = OS.get_cmdline_user_args()
 	if args.size() < 2:
-		push_error("usage: -- <fbx> <clip name> [drop=<takeoff>,<landing>,<metres>] [range=<from>,<to>]")
+		push_error("usage: -- <fbx> <clip name> [drop=<takeoff>,<landing>,<metres>] [range=<from>,<to> | pose=<time>]")
 		quit(1)
 		return
 	var takeoff: float = -1.0
@@ -36,12 +39,15 @@ func _init() -> void:
 	var fall: float = 0.0
 	var from: float = -1.0
 	var to: float = -1.0
+	var pose: float = -1.0
 	for a in args.slice(2):
 		if a.begins_with("drop="):
 			var parts: PackedStringArray = a.trim_prefix("drop=").split(",")
 			takeoff = parts[0].to_float()
 			landing = parts[1].to_float()
 			fall = parts[2].to_float()
+		elif a.begins_with("pose="):
+			pose = a.trim_prefix("pose=").to_float()
 		elif a.begins_with("range="):
 			var ends: PackedStringArray = a.trim_prefix("range=").split(",")
 			from = ends[0].to_float()
@@ -57,6 +63,11 @@ func _init() -> void:
 	if from >= 0.0:
 		clip = _part(clip, from, to)
 		clip.resource_name = args[1]
+	elif pose >= 0.0:
+		clip = _part(clip, pose, pose)
+		clip.resource_name = args[1]
+		clip.length = 0.5
+		clip.loop_mode = Animation.LOOP_LINEAR
 	scene.free()
 
 	var library: AnimationLibrary
