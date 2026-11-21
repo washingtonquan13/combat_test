@@ -113,7 +113,7 @@ Encounters became per-instance and worlds became resident, but these places stil
 - A far fight ending disarms the hotbar (ui.md UI-1)
 - Deaths recorded in `current_area()`; unit VFX/SFX and ability VFX steps spawn into the focused world (unit.md U9, abilities.md ABIL-12, surfaces.md SURF-14)
 - One global surface quiet clock; the grid's active world is hidden state (surfaces.md SURF-17, navigation.md MOVE-12)
-- Every camera follows every fight; x-ray and grass trample write global state per world (camera.md, areas_bootstrap.md WLD-16). FIXED: the occupancy snapshot per fight (62f265d4).
+- Every camera follows every fight; x-ray writes global state per world (grass trample was removed 11-21) (camera.md, areas_bootstrap.md WLD-16). FIXED: the occupancy snapshot per fight (62f265d4).
 
 ### R2. Save is partial and unversioned
 - Two serializers for one unit (`Unit.save_state` and the party record); the party one drops statuses, Downed and turn state, so a Downed member reloads standing (unit.md U6, party.md WLD-2)

@@ -65,10 +65,6 @@ func _ready() -> void:
 	_watch_goblinoid_raid_quest()
 	_set_up_raid()
 	$CampAmbushTrigger.body_entered.connect(_on_camp_ambush_entered)
-	var trample := GrassTrample.new()
-	trample.name = "GrassTrample"
-	trample.grass = $LevelGeometry/Terrain/Grass
-	add_child(trample)
 	StartingParty.bootstrap(self, $PartySpawnPoint)
 
 
