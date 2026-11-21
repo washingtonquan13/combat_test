@@ -48,8 +48,8 @@ skip_to_end, commit_stand_ins, unbind.
   is taken out, and a clip that falls by itself has that height taken out too (`drop=`), so the
   role's position keys are the only thing that moves the body. `range=` keeps one part of a take and
   `pose=` makes a looping hold of one moment, so a jump is three clips keyed in a row and its airtime
-  belongs to the role's keys, not the clip: `Cutscene/jump_takeoff` (0.9 s, perched; the feet leave
-  at 0.45), `jump_fall` (a looping hold of the mid-air pose, for as long as the timeline leaves it),
+  belongs to the role's keys, not the clip: `Cutscene/jump_takeoff` (0.9 s, perched; the legs gather from 0.45, the
+  feet leave about 0.6), `jump_fall` (a looping hold of the mid-air pose, for as long as the timeline leaves it),
   `jump_land` (1.6 s; the feet touch 0.4 s in, so it is keyed 0.4 s before the landing). `jump_down`
   is the same take whole. The arc of a jump is keyed, not coded: the role's `position:z` (and `x`)
   as plain two-key value tracks, `position:y` as a Bezier track whose handles shape the fall.
