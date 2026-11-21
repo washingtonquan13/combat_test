@@ -24,6 +24,17 @@ shader_type spatial;
 // dirt untiled) cost about thirty texture reads a pixel. Reads inside those
 // branches take their derivatives from outside them (textureGrad), so mips
 // stay smooth where a branch starts.
+//
+// Under the grass cards the grass layer is the shade at the blades' roots.
+// The cards sink away between grass_far_start and grass_far_end, so over the
+// same distance the layer turns to the colour a field of blades shows from
+// afar: the blades' own green (grass_colour.gdshaderinc, which the cards
+// read too) over field_cover of the ground, darkened by field_shade for the
+// shade inside the field. Zooming out then doesn't darken the field
+// (docs/plans/bg3_grass_proposal.md, 5.6). The colour drift is the same
+// computed noise the cards read, so their roots match the ground under them.
+
+#include "res://world/goblin_quarry/grass_colour.gdshaderinc"
 
 uniform sampler2D rock_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -42,8 +53,7 @@ uniform sampler2D bed_albedo : source_color, filter_linear_mipmap_anisotropic, r
 uniform sampler2D bed_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D bed_arm : filter_linear_mipmap_anisotropic, repeat_enable;
 
-// Seamless grey noise, read at several scales. Drives tile offsets and the
-// colour drift across the valley.
+// Seamless grey noise. Drives the tile offsets.
 uniform sampler2D variation : filter_linear_mipmap, repeat_enable;
 
 // R,G: slope of the fine ground along +X and +Z (0.5 level, ends = slope 1).
@@ -65,6 +75,14 @@ uniform float grass_tile = 0.33;
 uniform float dirt_tile = 0.36;
 // How far a layer's relief reaches into its neighbour, in height units.
 uniform float blend_depth = 0.18;
+// The grass cards' fade (quarry_grass.gdshader's fade_start, fade_end): over
+// it the grass layer takes over the field's colour.
+uniform float grass_far_start = 28.0;
+uniform float grass_far_end = 44.0;
+// From afar, the share of the ground the blades hide, and how much the
+// field's own shade darkens them. Set from captures at 25 m and 60 m (change 4).
+uniform float field_cover = 0.48;
+uniform float field_shade = 0.5;
 
 varying vec3 world_pos;
 varying vec3 tri_weights;
@@ -116,7 +134,7 @@ void vertex() {
 }
 
 float lum(vec3 c) {
-	return dot(c, vec3(0.33));
+	return grass_colour_lum(c);
 }
 
 // Unpacks a normal map texel, adds `detail` to it (whiteout blend), packs it back.
@@ -129,11 +147,7 @@ vec3 add_normal(vec3 base, vec3 detail, float amount) {
 
 void fragment() {
 	vec2 xz = world_pos.xz;
-	vec4 var_slow = texture(variation, xz * 0.012);
 	vec4 var_fast = texture(variation, xz * 0.05);
-	// The same noise turned and shifted, so light patches don't trace the
-	// tile offsets' seams.
-	vec4 var_tone = texture(variation, mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8)) * xz * 0.037 + 0.41);
 
 	// Tile offsets: eight random placements, the slow noise walking between them.
 	float k = var_fast.r * 8.0;
@@ -220,8 +234,21 @@ void fragment() {
 	if (w.b > 0.0) {
 		g_a = textureGrad(grass_albedo, uv_g, g_dx, g_dy).rgb;
 		g_a = mix(textureLod(grass_albedo, uv_g, 7.0).rgb, g_a, 0.3);
-		g_a = mix(vec3(lum(g_a)), g_a, 1.3) * vec3(0.3, 0.5, 0.22);
+		g_a = grass_root(g_a);
 		g_n = mix(textureGrad(grass_normal, uv_g, g_dx, g_dy).rgb, vec3(0.5, 0.5, 1.0), 0.6);
+		// Where the cards have sunk away, the field's colour. Cards grow
+		// where the paint has grass (0.08 and up, denser and taller with
+		// more) and the mesh is flat enough (up 0.84, the bake's rule).
+		float g = COLOR.b;
+		float up = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
+		float cover = step(0.08, g) * min(1.0, g * 2.0) * pow(mix(0.55, 1.0, g), 2.0) * smoothstep(0.8, 0.86, up);
+		float field = smoothstep(grass_far_start, grass_far_end, length(VERTEX)) * cover * field_cover;
+		if (field > 0.0) {
+			float dry_field;
+			float dip = (shape.b - 0.5) * 2.0 * shape_paint;
+			vec3 blades = grass_top(soil_albedo, xz, vec3(1.0), dip, 5.0, dry_field) * field_shade;
+			g_a = mix(g_a, blades, field);
+		}
 	}
 	if (w.a > 0.0) {
 		d_a = untiled(dirt_albedo, uv_d, d_dx, d_dy, o1, o2, ob).rgb;
@@ -229,10 +256,9 @@ void fragment() {
 		d_n = untiled(dirt_normal, uv_d, d_dx, d_dy, o1, o2, ob).rgb;
 	}
 
-	// Colour drift across the valley: warm and cool patches at tens of
-	// metres, light and dark at a few. Rock keeps most of its own colour.
-	vec3 drift = mix(vec3(0.93, 0.97, 1.05), vec3(1.07, 1.0, 0.9), smoothstep(0.25, 0.75, var_slow.r));
-	drift *= mix(0.86, 1.12, smoothstep(0.2, 0.8, var_tone.r));
+	// Colour drift across the valley: warm and cool patches at a few metres,
+	// light and dark at less. Rock keeps most of its own colour.
+	vec3 drift = ground_drift(xz);
 	vec3 dry = r_a * w.r + s_a * w.g + g_a * w.b + d_a * w.a;
 	dry *= mix(drift, vec3(1.0), w.r * 0.75);
 

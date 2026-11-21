@@ -13,32 +13,18 @@
 // motion vectors would be wrong. TIME-driven motion does get motion vectors
 // in Godot 4.4 Forward+ (checked with the motion-vector debug draw, change 2).
 //
-// The noise is computed, not a texture: a texture would be one more
-// parameter every baked material has to carry, which means a rebake.
+// The noise is computed, not a texture (value_noise.gdshaderinc).
 
 #ifndef WIND_GDSHADERINC
 #define WIND_GDSHADERINC
+
+#include "res://world/goblin_quarry/value_noise.gdshaderinc"
 
 uniform vec2 wind_direction = vec2(0.8, 0.6);
 uniform float wind_strength : hint_range(0.0, 1.0) = 0.5;
 
 // Gusts travel downwind at this speed, in m/s.
 const float WIND_GUST_SPEED = 3.0;
-
-// A hash without sin (D. Hoskins, "Hash without Sine"): cheaper per vertex.
-float wind_hash(vec2 p) {
-	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-	p3 += dot(p3, p3.yzx + 33.33);
-	return fract((p3.x + p3.y) * p3.z);
-}
-
-// Value noise, 0..1, one feature per unit.
-float wind_noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	f = f * f * (3.0 - 2.0 * f);
-	return mix(mix(wind_hash(i), wind_hash(i + vec2(1.0, 0.0)), f.x), mix(wind_hash(i + vec2(0.0, 1.0)), wind_hash(i + vec2(1.0, 1.0)), f.x), f.y);
-}
 
 vec2 wind_dir() {
 	return normalize(wind_direction);
@@ -47,7 +33,7 @@ vec2 wind_dir() {
 // Gust at a world point: the noise at 1/15 m scrolling downwind, cubed and
 // held to 0..0.5, so most of the field is calm and fronts stand out.
 float wind_gust_at(vec2 xz, vec2 dir, float time) {
-	float s = wind_noise((xz - dir * time * WIND_GUST_SPEED) / 15.0);
+	float s = value_noise((xz - dir * time * WIND_GUST_SPEED) / 15.0);
 	return clamp(s * s * s, 0.0, 0.5);
 }
 

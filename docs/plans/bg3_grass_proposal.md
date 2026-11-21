@@ -765,6 +765,91 @@ on top. The TAA comment is corrected: motion vectors do see this motion.
 - The Morrow overworld trees use the same shaders and now take the same
   wind. Not captured there.
 
+## Built: change 4 (date 2026-11-21)
+
+**What.** Past the cards' fade, the ground's grass layer now shows the
+colour a field of blades shows from afar, not the dark root shade. Over
+`grass_far_start` to `grass_far_end` (28 to 44 m from the camera) the layer
+turns toward the blades' top colour, times `field_shade` (0.5), over
+`field_cover` (0.48) of the ground. It only does this where cards grow: grass
+paint 0.08 and up, scaled by how dense and tall the cards are there, and a
+mesh flat enough for the bake to place them (up 0.84).
+
+The grass colours moved to a new include, `grass_colour.gdshaderinc`, that
+both shaders read: the four greens (`fresh`, `lush`, `sunny`, `dry_tip`, same
+values), the root grade, the top colour and the valley drift. The ground
+reads the top colour from its soil texture at mip 5, the field's average;
+each clump reads one point, as before. The cards' roots and tops now take
+the same drift as the ground. The roots lose the old per-clump soil
+brightness (`macro`), which the drift replaces; the tops keep it.
+
+**Why computed drift, and no globals.** The ground's drift came from the
+`variation` texture, which only the ground material has. Giving the grass
+materials the texture means a rebake. The drift is now two value noises
+computed in the shader (`value_noise.gdshaderinc`, the same noise the wind
+already used, now shared). They are fitted to the texture's numbers: the same
+spread (std 0.19) and patch sizes (about 5.5 m warm/cool, 1.8 m light/dark).
+The pattern is new, so the valley's patches moved, but they are the same size
+and strength. The ground keeps `variation` for its tile offsets. All new
+values are plain uniforms with defaults in the shader. Nothing touches
+`project.godot` or the baked materials, so there is no rebake and the editor
+compiles them as they are.
+
+**Measured.** Same 10 x 10 m square at 25 m (B) and 60 m (C), pitch 65,
+quarry sun, TAA. Three places at least 40 m apart: (-5, 25), (55, 25),
+(75, -45). With the quarry's volumetric fog on, the bare ground darkens by
+11-15% from 25 to 60 m. Grass can't change that, so the near-vs-far test is
+read with the fog off.
+
+| Place | Before: dE / lum, fog off | After: dE / lum, fog off | After, fog on |
+|---|---|---|---|
+| (-5, 25) | 5.78 / +1.2% | **3.51 / +5.2%** | 6.71 / -11.7% |
+| (55, 25) | 3.55 / -4.1% | **1.64 / -1.2%** | 4.42 / -14.7% |
+| (75, -45) | 6.73 / +5.0% | **2.86 / +4.5%** | 6.30 / -11.4% |
+
+The test passes at all three places: delta E <= 4 and luminance within 8%.
+Before, the far field turned yellow-brown (the root shade under the cards);
+now it stays green. The worst step on the way is at 35-40 m (dE 3.5, -6.6%),
+where the cards are sinking.
+
+Root vs ground (5.5): the lowest 15% of the cards against the ground at the
+same pixels, 8 m, sun overhead, no shadows.
+- Albedo only (unshaded, near-camera root shade off): **dE 3.4 / 3.5 / 3.6**
+  (before 4.8 / 5.7 / 6.8). The block-by-block mismatch across the frame
+  (std of log brightness ratio in 50 px blocks) fell from 0.17-0.19 to
+  0.12-0.14: the roots now follow the ground's drift.
+- Lit as in the game: **dE about 21**, before about 23. Not met (see Limits).
+
+GPU, `grass_bench.tscn`: grass at B 2.01 ms (median 1.97), A 2.60, C 0.08.
+Change 2 was 2.02 (1.99): no change. The ground's far-field branch runs only
+on grass pixels past 28 m.
+
+Images, scratchpad `grass_build/c4/`: `compare_p0.png`, `compare_p1.png`,
+`compare_p2.png` (before and after, fog off and on, 25 m and 60 m), runs in
+`before*/`, `after2*/`, `roots_*/`, `ru_*/`, `bench/`.
+
+**Deviations.**
+- The drift is a computed noise, not the `variation` texture. Same size and
+  strength, new pattern.
+- `field_cover` and `field_shade` are fitted to captures, not derived. The
+  low shade (0.5) stands for the blades' own atlas shading and the shade
+  inside the field, which the ground can't see.
+- The near-vs-far test is read with fog off. With fog on it fails (dE 4.4 to
+  6.7, -11 to -15%), and bare ground fails the same way.
+
+**Limits.**
+- Lit root vs ground fails by a wide margin, before and after. The cause is
+  the cards' `diffuse_lambert_wrap` at roughness 0.85: a card facing the sun
+  gets about half the light the ground's Burley diffuse gives it. The near-
+  camera root shade adds to it. Both are older look choices; changing them
+  changes the whole field and is the developer's call.
+- The far field ignores the bake's other rules: no cards within 0.5 m of
+  water or indoors. There the ground still turns green past 28 m.
+- Squares of darker, yellower grass the size of a bake chunk show at
+  (-5, 25) at 25 m (in the before images too). Not looked into.
+- The fog darkening is the environment's (`quarry_environment.tres`,
+  density 0.006), not the grass's.
+
 ---
 
 ## 8. Sources

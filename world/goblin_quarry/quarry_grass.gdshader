@@ -8,7 +8,10 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // clump, graded as the ground shader grades it, so grass grows out of the
 // ground instead of sitting on it as a separate carpet. The upper blades
 // turn a fresher green, deeper in lush patches and warmer in sunny ones, and
-// straw in dry patches. INSTANCE color is per-clump variation.
+// straw in dry patches. Roots and blades both take the valley's colour drift,
+// the same one the ground takes; the greens and the drift live in
+// grass_colour.gdshaderinc, which the ground reads too, so past the fade the
+// ground can carry the blades' colour. INSTANCE color is per-clump variation.
 //
 // Card normals point up at the root and tip outward toward the top like a
 // dome over the clump (the mesh's own normals). normal_dome blends them
@@ -34,6 +37,7 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // colour and keeps it, tinted only by INSTANCE color.
 
 #include "res://world/goblin_quarry/wind.gdshaderinc"
+#include "res://world/goblin_quarry/grass_colour.gdshaderinc"
 
 uniform sampler2D tufts : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform sampler2D ground_grass : source_color, filter_linear_mipmap, repeat_enable;
@@ -53,12 +57,6 @@ uniform float shape_paint = 0.0;
 uniform float grass_tile = 0.33;
 // 0: normals straight up (BG3). 1: the mesh's dome.
 uniform float normal_dome : hint_range(0.0, 1.0) = 0.25;
-uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
-// Upper blades: a fresh green, bluer and deeper in lush patches, warmer in
-// sunny ones. The roots keep the ground's colour.
-uniform vec3 fresh = vec3(0.26, 0.4, 0.14);
-uniform vec3 lush = vec3(0.19, 0.33, 0.13);
-uniform vec3 sunny = vec3(0.35, 0.43, 0.15);
 // Inside a clump, close to the camera, the lower blades stand in each
 // other's shade. Kept to near the camera: from the game's height deep root
 // shade reads as dark spots on the ground.
@@ -77,10 +75,6 @@ varying float near;
 varying vec2 swell;
 varying float sky;
 
-float lum(vec3 c) {
-	return dot(c, vec3(0.33));
-}
-
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
@@ -95,30 +89,20 @@ void vertex() {
 	float col = INSTANCE_CUSTOM.b < 3.5 ? INSTANCE_CUSTOM.b : mod(c, 4.0);
 	cell = vec2(col, INSTANCE_CUSTOM.r + floor(c / 4.0));
 
-	// The ground shader's grass layer, at the mip it mostly shows.
-	vec3 g = textureLod(ground_grass, origin.xz * grass_tile, 7.0).rgb;
-	g = mix(vec3(lum(g)), g, 1.3) * vec3(0.3, 0.5, 0.22);
-	float macro = textureLod(ground_soil, origin.xz * 0.031, 0.0).g;
-	g *= mix(0.86, 1.14, smoothstep(0.08, 0.34, macro));
-	float dry = smoothstep(0.38, 0.62, textureLod(ground_soil, origin.xz * 0.013 + vec2(0.37, 0.71), 0.0).r);
-	base = g * COLOR.rgb;
-	float l = textureLod(ground_soil, origin.xz * 0.019 + vec2(0.61, 0.13), 0.0).b;
-	vec3 green = mix(lush, fresh, smoothstep(0.2, 0.45, l));
-	green = mix(green, sunny, smoothstep(0.45, 0.7, l));
-	// The per-clump tint rides on top, a little stronger than on the roots.
-	green *= 1.0 + (COLOR.rgb - 1.0) * 1.5;
-	top = mix(green * mix(0.9, 1.1, smoothstep(0.08, 0.34, macro)), dry_tip, dry * 0.4) * 0.8;
-
 	// One texel up the mips: a clump is wider than a texel of the maps.
 	vec2 relief_uv = (origin.xz - relief_rect.xy) * relief_rect.zw;
 	vec3 relief = textureLod(terrain_relief, relief_uv, 1.0).rgb;
 	float dip = (textureLod(terrain_masks, relief_uv, 1.0).b - 0.5) * 2.0 * shape_paint;
 	swell = (relief.rg - 0.5) * 2.0 * relief_amount;
 	sky = mix(1.0, relief.b, occlusion_amount);
+
+	// Roots: the ground shader's grass layer at the mip it mostly shows,
+	// with the ground's drift, so a card's base is the ground under it.
+	vec3 drift = ground_drift(origin.xz);
+	base = grass_root(textureLod(ground_grass, origin.xz * grass_tile, 7.0).rgb) * drift * COLOR.rgb;
 	base *= 1.0 - 0.1 * dip;
-	top *= 1.0 - 0.16 * dip;
-	top = mix(top, lush * 0.8, max(dip, 0.0) * 0.4);
-	top = mix(top, sunny * 0.8, max(-dip, 0.0) * 0.4);
+	float dry;
+	top = grass_top(ground_soil, origin.xz, COLOR.rgb, dip, 0.0, dry) * drift;
 
 	float dist = length((VIEW_MATRIX * vec4(origin, 1.0)).xyz);
 	near = 1.0 - smoothstep(near_end * 0.4, near_end, dist);
