@@ -173,8 +173,12 @@ func pose_preview(now: float) -> void:
 	if clip == "":
 		clip = preview_idle_clip()
 		at = now
-	if clip == "" or not _player.has_animation(clip):
+	if clip == "":
 		return
+	if not _player.has_animation(clip):
+		_player = _find_player()  # a reload can leave the old pick cached
+		if not is_instance_valid(_player) or not _player.has_animation(clip):
+			return
 	var animation: Animation = _player.get_animation(clip)
 	if animation.loop_mode != Animation.LOOP_NONE and animation.length > 0.0:
 		at = fposmod(at, animation.length)
@@ -315,18 +319,25 @@ func _facing_offset() -> float:
 	return 0.0
 
 
-## The body's own AnimationPlayer (CharacterModel.animation_player), else
-## the first one under it.
+## The model's player with the most clips; the named one wins a tie. In
+## the editor an imported body can bring its own AnimationPlayer (one
+## RESET clip), which takes the name and pushes the model's real one to
+## "AnimationPlayer2", so the NodePath lands on the wrong one.
 func _find_player() -> AnimationPlayer:
 	var path: Variant = _model.get(&"animation_player")
+	var named: AnimationPlayer = null
 	if path is AnimationPlayer:
-		return path
-	if path is NodePath and not (path as NodePath).is_empty():
-		var named: AnimationPlayer = _model.get_node_or_null(path) as AnimationPlayer
-		if named:
-			return named
-	var found: Array[Node] = _model.find_children("*", "AnimationPlayer", true, false)
-	return found[0] as AnimationPlayer if not found.is_empty() else null
+		named = path
+	elif path is NodePath and not (path as NodePath).is_empty():
+		named = _model.get_node_or_null(path) as AnimationPlayer
+	var best: AnimationPlayer = named
+	var most: int = named.get_animation_list().size() if named else 0
+	for node in _model.find_children("*", "AnimationPlayer", true, false):
+		var count: int = (node as AnimationPlayer).get_animation_list().size()
+		if count > most:
+			most = count
+			best = node as AnimationPlayer
+	return best
 
 
 func _model_text(property: StringName) -> String:
