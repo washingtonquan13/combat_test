@@ -13,7 +13,8 @@ and shader), plus a read of this project's grass code:
 
 Numbers marked **measured** come from BG3's files or from our atlases. Numbers
 marked **computed** are worked out from our bake code, not timed in the game.
-No frame time on the dev PC has been measured yet. That is change 0.
+Frame time, triangles and overdraw on the dev PC were measured in change 0
+(see 5.7 and "Built: change 0").
 
 BG3 assets are reference only. Nothing from them ships.
 
@@ -223,7 +224,7 @@ runs grass density at x0.25.
 | Mips | n/a | Coverage-preserving (`plant_gen.coverage_texture`) | **Ahead** | |
 | Regeneration | Painter | Only through the full quarry bake; grass lives inside `terrain.scn` | Medium (workflow) | Every grass change costs a full rebake |
 | Overworld (Morrow) | n/a | No grass geometry, texture layer only, camera at 4-16 m | Large, separate | The closest camera in the game has the least grass |
-| Measured cost | Shipped | Not measured | Unknown | No number, no budget |
+| Measured cost | Shipped | Measured (change 0): grass 1.8 ms GPU and 1.5 M triangles at station B | Known | See 5.7 |
 
 How the computed numbers were worked out. `tall = _card_clump(6, ..., 3 rows, core 3)`
 is 9 cards, 54 triangles, about 2.66 m² of card. `carpet` is 8 cards, 32
@@ -436,16 +437,22 @@ TAA to resolve. Keep it unless the offline render shows a visible tide line.
 
 On the dev PC (the target hardware), 1080p, TAA on, the quarry's main field.
 
-| Item | Budget |
-|---|---|
-| Grass GPU time, station B | **<= 2.0 ms** |
-| Grass GPU time, station A | **<= 3.0 ms** |
-| Grass GPU time, station C | 0 ms (nothing in range) |
-| Visible grass triangles, station B | <= 200k (about 700k today, computed) |
-| Mean grass layers per pixel, station B | **<= 4** |
-| Mean grass layers per pixel, station A | **<= 8** |
-| Draw calls for grass | <= 60 at station B |
-| Low setting | Global `grass_density` 0.5 folds half the cards (UE's low tier uses 0.25) |
+| Item | Budget | Today, **measured** (change 0) |
+|---|---|---|
+| Grass GPU time, station B | **<= 2.0 ms** | 1.8 ms |
+| Grass GPU time, station A | **<= 3.0 ms** | 2.65 ms |
+| Grass GPU time, station C | 0 ms (nothing in range) | 0.06 ms (88k sunk triangles still drawn) |
+| Visible grass triangles, station B | <= 200k | 1.50 M (A 1.32 M, C 88k) |
+| Mean grass layers per pixel, station B | **<= 4** | 2.4 kept by the scissor, 8.5 card layers rasterised |
+| Mean grass layers per pixel, station A | **<= 8** | 6.5 kept, 25 card layers rasterised |
+| Draw calls for grass | <= 60 at station B | 72 (A 58, C 5) |
+| Low setting | Global `grass_density` 0.5 folds half the cards (UE's low tier uses 0.25) | none |
+
+Layers are counted over the pixels that grass covers. "Kept" counts the
+fragments that pass the alpha scissor (the method below). "Card layers"
+counts every fragment the cards cover before the discard: that is the fill
+the depth prepass pays, and it is the number the budget should be read
+against, since the kept count already passes at both stations.
 
 How to measure. Time: frame GPU time with the grass nodes visible minus the
 same view with them hidden, averaged over 300 frames. Overdraw: an offline
@@ -534,6 +541,79 @@ a field that looks more like BG3's, not less.
    small feature, once the look is settled.
 6. **Overworld grass (change 11).** Overworld work is paused. Flagged here only
    because the patch meshes will make it cheap when it resumes.
+
+---
+
+## Built: change 0 (2026-11-21)
+
+**Tool.** `tools/quarry/grass_bench.tscn` (script `grass_bench.gd`). Run it
+windowed: `godot --path . res://tools/quarry/grass_bench.tscn -- <out_dir>`.
+It loads `terrain.scn` with the quarry's environment and sun, renders a
+1920 x 1080 SubViewport with TAA on (the project's setting), and quits by
+itself after about a minute. Nothing in the game uses it.
+
+**Stations.** Anchor at (-4, 30), the densest grass tiles next to the
+player's start (about 14.5 clumps per m²). The camera looks toward -Z, as
+the quarry camera starts. Pitch follows `crpg_camera.gd`: A 8 m at 35.25
+degrees, B 25 m at 65, C 60 m at 65. FOV 75.
+
+**Method.**
+- Time: the SubViewport's own GPU time
+  (`viewport_get_measured_render_time_gpu`), with the `Grass` node shown and
+  hidden in alternating blocks: 2 x 300 frames each, 90 warm-up frames per
+  block. Grass time is the difference of the means.
+- Triangles and draw calls: the viewport's render info, shown minus hidden.
+  A count made from the meshes (chunks inside the frustum and their range)
+  gives the same number exactly, so each triangle is counted once.
+- Overdraw: each grass material is swapped for a copy of
+  `quarry_grass.gdshader` with the same uniforms and vertex code (so the
+  fold and sink are the game's), but unshaded, additive, no depth write,
+  adding 1.0 per fragment. The ground is drawn black and still occludes;
+  trees, rocks and props are hidden. The SubViewport uses an HDR buffer
+  and a linear tonemap, so each pixel holds its exact layer count; no 1/16
+  scale was needed. Once with the scissor (alpha < 0.5 discarded), once
+  without.
+
+**Measured** on the dev PC (AMD Radeon RX 5700 XT, Vulkan Forward+). Two
+clean runs agree within 0.03 ms. (A first run left the ground's material
+override cleared after the overdraw pass; it was fixed and its B and C
+numbers dropped.)
+
+| Station | Grass GPU ms | Frame GPU ms with / without | Grass tris | Grass draws | Kept layers | Card layers | Grass covers |
+|---|---|---|---|---|---|---|---|
+| A, 8 m | 2.65 | 9.5 / 6.9 | 1,323,136 | 58 | 6.5 | 25.0 | 69% of frame |
+| B, 25 m | 1.82 | 7.2 / 5.4 | 1,499,724 | 72 | 2.4 | 8.5 | 46% |
+| C, 60 m | 0.06 | 7.5 / 7.4 | 88,284 | 5 | 1.0 | 1.3 | < 0.1% |
+
+Grass costs nothing in the shadow pass (shadow triangles are the same with
+and without it). CPU render time rises by about 0.1-0.2 ms with grass.
+
+**What this changes in the plan.**
+- Triangles are about 2x the computed 700k: 1.5 M at B. Every chunk in
+  range is drawn in full; cards folded or sunk by the vertex shader are
+  still submitted. That is also why C draws 88k triangles that cover
+  nothing.
+- GPU time at B is already about at the 2.0 ms budget on this card. The
+  win from changes 5-7 is still real (triangles and card fill are 7x and
+  2x over budget), but the frame is not in trouble today.
+- The overdraw budget needs a definition. Counted the spec's way (scissor
+  kept), today already passes. Counted as card fill, B is 8.5 layers
+  against 4. I read the budget as card fill, which is what the cards cost
+  the GPU; change 6 should report both.
+
+**Deviations from the spec.**
+- Only `terrain.scn` is loaded, not `world/goblin_quarry.tscn`, so units,
+  houses, the raid camp and game scripts are absent. They do not change the
+  grass delta, but the "without grass" frame times are lower than in game.
+- 1920 x 1080 as specified; the game window is 1600 x 900, so in game the
+  grass time should be up to about 30% lower where it is fill bound.
+- The light is the quarry scene's own sun, not a separate noon setup.
+- Overdraw is a real Godot render, not an offline one, and counts exact
+  layers rather than 1/16 steps.
+
+**Limits.** One field and one view direction. The 5700 XT is the dev PC
+but stronger than the GTX 1060/1650 the budget in 2.9 was derived for.
+Wind moves cards slightly between frames; the counts are from one frame.
 
 ---
 
