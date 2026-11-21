@@ -408,6 +408,32 @@ var _clump_r := 1.0
 var _lite := false
 var _depth_max := 3
 var _tube_max := 2
+# How crooked limbs and branches grow: 1 for the plain broadleaf.
+var _gnarl := 1.0
+
+# The shape of a broadleaf() tree. Ranges are [low, high] draws; heights and
+# radii are fractions of the tree's height.
+#   r0      the trunk's radius: height * r0[0] + r0[1]
+#   fork    where the trunk splits into limbs
+#   lean    how far the trunk leans by the fork
+#   wide    the crown's radius
+#   crown_y the crown's half height, of what is above the fork
+#   limbs   how many
+#   lead    the first limb's angle from upright (radians)
+#   tilt    the other limbs' angles
+#   card    the leaf cluster card's size
+#   gnarl   see _gnarl
+#   far     the coarse mesh's [twig levels, how much its cards grow]: fewer
+#           twigs, bigger cards
+const ISLE := {"r0": [0.02, 0.05], "fork": [0.28, 0.4], "lean": [0.04, 0.14], "wide": [0.36, 0.48],
+		"crown_y": 0.55, "limbs": [2, 4], "lead": [0.1, 0.25], "tilt": [0.45, 0.85], "card": 0.22, "gnarl": 1.0, "far": [2, 0.25]}
+# The hero oak (docs/plans/bg3_foliage_study.md, change 8): a short, thick
+# trunk that splits low into many heavy limbs reaching out more than up, a
+# crown wider than it is tall, everything crooked. Its coarse mesh is what
+# the Morrow overworld draws, so it keeps every twig level and saves with
+# fewer, bigger cards, so the crown stays closed.
+const OAK := {"r0": [0.032, 0.1], "fork": [0.15, 0.22], "lean": [0.02, 0.07], "wide": [0.55, 0.66],
+		"crown_y": 0.5, "limbs": [5, 7], "lead": [0.3, 0.55], "tilt": [0.95, 1.25], "card": 0.1, "gnarl": 2.2, "far": [3, 0.55]}
 
 
 func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
@@ -415,29 +441,38 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	# ellipsoid crown; twigs carry the leaf cards. Returns [bark, leaf] like
 	# fir(). Below detail 1 the last level of twigs goes, and the cards on
 	# what's left grow to keep the crown's cover.
+	return _broadleaf(seed, height, detail, ISLE)
+
+
+func oak(seed: int, height: float, detail := 1.0) -> Array:
+	return _broadleaf(seed, height, detail, OAK)
+
+
+func _broadleaf(seed: int, height: float, detail: float, shape: Dictionary) -> Array:
 	_lite = detail < 1.0
+	_gnarl = shape.gnarl
 	rng.seed = seed
 	_h = height
 	_broad = true
 	_crown_share = 0.35
 	_cells = BROAD_CELLS
-	_depth_max = 3 if detail >= 1.0 else 2
+	_depth_max = 3 if detail >= 1.0 else shape.far[0]
 	_tube_max = 2 if detail >= 1.0 else 1
 	_leaf_l = clampf(height * 0.1, 0.65, 1.2) / sqrt(detail)
-	_card_l = height * 0.22 / pow(detail, 0.25)
+	_card_l = height * shape.card / pow(detail, shape.far[1])
 	_gap = 0.3
 	_cand = []
 	var bark := Surf.new()
 	var leaf := Surf.new()
-	var r0 := height * 0.02 + 0.05
-	var fork := height * rng.randf_range(0.28, 0.4)
+	var r0: float = height * shape.r0[0] + shape.r0[1]
+	var fork := height * rng.randf_range(shape.fork[0], shape.fork[1])
 	# The trunk leans more than it used to, but bends into it: the offset grows
 	# with the square of height, so up to head height it stays over the root
 	# and its collision cylinder.
-	var lean := _h_dir(rng.randf() * TAU) * rng.randf_range(0.04, 0.14)
+	var lean := _h_dir(rng.randf() * TAU) * rng.randf_range(shape.lean[0], shape.lean[1])
 	var top := Vector3(lean.x * fork, fork, lean.z * fork)
-	var wide := height * rng.randf_range(0.36, 0.48)
-	_cr = Vector3(wide, (height - fork) * 0.55, wide * rng.randf_range(0.85, 1.15))
+	var wide := height * rng.randf_range(shape.wide[0], shape.wide[1])
+	_cr = Vector3(wide, (height - fork) * shape.crown_y, wide * rng.randf_range(0.85, 1.15))
 	_cc = Vector3(top.x, height - _cr.y, top.z)
 
 	_phase = 0.0
@@ -459,12 +494,12 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	flare.append(0.0)
 	_tube(bark, pts, radii, 20 if detail >= 1.0 else 8, 0.0, 1.0, r0 * TAU, flare)
 
-	var limbs := rng.randi_range(2, 4)
+	var limbs := rng.randi_range(shape.limbs[0], shape.limbs[1])
 	var turn := rng.randf() * TAU
 	var rf := r0 * 0.8
 	for i in limbs:
 		var az := turn + TAU * i / limbs + rng.randf_range(-0.4, 0.4)
-		var tilt := rng.randf_range(0.1, 0.25) if i == 0 else rng.randf_range(0.45, 0.85)
+		var tilt := rng.randf_range(shape.lead[0], shape.lead[1]) if i == 0 else rng.randf_range(shape.tilt[0], shape.tilt[1])
 		var dir := (Vector3.UP * cos(tilt) + _h_dir(az) * sin(tilt)).normalized()
 		var len := _to_envelope(top, dir) * rng.randf_range(0.8, 0.92)
 		_phase = rng.randf()
@@ -472,6 +507,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 		_bough(bark, leaf, top + Vector3.DOWN * r0 * 1.5, dir, len + r0 * 1.5, r, 0, rng.randf(), r0 * TAU)
 	_clusters(leaf)
 	_skirt(bark, leaf, r0, detail)
+	_gnarl = 1.0
 	_broad = false
 	_cells = FIR_CELLS
 	return [bark, leaf]
@@ -623,12 +659,12 @@ func _bough(bark: Surf, leaf: Surf, start: Vector3, dir: Vector3, len: float, ra
 	# random draws, so the crown's layout is unchanged).
 	var seg := 6 if depth == 0 else (4 if depth == 1 else 3)
 	var grav: float = [0.25, 0.05, -0.25, -0.35][depth]
-	var wander := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.3, 0.3), rng.randf_range(-1, 1)) * 0.25
+	var wander := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.3, 0.3), rng.randf_range(-1, 1)) * 0.25 * sqrt(_gnarl)
 	var terminal := depth >= _depth_max
 	var pts: Array[Vector3] = [start]
 	var radii: Array[float] = [rad]
 	var d := dir
-	var kink: float = [0.9, 0.6, 0.0, 0.0][depth]
+	var kink: float = [0.9, 0.6, 0.0, 0.0][depth] * _gnarl + [0.0, 0.0, 0.3, 0.0][depth] * (_gnarl - 1.0)
 	var aside := dir.cross(Vector3(wander.x, 0.0, wander.z) + Vector3(0.02, 0.0, 0.0))
 	aside = aside.normalized() if aside.length() > 0.001 else _perp(dir, 0.0)
 	var kink_ph := wander.y * 20.0

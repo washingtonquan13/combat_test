@@ -3,8 +3,8 @@
 Studied 2026-11-21. The BG3 assets were read from the installed game's paks
 for reference only. None of them are, or will be, in this project. Measured
 with offline scripts (the scratchpad `bg3study/` set: `glbstat.py`,
-`trunkstat.py`, `raster.py`). Changes 1–7 are built (see "Built" at the
-end); 8 is not.
+`trunkstat.py`, `raster.py`). All eight changes are built (see "Built" at
+the end).
 
 ## What was compared
 
@@ -281,4 +281,60 @@ hundred.
 
 Checked with an offline render (scratchpad `raster7.py`, tilted 28°, geometry
 below the ground cut away).
+
+## Built: change 8 (2026-11-21)
+
+**A hero oak.** `plant_gen.gd`'s broadleaf generator now takes a shape
+(`_broadleaf(seed, height, detail, shape)`); `broadleaf()` passes `ISLE`,
+the old numbers, and `oak()` passes `OAK`. The shape sets the trunk's
+thickness, the fork height, the lean, the crown's width and height, the
+limb count and angles, the card size, how crooked it grows (`_gnarl`) and
+what the coarse mesh drops. The oak, at 22 m:
+- a thick trunk (r0 = 0.032·h + 0.1, about 0.8 m) that splits low (15–22%
+  of the height) into 5–7 limbs, all but one reaching out more than up
+  (55–72° from upright);
+- a crown wider than it is tall (radius 55–66% of the height);
+- crooked: limbs and first branches kink 2.2 times as hard and wander 1.5
+  times as far, and second branches kink too;
+- cluster cards at 10% of the height (2.2 m, against the isle's 22%), so
+  there are many of them;
+- the roots and litter of change 7, scaled with the trunk.
+
+Its coarse mesh is what the overworld draws, so it keeps all three twig
+levels (the isle's drops one) and saves with fewer, bigger cards instead
+(`far`: cards grow by detail^-0.55). Without that, it looked like a bare
+tree at a distance.
+
+The same draws come out in the same order for `ISLE`, so the isle meshes
+are byte for byte unchanged.
+
+| | near bark | near leaf | far bark | far leaf |
+|---|---|---|---|---|
+| oak 0 | 9168 | 5276 | 3056 | 540 |
+| oak 1 | 11752 | 4156 | 3728 | 568 |
+
+`regen_plants.gd` writes `gen_oak_{0,1}_{near,far}.res` (seeds 7500 and
+7501, `OAK_GEN`). The quarry bake doesn't make them; nothing in the quarry
+uses them.
+
+**Where it grows.** `morrow_forest.gd` draws a woods tree as an oak
+(`OAK`, size 0.8 per grey-box scale, so 14–25 m) when no other tree stands
+within `ALONE` (34 m). A tree that grew in the open spreads, so the oaks
+are the lone landmarks in the outskirts and glades: 61 of the 1534 trees.
+That needs no change to the blockout or the scene.
+
+**Not built:** the willow with hanging strand cards. One hero species
+shows what the generator can do; a willow is more content work of the
+same kind, and the `vine()` strands are the place to start.
+
+**Limits.**
+- The overworld's trunk collision is still the grey box's cylinder, thinner
+  than an oak's trunk. The camera never comes that close.
+- An oak's crown can reach into the nearest firs' crowns (34 m apart, crowns
+  up to about 15 m across).
+- No near mesh is drawn anywhere yet; it is there for a hand-placed oak in
+  a future area.
+
+Checked with an offline render (scratchpad `raster8.py`: both oaks, near
+and far, next to an isle tree for scale).
 

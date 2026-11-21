@@ -2,7 +2,7 @@ extends SceneTree
 
 # Remakes the generated plants and their leaf atlases in
 # world/goblin_quarry/meshes/ in place, without a rebake of the quarry: the
-# firs, broadleaves, bushes and ferns, from the same seeds, heights and detail
+# firs, broadleaves, bushes and ferns (and the hero oaks), from the same seeds, heights and detail
 # levels as bake_goblin_quarry.gd, and the four leaf atlases from their PNGs.
 # terrain.scn and morrow_forest.gd point at these files, so they pick the new
 # ones up. Placement, collision and the vines' geometry stay as baked.
@@ -13,6 +13,9 @@ const OUT := "res://world/goblin_quarry/meshes/"
 const F := "res://assets/level/forest/"
 const FOLIAGE := "res://assets/level/quarry/foliage/"
 const BAKE := preload("res://tools/quarry/bake_goblin_quarry.gd")
+
+# [height, variants] of the hero oaks.
+const OAK_GEN := [22.0, 2]
 
 var gen = preload("res://tools/quarry/plant_gen.gd").new()
 
@@ -39,6 +42,11 @@ func _initialize() -> void:
 			for lod in 2:
 				_save(gen.mesh(gen.broadleaf(seed, BAKE.BROAD_GEN[kind][0], 1.0 if lod == 0 else 0.4), broad_bark, broad_leaf), kind, v, lod)
 			seed += 1
+	# The hero oaks: only the Morrow overworld draws them (morrow_forest.gd),
+	# so the quarry bake doesn't make them.
+	for v in int(OAK_GEN[1]):
+		for lod in 2:
+			_save(gen.mesh(gen.oak(7500 + v, OAK_GEN[0], 1.0 if lod == 0 else 0.4), broad_bark, broad_leaf), "oak", v, lod)
 	for v in int(BAKE.BUSH_GEN[1]):
 		for lod in 2:
 			_save(gen.mesh(gen.bush(7300 + v, BAKE.BUSH_GEN[0], 1.0 if lod == 0 else 0.4), broad_bark, broad_leaf), "bush", v, lod)
