@@ -21,10 +21,19 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // UV2.y a random number per card. With distance a share of the cards fold
 // away, and past fade_start the clump sinks into the ground.
 //
+// Wind is the shared one (wind.gdshaderinc), in world space: every clump
+// leans the same way downwind and sways about that lean, and gust fronts
+// roll across the field. A card bends about the clump's root and keeps its
+// length, so tips swing down as they swing out instead of stretching.
+// `suppleness` scales it per material; dry patches and dry stalks are
+// stiffer.
+//
 // INSTANCE_CUSTOM picks the atlas cells: r the first row, g how many rows,
 // b a fixed column, or 4 for any. The same shader draws the meadow plants
 // (clover, weeds, flowers, stalks) with `painted` on: their atlas is in full
 // colour and keeps it, tinted only by INSTANCE color.
+
+#include "res://world/goblin_quarry/wind.gdshaderinc"
 
 uniform sampler2D tufts : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform sampler2D ground_grass : source_color, filter_linear_mipmap, repeat_enable;
@@ -54,7 +63,9 @@ uniform vec3 sunny = vec3(0.35, 0.43, 0.15);
 // other's shade. Kept to near the camera: from the game's height deep root
 // shade reads as dark spots on the ground.
 uniform float near_end = 14.0;
-uniform float wind = 0.05;
+// How much a plant gives to the wind: 1 green grass, 0.5 dry, 0.2 dead
+// stalks (BG3's Soupleness).
+uniform float suppleness = 1.0;
 uniform float thin_start = 12.0;
 uniform float fade_start = 30.0;
 uniform float fade_end = 44.0;
@@ -114,16 +125,20 @@ void vertex() {
 	float keep = mix(1.0, 0.6, smoothstep(thin_start, fade_start, dist));
 	float alive = clamp((keep - UV2.y) / 0.08, 0.0, 1.0);
 	float sink = 1.0 - smoothstep(fade_start, fade_end, dist);
-	VERTEX *= alive * sink;
+	float shown = alive * sink;
 
-	// One slow sway and a broad gust rolling across the field. Slow and low
-	// in frequency on purpose: it has motion vectors (TIME), but thin cards
-	// moving fast still shimmer under TAA.
-	float gust = 0.6 + 0.4 * sin(TIME * 0.31 + origin.x * 0.06 - origin.z * 0.045);
-	float sway = sin(TIME * 0.8 + origin.x * 0.23 + origin.z * 0.17) * gust;
-	float bend = tip * tip;
-	VERTEX.x += sway * wind * bend;
-	VERTEX.z += sway * wind * 0.6 * bend;
+	// Wind, in the clump's own space: the world direction turned into it.
+	// The offset grows with height x tip², so as tip³ up the card; then the
+	// vertex is put back at its rest distance from the root. Cards folded
+	// away skip it.
+	if (shown > 0.0) {
+		float give = suppleness * mix(1.0, 0.5, dry) * (painted && INSTANCE_CUSTOM.r > 2.5 ? 0.2 : 1.0);
+		float lean = wind_lean(origin.xz, TIME, 1.0) * give;
+		vec3 rest = VERTEX;
+		vec3 bent = rest + wind_dir_local(MODEL_MATRIX) * lean * max(rest.y, 0.0) * tip * tip;
+		VERTEX = bent * (length(rest) / max(length(bent), 1e-4));
+	}
+	VERTEX *= shown;
 }
 
 void fragment() {

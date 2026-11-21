@@ -644,6 +644,85 @@ form on the clumps close to the camera at no cost from above.
 If it needs to go, the lever is the atlas shading's contrast, not this
 uniform. That is a look decision for the developer, not part of change 1.
 
+## Built: change 2 (date 2026-11-21)
+
+**What.** A new include, `world/goblin_quarry/wind.gdshaderinc`, holds one
+wind for every plant. `quarry_grass.gdshader` includes it and drops its old
+`wind` sine. Per vertex: a world direction turned into the clump's space, a
+lean of 0.2 x `wind_strength` per metre of height at the tip, 45% constant
+and 55% a triangle wave smoothed by x²(3-2x), times (0.5 + gust). The gust
+is value noise at world XZ / 15 scrolling downwind at 3 m/s, cubed and
+clamped to 0..0.5. The wave's phase is a broad offset, time x 0.2-0.4 Hz
+by strength (0.3 Hz at 0.5), and the distance downwind / 30, so crests run
+downwind. The offset grows as height x tip², which is tip³ up the card. The
+bent vertex is put back at its rest distance from the root. A new
+`suppleness` uniform (default 1) scales it per material; dry patches give
+half, and the meadow's dead stalks (atlas row 3) give 0.2. Cards that are
+folded away or sunk skip the wind.
+
+**Shared values without project.godot.** `wind_direction` (0.8, 0.6) and
+`wind_strength` (0.5) are plain uniforms with their defaults in the include,
+not shader globals. A `global uniform` that project.godot does not list is a
+compile error in the editor, and this change must not edit project.godot.
+The baked materials set neither, so every plant gets the same default and
+nothing needs a rebake. The cost: changing the weather means setting the two
+values on each material, not one global. If weather ever changes at run
+time, move them to globals then (one line in the include plus the
+project.godot entries). Do not change them from script every frame: a value
+set from script has no previous-frame value for the motion vectors.
+
+**Motion vectors: settled.** Godot 4.4 Forward+ writes motion vectors for
+TIME-driven vertex motion. Checked with the motion-vector debug draw
+(`RenderingServer.VIEWPORT_DEBUG_DRAW_MOTION_VECTORS`), static camera, the
+old wind exaggerated 120x so the per-frame motion was visible: grass showed
+arrows in many directions, the path and rocks showed none. A moving-camera
+run was the control. So the comment in `tree_wind.gdshaderinc` was wrong;
+change 3 fixes it. Images: scratchpad `grass_build/mv_old/`.
+
+**Measured.** `tools/quarry/grass_bench.tscn`, same session, same build.
+
+| Station | Grass GPU ms, change 1 | Change 2 as first written (2 noises) | Change 2 as committed |
+|---|---|---|---|
+| A, 8 m | 2.52 | 2.69 | 2.68 |
+| B, 25 m | 1.82 | 2.07 | 2.02 (median 1.99) |
+| C, 60 m | 0.06 | 0.07 | 0.07 |
+
+Wind costs about 0.2 ms at B. A run with the noise replaced by one sine
+measured 1.93: about half is the noise, half the bend and the length fix.
+Skipping hidden cards and a sin-free hash did not move it. Replacing the
+second noise (the wave's broad phase) with two sines saved 0.05 ms.
+
+Motion, from 21-frame captures every 0.5 s over 10 s (scratchpad
+`grass_build/seqA`, `seqB`, `seqB_s0`, `seqB_s1`):
+- Station A: temporal std of the near field 2.05 / 255, frame-to-frame
+  change 1.36 / 255. Tufts visibly lean and swing; no smear trails in the
+  TAA frames.
+- Station B: blurred-field temporal std 0.110 at strength 0.5 and 0.135 at
+  1.0, against a noise floor of 0.089 with the wind off.
+- Peak tip speed (computed): about 0.03 m/s on 0.3 m grass at strength 0.5,
+  well under the 0.15 m/s limit.
+
+**Deviations.**
+- The wave's broad phase is two sines about 100 m across, not a second
+  noise at XZ / 100. Same job, 0.05 ms cheaper at B, and the gust noise
+  still breaks it up.
+- The noise is computed in the shader, not a texture: a texture would be a
+  new parameter on every baked material, so a rebake.
+- Cards bend about the clump root, not each card's root. Per-card roots
+  come with the new clump mesh (change 6).
+- No new globals in project.godot (see above).
+
+**Limits.**
+- At station B the spec amplitude (0.03 m on short grass) is under one
+  pixel: B is about 4 cm per pixel. The motion is measurable but gust
+  fronts crossing the field are faint even at strength 1.0, so the
+  acceptance line "gust fronts visible at B" is not met at the BG3
+  amplitude. Raising the amplitude to meet it would break the tip-speed
+  limit up close. The spec amplitude is kept; a stronger default is a look
+  decision for the developer (`wind_strength` on the grass materials).
+- Grass GPU time at B is at the 2.0 ms budget (1.99 median, 2.02 mean).
+  Changes 5-7 cut the triangles this runs on.
+
 ---
 
 ## 8. Sources
