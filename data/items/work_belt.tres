@@ -6,8 +6,6 @@
 
 [sub_resource type="Resource" id="Resource_wear"]
 script = ExtResource("3_wear")
-cc_part = &"belt"
-cc_layer = 4
 
 [resource]
 script = ExtResource("1_gear")

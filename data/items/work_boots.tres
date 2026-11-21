@@ -12,8 +12,6 @@ meshes = Dictionary[StringName, PackedScene]({
 &"proof_hero": ExtResource("4_fit")
 })
 covers = ExtResource("5_covers")
-cc_part = &"boots"
-cc_layer = 1
 
 [resource]
 script = ExtResource("1_gear")
