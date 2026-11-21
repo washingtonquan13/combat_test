@@ -40,6 +40,12 @@ skip_to_end, commit_stand_ins, unbind.
   play runs a copy beside it (`acting_copy()`), freed at the end. `scene_started`/`scene_finished`
   carry an empty PackedScene for it, so a placed scene has no authored music. K in a debug build plays
   the first one in the loaded area.
+- **Clips made for one scene** live in `assets/cutscene_animations.tres` (library `Cutscene` on the
+  character models; owner: `tools/cinematics/add_cutscene_clip.gd`, which takes one clip from an
+  FBX imported onto the humanoid skeleton). Every clip there is in place: the hips' forward travel
+  is taken out, and a clip that falls by itself has that height taken out too (`drop=`), so the
+  role's position keys are the only thing that moves the body. `Cutscene/jump_down`: perched, takes
+  off at 0.45 s, feet down at 1.35 s, holds the landing crouch to 2.5 s.
 - First scene: `cinematics/townsperson_meeting.tscn` (L in a debug build). Plan and what retires:
   `systems/cinematic_system/SIMPLIFICATION_PLAN.md`.
 

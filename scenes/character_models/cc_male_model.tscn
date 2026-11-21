@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="9_ragdoll"]
@@ -18,6 +18,7 @@
 [ext_resource type="Resource" path="res://data/face_shapes/character_creator.tres" id="15_names"]
 [ext_resource type="AnimationLibrary" path="res://assets/locomotion_animations.tres" id="20_loco_lib"]
 [ext_resource type="Resource" path="res://data/locomotion/humanoid.tres" id="21_loco_set"]
+[ext_resource type="AnimationLibrary" path="res://assets/cutscene_animations.tres" id="25_cutscene"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 height = 0.001
@@ -55,6 +56,7 @@ collision_shape = NodePath("CollisionTemplate")
 [node name="AnimationPlayer" type="AnimationPlayer" parent="Body"]
 libraries = {
 &"": ExtResource("3_anims"),
+&"Cutscene": ExtResource("25_cutscene"),
 &"Fight": ExtResource("22_fight"),
 &"Exchange": ExtResource("23_exchange"),
 &"Duel": ExtResource("24_duel"),
