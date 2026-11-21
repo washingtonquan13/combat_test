@@ -778,7 +778,23 @@ func mesh(parts: Array, bark_mat: Material, leaf_mat: Material) -> ArrayMesh:
 			continue
 		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surf.arrays())
 		m.surface_set_material(m.get_surface_count() - 1, bark_mat if i == 0 else leaf_mat)
-	return m
+	return with_lods(m)
+
+
+# The same mesh with Godot's own LODs: the renderer picks one per draw by
+# how far off its silhouette would be on screen (mesh_lod_threshold, a
+# pixel by default), so nothing visibly swaps. Shadow maps use them too.
+# tools/quarry/add_plant_lods.gd applies this to meshes already baked.
+static func with_lods(m: ArrayMesh) -> ArrayMesh:
+	return lod_importer(m).get_mesh()
+
+
+static func lod_importer(m: ArrayMesh) -> ImporterMesh:
+	var im := ImporterMesh.new()
+	for s in m.get_surface_count():
+		im.add_surface(Mesh.PRIMITIVE_TRIANGLES, m.surface_get_arrays(s), [], {}, m.surface_get_material(s), m.surface_get_name(s))
+	im.generate_lods(25.0, 60.0, [])
+	return im
 
 
 func leaf_material(atlas: Texture2D) -> ShaderMaterial:
