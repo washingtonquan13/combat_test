@@ -193,7 +193,7 @@ func _overdraw_shader(src: String) -> Shader:
 	var at := code.find("void fragment()")
 	code = code.substr(0, at) + """uniform bool od_scissor = true;
 void fragment() {
-	vec2 uv = (cell + clamp(UV, vec2(0.01), vec2(0.99))) * 0.25;
+	vec2 uv = (cell + clamp(UV, vec2(0.01), vec2(0.99))) / atlas_grid;
 	vec4 t = texture(tufts, uv);
 	if (od_scissor && t.a < 0.5) {
 		discard;

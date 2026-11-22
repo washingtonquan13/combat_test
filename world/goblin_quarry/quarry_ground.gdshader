@@ -232,9 +232,10 @@ void fragment() {
 		s_n = untiled(soil_normal, uv_s, s_dx, s_dy, o1, o2, ob).rgb;
 	}
 	if (w.b > 0.0) {
-		g_a = textureGrad(grass_albedo, uv_g, g_dx, g_dy).rgb;
-		g_a = mix(textureLod(grass_albedo, uv_g, 7.0).rgb, g_a, 0.3);
-		g_a = grass_root(g_a);
+		vec3 g_fine = textureGrad(grass_albedo, uv_g, g_dx, g_dy).rgb;
+		vec3 g_avg = textureLod(grass_albedo, uv_g, 7.0).rgb;
+		g_a = grass_root(mix(g_avg, g_fine, 0.3));
+		float streak = clamp(mix(1.0, lum(g_fine) / max(lum(g_avg), 0.02), 0.8), 0.6, 1.4);
 		g_n = mix(textureGrad(grass_normal, uv_g, g_dx, g_dy).rgb, vec3(0.5, 0.5, 1.0), 0.6);
 		// Where the cards have sunk away, the field's colour. Cards grow
 		// where the paint has grass (0.08 and up, denser and taller with
@@ -242,12 +243,16 @@ void fragment() {
 		float g = COLOR.b;
 		float up = normalize((INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz).y;
 		float cover = step(0.08, g) * min(1.0, g * 2.0) * pow(mix(0.55, 1.0, g), 2.0) * smoothstep(0.8, 0.86, up);
-		float field = smoothstep(grass_far_start, grass_far_end, length(VERTEX)) * cover * field_cover;
-		if (field > 0.0) {
+		// Under the cards, at every distance, the grass floor: the blades'
+		// own green, shaded (grass_floor()). Past the fade, the field's
+		// colour on top of it.
+		if (cover > 0.0) {
 			float dry_field;
 			float dip = (shape.b - 0.5) * 2.0 * shape_paint;
-			vec3 blades = grass_top(soil_albedo, xz, vec3(1.0), dip, 5.0, dry_field) * field_shade;
-			g_a = mix(g_a, blades, field);
+			vec3 top = grass_top(soil_albedo, xz, vec3(1.0), dip, 5.0, dry_field);
+			g_a = grass_floor(g_a, top, cover, streak);
+			float field = smoothstep(grass_far_start, grass_far_end, length(VERTEX)) * cover * field_cover;
+			g_a = mix(g_a, top * field_shade, field);
 		}
 	}
 	if (w.a > 0.0) {

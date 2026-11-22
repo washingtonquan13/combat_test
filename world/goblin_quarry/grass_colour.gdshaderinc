@@ -25,6 +25,15 @@ uniform vec3 fresh = vec3(0.26, 0.4, 0.14);
 uniform vec3 lush = vec3(0.19, 0.33, 0.13);
 uniform vec3 sunny = vec3(0.35, 0.43, 0.15);
 
+// The grass floor: under the cards the ground is not the grass texture's
+// own colour (an old path texture, olive and pale) but the blades' green,
+// shaded, so the gaps between tufts read as more grass, low down, and the
+// cards' roots grow out of the same colour. floor_cover is how far the
+// ground under full grass moves to it, floor_shade how dark it is against
+// the upper blades.
+uniform float floor_cover = 0.75;
+uniform float floor_shade = 0.36;
+
 const mat2 GRASS_COLOUR_TURN = mat2(vec2(0.8, 0.6), vec2(-0.6, 0.8));
 
 float grass_colour_lum(vec3 c) {
@@ -74,6 +83,14 @@ vec3 grass_top(sampler2D soil, vec2 xz, vec3 tint, float dip, float lod, out flo
 	top *= 1.0 - 0.16 * dip;
 	top = mix(top, lush * 0.8, max(dip, 0.0) * 0.4);
 	return mix(top, sunny * 0.8, max(-dip, 0.0) * 0.4);
+}
+
+// The ground under grass: `root` is grass_root() of the ground's grass
+// texture, `top` grass_top() at a coarse mip, `cover` how much grass the
+// paint grows there (0-1), `streak` the texture's own light against dark
+// (1 for its average), kept so the floor is not flat.
+vec3 grass_floor(vec3 root, vec3 top, float cover, float streak) {
+	return mix(root, top * floor_shade * streak, cover * floor_cover);
 }
 
 #endif

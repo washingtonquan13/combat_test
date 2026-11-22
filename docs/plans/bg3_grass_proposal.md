@@ -928,6 +928,222 @@ the same slot and saved.
 
 ---
 
+## Built: change 6 (date 2026-11-21)
+
+**What.** The tall and carpet clumps are gone. Each grass spot is now one
+patch mesh of fan cards, made by `_fan_patch()` in
+`bake_goblin_quarry.gd`, next to `_card_clump()`. A first version was
+rejected: it read as palm-like rosettes on bare ground. The second version
+fixed that but looked pale, flat and fern-like; a look round (below) redrew
+the atlas and retuned the cards. The numbers here are after that round.
+
+- A patch has 30-32 cards in 15-17 stars. Star centres sit in a 1 m square
+  (±0.5 m), at least 0.16 m apart. A star holds 1-3 cards.
+- Each card has its own random yaw and its root is jittered by up to
+  0.07 m. Cards in a star no longer share one root or spread evenly round
+  360°, so a star does not read as a rosette.
+- A card is a fan of 5 vertices and 3 triangles: root, two side points and
+  two top corners. It covers the outline a tuft fills (`FAN_U0` 0.03,
+  `FAN_VM` 0.9), about 95% of its quad.
+- Every card holds two shapes. The short shape is in VERTEX: 0.32-0.38 m
+  tall, 0.37-0.43 m wide, leaning 32-46°. The long shape is the short one
+  plus CUSTOM1.xyz: 0.67-0.75 m tall, 0.26-0.32 m wide, leaning 20-35°. A
+  card curves: its lean grows from 60% at the root to 100% at the tip.
+- CUSTOM0.xyz is the card root. CUSTOM0.w is one random number per star.
+  CUSTOM1.w is the card's yaw.
+- INSTANCE_CUSTOM.r is the patch's tall share. The shader grows a star long
+  when its random number is under the share. It then adds CUSTOM1 and picks
+  a long atlas row (0-1); otherwise it picks a short row (2-3). So one mesh
+  covers short, mixed and tall grass, and a chunk needs only one draw.
+- The tall share follows the old tall-grass noise, with ±0.2 of jitter per
+  patch. Patches with more tall grass are tinted up to 6% lighter.
+- There are 6 patch variants. A chunk uses one, picked by chunk position.
+  Each patch gets a random yaw and a scale of 0.9-1.1.
+- Roots sit 0.03 m below the ground. The patch is tilted to the ground
+  normal. Normals are +Y. The mesh carries a custom AABB that holds both
+  shapes.
+- Density is in INSTANCE_CUSTOM.a, as before. Spots come from a jittered
+  grid with a 0.84 m step, about 1.42 patches a square metre.
+- The grass room now ramps over grassiness 0.08-0.25 instead of 0.08-0.5.
+  The old ramp thinned patches well inside the field, which left holes at
+  station B.
+- `grass_atlas.py` draws an 8 x 4 atlas. Rows 0-1 are long tufts, rows 2-3
+  short. See "Look round" for how a tuft is drawn.
+- The shader picks a cell per card, as in the first version. The grid size
+  is a plain uniform, `atlas_grid` (8 x 4 for patches, 4 x 4 for the
+  meadow). No shader globals and no `project.godot` change.
+- `grass_bench.gd` reads `atlas_grid` for its overdraw pass. It builds that
+  pass from the grass shader's own vertex code, so promotion and widening
+  match the game.
+
+**Pulled forward from change 7.** Change 7 owns distance thinning. Two parts
+of it are in this change, because station B needed them:
+- `thin_start` is 14 m, as in 5.6 (it was 12).
+- Cards that survive the thinning widen along their own side, up to x1.25 at
+  `fade_start`. This is a plain uniform, `widen` (0.25). It uses the yaw in
+  CUSTOM1.w. The meadow does not widen.
+
+Change 7 still owns the density curve and its tuning.
+
+**Spec contradiction and the decision.** Under 5.2's per-card numbers the
+6 m² card-area cap can't be reached. 20-28 cards of at most 0.36 x 0.26 m,
+at 1.5 patches a square metre, give about 3 m² of card a square metre. That
+is why the first version looked bare. Decision: the bold aggregate caps rule
+(triangles, card area, opaque share, instances a square metre). The
+per-card and per-patch numbers give way:
+- Short cards are 0.48-0.56 m wide, about twice 5.2's width.
+- Patches have 32-35 cards in 11-13 stars, more than 5.2's 20-28 in 5-7.
+
+**Look round: why the second version read as pale ferns.** The atlas was
+kept from the first version while the cards changed, and it was drawn for
+a different card.
+- Fern shape. Every blade grew from one root point, so each card was a V,
+  a frond. A quarter of the blades were short, wide outer blades splayed
+  sideways, like leaflets. Short blades were about twice the old width,
+  with a bright fold. Short cards were wider than tall (0.52 x 0.31 m) and
+  leaned 40-50°, so they lay half flat and fanned out from each star.
+- Bare base. Only 17% of a tuft's bottom band was opaque: a thin stalk
+  with ground either side. Coverage sat at the top (60% in the top band).
+- Pale. The atlas was brighter than the old one (mean 0.78 against 0.66)
+  and its coverage was top-heavy, so the bright tip colour and the atlas
+  shading dominated. There were about half the old card layers, so less
+  depth. Rendered, A was 37% brighter than HEAD (ΔE 7.5) and the close shot
+  was ΔE 6.3 off.
+
+**Look round: what changed.**
+- `grass_atlas.py`. Tufts are rooted along the card's whole bottom edge
+  (roots within ±0.38 of the cell centre, at v 0.86-0.95) and stand mostly
+  upright. Blades lean out a little with their offset, and outer blades are
+  shorter, so a tuft is dense at the bottom with a ragged top. Each tuft has
+  a darker under-layer (55-90 short, thatch-like blades at 15-55% height)
+  under 95-145 main blades at 45-98% height. Long blades are 4-12 mm wide,
+  short 9-21 mm. 5-8% of blades are dead, 5-10% kinked, 30% droop.
+  Shading is baked dark to light: brightness 0.55-0.95 by depth, and an AO
+  ramp from 0.68 at the root to 1 at 60% height. The fan outline is now
+  `FAN_U0` 0.03, `FAN_VM` 0.9, nearly the full quad. The script prints
+  per-band cover and brightness.
+- `bake_goblin_quarry.gd`. Short cards are taller and narrower
+  (0.32-0.38 x 0.37-0.43 m, was 0.29-0.33 x 0.48-0.56). Leans are 32-46°
+  short and 20-35° long. 30-32 cards in 15-17 stars, 0.16 m apart (was
+  32-35 cards in 11-13 stars, 0.2 m apart), roots jittered 0.07 m. More,
+  smaller stars spread the same card area more evenly.
+- The shader is unchanged.
+
+**Measured.** From `grass.scn`, run windowed (headless loads the instance
+transforms as zero).
+- Tris per patch: 90-96 (30-32 cards).
+- Card area per patch: short shape 3.83-4.15 m², long shape 5.65-6.19 m².
+- Instance scale is 0.900-1.100. Short cards in the world are 0.29-0.42 m
+  tall and 0.33-0.47 m wide. Long cards are 0.6-0.83 m tall and
+  0.23-0.35 m wide. Mesh AABBs are 1.4-1.75 m across, so neighbouring
+  patches overlap.
+- In 10 x 10 m squares of grass:
+
+| Square at | Patches/m² | Tris/m² | Card m²/m² (all short / all long / as grown) | Mean tall share |
+|---|---|---|---|---|
+| (-4, 30) | 1.43 | 134.6 | 5.78 / 8.56 / 6.73 | 0.34 |
+| (55, 25) | 1.32 | 120.1 | 5.16 / 7.55 / 6.00 | 0.35 |
+| (-20, 10) | 1.30 | 119.8 | 5.10 / 7.53 / 5.55 | 0.19 |
+| (20, 40) | 1.38 | 126.3 | 5.46 / 8.01 / 6.20 | 0.29 |
+
+- "As grown" mixes the two shapes by each patch's tall share. It is the
+  area actually drawn.
+- The 5.2 caps pass: patches under 1.5 a square metre, tris under 150 a
+  square metre, short card area under 6 m², tall under 9 m².
+- Opaque share of the card outline: long 47.8%, short 46.1%, all 47.0%
+  (spec at least 45%). The lowest single cell is 43.7%.
+- Colour against HEAD, mean of the grass part of each shot (CIE76 ΔE,
+  luminance ratio new/old): A 1.15 (0.97), B 0.70 (0.99), B2 0.42 (0.98),
+  close 3.99 (0.88), macro 4.42 (0.91). The second version was ΔE 7.5 at A.
+- Counts: 27,160 patches. `grass.scn`: 2,167 KiB. Regen: 23.1 s.
+- Bench (1920 x 1080, TAA on), HEAD → second version → after the look
+  round:
+
+| Station | Grass GPU ms | Grass prims | Grass draws | Covered (kept layers on grass) | Card silhouettes (layers on grass) |
+|---|---|---|---|---|---|
+| A (8 m) | 2.53 → 0.62 → 0.58 | 1,488,308 → 428,488 → 374,656 | 64 → 43 → 42 | 69% → 64% → 62% (6.45 → 3.25 → 3.25) | 76% → 72% → 72% (24.90 → 5.82 → 6.17) |
+| B (25 m) | 1.92 → 0.68 → 0.65 | 1,510,308 → 433,494 → 400,929 | 73 → 51 → 51 | 46% → 41% → 37% (2.37 → 1.92 → 1.77) | 63% → 54% → 53% (8.51 → 3.03 → 2.78) |
+| C (60 m) | 0.07 → 0.06 → 0.06 | 88,284 → 46,782 → 42,201 | 5 → 4 → 4 | - | - |
+
+- Against the 5.7 budgets at B: GPU (0.65 ms), layers (1.77 kept) and draws
+  (51) pass. Triangles (401k, budget 200k) do not.
+
+**Rejected first version, and the cause of each problem.**
+- Rosettes. All cards of a star shared one root and spread evenly round
+  360°. Stars were 0.27 m apart, with bare ground between them. Now cards
+  have random yaws and jittered roots, and stars are 0.2 m apart in a 1 m
+  square.
+- Bare ground. The per-card sizes in 5.2 cap card area near 3 m² a square
+  metre. Now short cards are wider and patches have more cards (see the
+  decision above). The atlas also fills more of each card.
+- Holes at B. The grass room thinned patches inside the field. Distance
+  thinning dropped cards with nothing to make up for it. Now the room ramp
+  is shorter and survivors widen.
+- Over the instance cap. A 0.82 m grid gave 1.49 on average, with squares
+  at 1.51. Now the grid step is 0.84 m.
+- Three draws a chunk: one short, one mixed and one long variant. Now the
+  tall share is per instance, so a chunk draws one variant.
+- Scale understated. The first version wrote 0.85-1.1; the real range was
+  0.78-1.21. Now it is 0.9-1.1, measured above.
+
+**Limits.**
+- Colour now matches HEAD at A and B. Close up it is still about 12% darker
+  and a little less yellow-green (ΔE 4.0 close, 4.4 macro).
+- Close up (5 m and the 2.2 m macro shot), the field still reads as
+  separate tufts, not the solid sward of HEAD. Ground shows between tufts,
+  most in the short-grass areas. The straight top and side edges of the
+  short cards show as flat "shelves" at grazing angles. HEAD had about
+  four times the card layers at three to four times the triangles.
+- Coverage is a little lower than the second version: covered share is
+  62% at A (HEAD 69%) and 37% at B (HEAD 46%), because the opaque share
+  fell from 53% to 47% when the base got denser and the sides got ragged.
+- One atlas cell is at 43.7% opaque, under 5.2's 45%; the atlas as a whole
+  is 47.0%.
+- Triangles at B are 401k against the 200k budget. Change 7's density
+  curve has to bring this down.
+- The new placement differs from the old. Spots, kinds and sizes are new, so
+  side-by-side shots match in layout only.
+- The full bake was not rerun. `terrain.scn` instances `grass.scn`, so the
+  game picks up the regen output as it is.
+
+---
+
+## Built: change 6b, BG3 sprays (date 2026-11-21)
+
+**What changed.** The fan cards became BG3-style spray tufts, after the
+user's call to build the grass the way BG3's clusters are built.
+- A 1 m patch is 4-6 tufts of 3-4 twisted spray ribbons from one root, one
+  tuft in ten upright with 2-3 seed stalks, one or two flat dandelion or
+  plantain stars, and a clover clump in 40% of patches. Plants stand at
+  least 0.2 m apart. Fold order is spread evenly over each piece.
+- The atlas is 8 x 5: rows 0-1 long sprays, 2-3 short, column 7 all straw,
+  row 4 weeds (dandelion, plantain, clover, seed stalk). Weed pieces name
+  their column in vertex alpha (column / 16).
+- Long grass is the default, as in BG3's meadows: the tall share is
+  0.55-0.95 by the stand noise, scaled down on thin ground.
+
+**Measured** (`grass_bench.tscn`, 1920 x 1080, TAA), against the grass
+before this rework (change 0):
+
+| Station | Grass GPU ms | Grass prims | Card layers on grass |
+|---|---|---|---|
+| A (8 m) | 2.65 → 1.02 | 1,323,136 → 530,367 | 25.0 → 6.5 |
+| B (25 m) | 1.82 → 1.02 | 1,499,724 → 552,109 | 8.5 → 3.3 |
+
+A first cut with 6-8 tufts of 4-5 sprays cost 1.89 ms at A and 1.64 at B
+(1.0 M prims); thinning to the counts above halved it.
+
+**Limits.**
+- At the gameplay camera the field is cooler and flatter than change 0's.
+  Change 0's warmth was mostly the olive ground showing through gaps (a
+  third of the frame at B, ground hue 68). The grass floor (change 6) now
+  tints the ground under grass toward the blades' green (hue 75), so the
+  gaps no longer read warm. `floor_cover` (0.75) is the dial.
+- Close up, tufts seen from above still read as stars.
+- The user judged the result good enough and stopped tuning here.
+
+---
+
 ## 8. Sources
 
 BG3 and Larian

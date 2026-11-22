@@ -2034,7 +2034,259 @@ func _flat_clump() -> ArrayMesh:
 	return _clump_mesh(verts, norms, uvs, uv2s, idx)
 
 
-func _clump_mesh(verts: PackedVector3Array, norms: PackedVector3Array, uvs: PackedVector2Array, uv2s: PackedVector2Array, idx: PackedInt32Array) -> ArrayMesh:
+## The fan card's outline in its atlas cell (UV, V down from the top): root
+## (0.5, 1), side points (FAN_U0, FAN_VM) and (1 - FAN_U0, FAN_VM), top
+## corners (0, 0) and (1, 0). grass_atlas.py cuts each tuft to the same
+## shape, so keep the two in step. The side points sit low, so the pentagon
+## is 95% of its quad: tufts are rooted along the card's whole bottom edge.
+const FAN_U0 := 0.03
+const FAN_VM := 0.9
+## BG3's spray ribbon (IP_Vegetation_Grass_Wild_Green_Long_A): a root point,
+## then left/right edge pairs out along the spray, as (v, half width in u).
+## grass_atlas.py's RIBBON; keep the two in step.
+const RIBBON: Array[Vector2] = [Vector2(1.0, 0.0), Vector2(0.66, 0.26), Vector2(0.33, 0.46), Vector2(0.0, 0.5)]
+## Grass card sizes in the patch mesh, height and width at the top (m).
+## Patches are scaled 0.9-1.1, so in the world short cards are 0.29-0.42 m
+## tall and 0.33-0.47 m wide, long ones 0.6-0.83 m tall and 0.23-0.35 m wide.
+## Short cards are wider and a little taller than 5.2's 0.26-0.36 x 0.18-0.26 m,
+## and lean 32-46 (short) and 20-35 degrees (long): see the change 6 notes in
+## docs/plans/bg3_grass_proposal.md.
+const SHORT_H := Vector2(0.32, 0.38)
+const SHORT_W := Vector2(0.37, 0.43)
+const LONG_H := Vector2(0.67, 0.75)
+const LONG_W := Vector2(0.33, 0.39)
+## Grass patch meshes built (_fan_patch()); a chunk draws one of them.
+const PATCH_VARIANTS := 6
+
+
+func _fan_patch(seed: int) -> ArrayMesh:
+	# A 1 x 1 m patch of meadow, mixed the way BG3's ready-made grass clusters
+	# mix their plants (Green_Long_Cluster_B, Green_Short_Cluster_A; all on
+	# one atlas and one material): 4-6 grass tufts, one or two flat weed
+	# stars, and sometimes a clump of clover. Plants stand at least 0.2 m
+	# apart anywhere in the patch (+-0.5 m); roots sit 0.03 m below the
+	# patch's origin, the ground. Normals are straight up, so everything
+	# lights like the ground under it.
+	#
+	# - Grass tuft: 3-4 spray ribbons out of one root (BG3's Green_Short_A /
+	#   Long_A): a root vertex, then edge pairs out along a twisted strip,
+	#   5 triangles (RIBBON). One tuft in ten is upright (Long_D):
+	#   steeper sprays and 2-3 seed stalks, each a quad.
+	# - Flat star: 6-8 dandelion or 5-7 plantain leaves lying almost flat
+	#   (Green_Dandelion_A, Green_Plantain_A), each leaf a ribbon.
+	# - Clover clump: 5-9 stems, each a thin upright quad holding a flat leaf
+	#   quad 0.05-0.13 m up (Weeds_Clover_A).
+	#
+	# Every vertex is built twice, short and long, with one root: VERTEX is
+	# the short shape and CUSTOM1.xyz the move to the long one (zero for the
+	# weeds, which don't grow). The shader grows a plant long when its
+	# CUSTOM0.w, a random number per plant, is below the instance's tall
+	# share (INSTANCE_CUSTOM.r), so one mesh draws short grass, long grass
+	# and every mix between in one draw.
+	# UV is the point in the piece's atlas cell. Grass pieces take a cell of
+	# rows 0-3 in the shader; weed pieces (vertex alpha below 0.5) name their
+	# column of the weed row, 4, as alpha x 16. UV2.x is 0 at the root and 1
+	# at the top; UV2.y is a random number per piece, spread evenly over the
+	# patch, that the shader folds pieces away by. CUSTOM0.xyz is the piece's
+	# root, so the shader bends it about its own root and colours it from the
+	# ground there. CUSTOM1.w is its facing (yaw), so the shader can widen
+	# the pieces that survive the distance thinning.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+	var b := _PatchBuild.new()
+	var plants: Array[String] = []
+	for i in rng.randi_range(4, 6):
+		plants.append("upright" if rng.randf() < 0.1 else "tuft")
+	plants.append("dandelion" if rng.randf() < 0.5 else "plantain")
+	if rng.randf() < 0.3:
+		plants.append("dandelion" if rng.randf() < 0.5 else "plantain")
+	if rng.randf() < 0.4:
+		plants.append("clover")
+	var spots: Array[Vector2] = []
+	for i in 2000:
+		if spots.size() == plants.size():
+			break
+		var p := Vector2(rng.randf_range(-0.5, 0.5), rng.randf_range(-0.5, 0.5))
+		var apart := true
+		for q in spots:
+			apart = apart and p.distance_to(q) >= 0.2
+		if apart:
+			spots.append(p)
+	for s in spots.size():
+		var kind: String = plants[s]
+		var c := Vector3(spots[s].x, -0.03, spots[s].y)
+		var grow := rng.randf()
+		var spin := rng.randf() * TAU
+		match kind:
+			"tuft", "upright":
+				var up := kind == "upright"
+				var n := rng.randi_range(3, 4)
+				for j in n:
+					var yaw := spin + TAU * (float(j) + rng.randf_range(-0.3, 0.3)) / n
+					var off := Vector2.from_angle(rng.randf() * TAU) * 0.04 * sqrt(rng.randf())
+					var shape: Array
+					if up:
+						shape = [
+							[rng.randf_range(SHORT_H.x, SHORT_H.y), deg_to_rad(rng.randf_range(5.0, 15.0)), deg_to_rad(rng.randf_range(25.0, 45.0))],
+							[rng.randf_range(LONG_H.x, LONG_H.y) * 1.05, deg_to_rad(rng.randf_range(3.0, 10.0)), deg_to_rad(rng.randf_range(18.0, 35.0))],
+						]
+					else:
+						shape = [
+							[rng.randf_range(SHORT_H.x, SHORT_H.y), deg_to_rad(rng.randf_range(12.0, 25.0)), deg_to_rad(rng.randf_range(40.0, 60.0))],
+							[rng.randf_range(LONG_H.x, LONG_H.y), deg_to_rad(rng.randf_range(10.0, 25.0)), deg_to_rad(rng.randf_range(55.0, 78.0))],
+						]
+					b.ribbon(c + Vector3(off.x, 0.0, off.y), yaw, deg_to_rad(rng.randf_range(-30.0, 30.0)), shape, grow, 1.0)
+				if up:
+					for j in rng.randi_range(2, 3):
+						var off := Vector2.from_angle(rng.randf() * TAU) * 0.03
+						var hs := [rng.randf_range(0.3, 0.4), rng.randf_range(0.75, 0.95)]
+						b.stalk(c + Vector3(off.x, 0.0, off.y), rng.randf() * TAU, deg_to_rad(rng.randf_range(3.0, 12.0)), hs, grow, _weed_alpha(6 + rng.randi_range(0, 1)))
+			"dandelion", "plantain":
+				var dand := kind == "dandelion"
+				var n := rng.randi_range(6, 8) if dand else rng.randi_range(5, 7)
+				var a := _weed_alpha((0 if dand else 2) + rng.randi_range(0, 1))
+				var size := rng.randf_range(0.8, 1.15)
+				for j in n:
+					var yaw := spin + TAU * (float(j) + rng.randf_range(-0.25, 0.25)) / n
+					var l := size * (rng.randf_range(0.1, 0.17) if dand else rng.randf_range(0.12, 0.2))
+					var a0 := rng.randf_range(65.0, 75.0) if dand else rng.randf_range(55.0, 70.0)
+					var a1 := rng.randf_range(85.0, 92.0) if dand else rng.randf_range(78.0, 88.0)
+					var leaf := [l, deg_to_rad(a0), deg_to_rad(a1)]
+					b.ribbon(c, yaw, deg_to_rad(rng.randf_range(-10.0, 10.0)), [leaf, leaf], grow, a)
+			"clover":
+				for j in rng.randi_range(5, 9):
+					var off := Vector2.from_angle(rng.randf() * TAU) * 0.15 * sqrt(rng.randf())
+					b.clover(c + Vector3(off.x, 0.0, off.y), rng.randf() * TAU, rng.randf_range(0.06, 0.14), rng.randf_range(0.05, 0.08), deg_to_rad(rng.randf_range(0.0, 15.0)), grow, _weed_alpha(4 + rng.randi_range(0, 1)))
+	b.spread_folds(rng)
+	var mesh := _clump_mesh(b.verts, b.norms, b.uvs, b.uv2s, b.idx, b.roots, b.longs, b.cols)
+	# The long shapes are only in CUSTOM1, so the mesh's box is set to hold them.
+	mesh.custom_aabb = b.box
+	return mesh
+
+
+## A weed piece's vertex alpha: its column of the atlas's weed row, / 16.
+func _weed_alpha(col: int) -> float:
+	return float(col) / 16.0
+
+
+class _PatchBuild:
+	# The arrays of one grass patch mesh (_fan_patch()), and its pieces.
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+	var norms := PackedVector3Array()
+	var roots := PackedFloat32Array()
+	var longs := PackedFloat32Array()
+	var cols := PackedColorArray()
+	var idx := PackedInt32Array()
+	var box := AABB()
+	# First vertex of each piece, for spread_folds().
+	var pieces: Array[int] = []
+
+	func vert(at: Vector3, long_at: Vector3, uv: Vector2, tip: float, root: Vector3, grow: float, yaw: float, a: float) -> void:
+		box = AABB(at, Vector3.ZERO) if verts.is_empty() else box.expand(at)
+		box = box.expand(long_at)
+		verts.append(at)
+		longs.append_array([long_at.x - at.x, long_at.y - at.y, long_at.z - at.z, yaw])
+		uvs.append(uv)
+		uv2s.append(Vector2(tip, 0.0))
+		norms.append(Vector3.UP)
+		roots.append_array([root.x, root.y, root.z, grow])
+		cols.append(Color(1, 1, 1, a))
+
+	func ribbon(root: Vector3, yaw: float, roll: float, shape: Array, grow: float, a: float) -> void:
+		# A spray or leaf: root vertex, then left/right pairs out along a
+		# twisted strip (RIBBON), 5 triangles. shape is [length, angle off
+		# vertical at the root, at the tip], short then long; the strip is as
+		# wide as half its length, as the atlas cell.
+		var out := Vector3(cos(yaw), 0.0, sin(yaw))
+		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
+		var rows: Array = []
+		for sh: Array in shape:
+			var pts: Array[Vector3] = [root]
+			var axes: Array[Vector3] = [side]
+			var p := root
+			var t0 := 0.0
+			for q in range(1, RIBBON.size()):
+				var t1: float = 1.0 - RIBBON[q].x
+				var ang: float = lerpf(sh[1], sh[2], (t0 + t1) * 0.5)
+				var dir := Vector3.UP * cos(ang) + out * sin(ang)
+				p += dir * float(sh[0]) * (t1 - t0)
+				pts.append(p)
+				axes.append(side.rotated(dir, roll))
+				t0 = t1
+			rows.append([pts, axes])
+		var start := verts.size()
+		pieces.append(start)
+		for q in RIBBON.size():
+			var v: float = RIBBON[q].x
+			var hw: float = RIBBON[q].y
+			for e: float in ([0.0] if hw == 0.0 else [-1.0, 1.0]):
+				var at: Array[Vector3] = []
+				for i in 2:
+					at.append(rows[i][0][q] + rows[i][1][q] * e * hw * float(shape[i][0]))
+				vert(at[0], at[1], Vector2(0.5 + e * hw, v), 1.0 - v, root, grow, yaw, a)
+		idx.append_array([start, start + 1, start + 2])
+		for q in range(RIBBON.size() - 2):
+			var l0 := start + 1 + q * 2
+			idx.append_array([l0, l0 + 2, l0 + 1, l0 + 1, l0 + 2, l0 + 3])
+
+	func quad(c: Array, long_c: Array, uv0: Vector2, uv1: Vector2, tips: Array, root: Vector3, grow: float, yaw: float, a: float) -> void:
+		# Corners bottom-left, bottom-right, top-left, top-right; uv0 is the
+		# top-left of the piece's rectangle in its cell, uv1 the bottom-right.
+		var start := verts.size()
+		pieces.append(start)
+		var uv := [Vector2(uv0.x, uv1.y), uv1, uv0, Vector2(uv1.x, uv0.y)]
+		for i in 4:
+			vert(c[i], long_c[i], uv[i], tips[i], root, grow, yaw, a)
+		idx.append_array([start, start + 2, start + 1, start + 1, start + 2, start + 3])
+
+	func stalk(root: Vector3, yaw: float, lean: float, heights: Array, grow: float, a: float) -> void:
+		# A seed stalk: one upright quad, a fifth as wide as it is tall (the
+		# middle 0.4 of its cell), leaning `lean` off vertical.
+		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
+		var out := Vector3(cos(yaw), 0.0, sin(yaw))
+		var dir := Vector3.UP * cos(lean) + out * sin(lean)
+		var cs: Array = []
+		for h: float in heights:
+			var w := side * h * 0.1
+			cs.append([root - w, root + w, root + dir * h - w, root + dir * h + w])
+		quad(cs[0], cs[1], Vector2(0.3, 0.0), Vector2(0.7, 1.0), [0.0, 0.0, 1.0, 1.0], root, grow, yaw, a)
+
+	func clover(root: Vector3, yaw: float, h: float, s: float, tilt: float, grow: float, a: float) -> void:
+		# A clover: a thin stem quad (the cell's lower half, its middle 0.08)
+		# holding a leaf quad (the cell's upper half) flat, tilted by `tilt`.
+		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
+		var out := Vector3(cos(yaw), 0.0, sin(yaw))
+		var top := root + Vector3.UP * h + out * h * 0.15
+		var w := side * 0.003
+		var stem := [root - w, root + w, top - w, top + w]
+		quad(stem, stem, Vector2(0.46, 0.5), Vector2(0.54, 1.0), [0.0, 0.0, 1.0, 1.0], root, grow, yaw, a)
+		var fwd := out.rotated(side, -tilt) * s * 0.5
+		var lat := side * s * 0.5
+		var leaf := [top - fwd - lat, top - fwd + lat, top + fwd - lat, top + fwd + lat]
+		quad(leaf, leaf, Vector2(0.0, 0.0), Vector2(1.0, 0.5), [1.0, 1.0, 1.0, 1.0], root, grow, yaw, a)
+
+	func spread_folds(rng: RandomNumberGenerator) -> void:
+		# Each piece's fold number (UV2.y), spread evenly over the patch in a
+		# shuffled order, so the shader thins the patch evenly with distance.
+		var n := pieces.size()
+		var order := range(n)
+		for i in range(n - 1, 0, -1):
+			var j := rng.randi_range(0, i)
+			var swap: int = order[i]
+			order[i] = order[j]
+			order[j] = swap
+		for p in n:
+			var r := (float(order[p]) + rng.randf()) / n
+			var end := verts.size() if p == n - 1 else pieces[p + 1]
+			for v in range(pieces[p], end):
+				uv2s[v] = Vector2(uv2s[v].x, r)
+
+
+func _clump_mesh(verts: PackedVector3Array, norms: PackedVector3Array, uvs: PackedVector2Array, uv2s: PackedVector2Array, idx: PackedInt32Array, roots := PackedFloat32Array(), longs := PackedFloat32Array(), cols := PackedColorArray()) -> ArrayMesh:
+	# `roots` and `longs`, if given, are CUSTOM0 and CUSTOM1 (4 floats a
+	# vertex each): see _fan_patch().
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -2042,12 +2294,21 @@ func _clump_mesh(verts: PackedVector3Array, norms: PackedVector3Array, uvs: Pack
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
 	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
 	arrays[Mesh.ARRAY_INDEX] = idx
+	if not cols.is_empty():
+		arrays[Mesh.ARRAY_COLOR] = cols
+	var flags := 0
+	if not roots.is_empty():
+		arrays[Mesh.ARRAY_CUSTOM0] = roots
+		flags = Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT
+	if not longs.is_empty():
+		arrays[Mesh.ARRAY_CUSTOM1] = longs
+		flags |= Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT
 	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, flags)
 	return mesh
 
 
-func _grass_material(atlas_png: String, res_name: String, painted: bool) -> ShaderMaterial:
+func _grass_material(atlas_png: String, res_name: String, painted: bool, grid := Vector2(4, 4)) -> ShaderMaterial:
 	if _gen == null:
 		_gen = load("res://tools/quarry/plant_gen.gd").new()
 	var atlas: Texture2D = _gen.coverage_texture(atlas_png)
@@ -2057,6 +2318,7 @@ func _grass_material(atlas_png: String, res_name: String, painted: bool) -> Shad
 	mat.shader = load(OUT + "quarry_grass.gdshader")
 	mat.set_shader_parameter("tufts", atlas)
 	mat.set_shader_parameter("painted", painted)
+	mat.set_shader_parameter("atlas_grid", grid)
 	mat.set_shader_parameter("ground_grass", load(T + "grass_path_2_diff_2k.jpg"))
 	mat.set_shader_parameter("ground_soil", load(T + "forest_ground_04_diff_2k.jpg"))
 	_set_relief(mat)
@@ -2065,7 +2327,7 @@ func _grass_material(atlas_png: String, res_name: String, painted: bool) -> Shad
 
 class Scatter:
 	# Instances of one mesh in one chunk: transform, tint, and which atlas
-	# cells (INSTANCE_CUSTOM, see quarry_grass.gdshader).
+	# cells plus density (INSTANCE_CUSTOM, see quarry_grass.gdshader).
 	var xforms: Array[Transform3D] = []
 	var tints: Array[Color] = []
 	var cells: Array[Color] = []
@@ -2102,8 +2364,13 @@ func _emit_scatter(parent: Node3D, node_name: String, mesh: Mesh, sc: Scatter, r
 	return sc.xforms.size()
 
 
-## Grass grid spacing: about 15 clumps per square metre.
-const GRASS_STEP := 0.26
+## Grass patch grid spacing: one patch per 0.84 m cell, 1.42 a square metre,
+## under 5.2's 1.5 with room for a 10 m square catching an extra row. The
+## grid is the quarry's, not the chunk's: 12 m is not a whole number of steps.
+const PATCH_STEP := 0.84
+## Over how far a field's grass thins out toward its edge: a patch's
+## density is the share of grass room within this radius of it.
+const EDGE_REACH := 1.0
 
 
 ## The grass's own random stream, so the rest of the bake can change without
@@ -2127,58 +2394,92 @@ func _save_grass() -> PackedScene:
 	return packed
 
 
+func _grass_room(x: float, z: float) -> float:
+	# How much grass a spot takes, 0-1: none on steep, wet or indoor ground,
+	# and rising with grassiness over 0.08-0.25. The old clumps (15 a square
+	# metre, kept with chance grassiness / 0.5) already covered the ground
+	# fully from about 0.15, so the field reaches as far as it did.
+	if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
+		return 0.0
+	return smoothstep(0.08, 0.25, _grassiness(x, z))
+
+
 func _build_grass() -> Node3D:
-	# Two layers. Grass: a dense carpet of short wide clumps over every grassy
-	# spot, with tall tufts standing out of it in patches. Meadow: clover in
-	# colonies, flowers in drifts of one colour, dry stalks in dry spots and
-	# the odd weed rosette, all from meadow_plants.png.
+	# Two layers. Grass: 1 m patches of fanned tuft cards (_fan_patch()) over
+	# every grassy spot, short grass with long grass standing out of it in
+	# stands, thinning toward a field's edge. Meadow: clover in colonies,
+	# flowers in drifts of one colour, dry stalks in dry spots and the odd
+	# weed rosette, all from meadow_plants.png.
 	_grng.state = GRASS_RNG_STATE
 	var grass := Node3D.new()
 	grass.name = "Grass"
-	var tall := _card_clump(6, Vector2(20, 34), Vector2(0.36, 0.46), Vector2(0.62, 0.82), 3, 5, 3)
-	var carpet := _card_clump(6, Vector2(28, 44), Vector2(0.4, 0.5), Vector2(0.34, 0.44), 2, 9, 2)
+	var grass_mat := _grass_material("res://assets/level/quarry/foliage/grass_tufts.png", "grass_tufts.res", false, Vector2(8, 5))
+	var meadow_mat := _grass_material("res://assets/level/quarry/foliage/meadow_plants.png", "meadow_plants.res", true)
+	# Patch meshes: each grows short or long grass by the instance's tall
+	# share, so a chunk is one draw. Patches are turned and tilted at random
+	# and each card picks its own atlas cell, so the repeats don't show.
+	var variants: Array[ArrayMesh] = []
+	for i in PATCH_VARIANTS:
+		var m := _fan_patch(101 + i)
+		m.surface_set_material(0, grass_mat)
+		variants.append(m)
 	var upright := _card_clump(3, Vector2(4, 12), Vector2(0.36, 0.44), Vector2(0.42, 0.52), 1, 13)
 	var flat := _flat_clump()
-	var grass_mat := _grass_material("res://assets/level/quarry/foliage/grass_tufts.png", "grass_tufts.res", false)
-	var meadow_mat := _grass_material("res://assets/level/quarry/foliage/meadow_plants.png", "meadow_plants.res", true)
-	tall.surface_set_material(0, grass_mat)
-	carpet.surface_set_material(0, grass_mat)
 	upright.surface_set_material(0, meadow_mat)
 	flat.surface_set_material(0, meadow_mat)
-	var counts := {"tall": 0, "carpet": 0, "flat": 0, "upright": 0}
+	var counts := {"patches": 0, "flat": 0, "upright": 0}
 
 	var chunk := 12.0
+	var ring: Array[Vector2] = []
+	for i in 8:
+		ring.append(Vector2.from_angle(TAU * i / 8.0) * EDGE_REACH)
 	var cx := CX0
 	while cx < CX1:
 		var cz := CZ0
 		while cz < CZ1:
-			var t_sc := Scatter.new()
-			var c_sc := Scatter.new()
-			# One clump per cell of a jittered grid: purely random spots bunch
-			# up and leave bare holes at any density.
-			var cells_n := int(chunk / GRASS_STEP)
-			for i in cells_n * cells_n:
-				var x := cx + (i % cells_n + _grng.randf()) * GRASS_STEP
-				var z := cz + (i / cells_n + _grng.randf()) * GRASS_STEP
+			var sc := Scatter.new()
+			# One patch per cell of a jittered grid: purely random spots bunch
+			# up and leave bare holes at any density. A chunk takes the cells
+			# whose corner lies in it.
+			var ix0 := ceili((cx - CX0) / PATCH_STEP)
+			var iz0 := ceili((cz - CZ0) / PATCH_STEP)
+			var nx := ceili((cx + chunk - CX0) / PATCH_STEP) - ix0
+			var nz := ceili((cz + chunk - CZ0) / PATCH_STEP) - iz0
+			for i in nx * nz:
+				var x := CX0 + (ix0 + i % nx + _grng.randf()) * PATCH_STEP
+				var z := CZ0 + (iz0 + i / nx + _grng.randf()) * PATCH_STEP
+				var room := _grass_room(x, z)
+				if room <= 0.0:
+					continue
+				# Density: the grass room around the patch, so a field thins
+				# out over the last couple of metres to its edge instead of
+				# stopping in a line. The shader folds cards by it.
+				for p in ring:
+					room += _grass_room(x + p.x, z + p.y)
+				var density := clampf(room / 9.0, 0.0, 1.0)
+				if density < 0.12:
+					continue
 				var g := _grassiness(x, z)
-				if g < 0.08 or g < _grng.randf() * 0.5:
-					continue
-				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
-					continue
 				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
 				var tint := Color(1.0 + v * 0.12 + _grng.randf() * 0.08, 1.0 + _grng.randf() * 0.08, 0.95 + v * 0.08)
-				var at := Vector3(x, _gy(x, z) - 0.02, z)
+				# The patch lies on the ground: its origin on the surface,
+				# tilted to the ground's normal.
+				var at := Vector3(x, _gy(x, z), z)
+				var tilt := Basis(Quaternion(Vector3.UP, _n_at(x, z)))
 				var spin := Basis(Vector3.UP, _grng.randf() * TAU)
-				if _grng.randf() < lerpf(0.12, 0.7, stand) * g:
-					var size := _grng.randf_range(0.8, 1.2) * lerpf(0.6, 0.95, g) * lerpf(0.8, 1.4, stand)
-					t_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint, Color(0, 2, 4, 0))
-				else:
-					var size := _grng.randf_range(0.8, 1.2) * lerpf(0.55, 1.0, g)
-					c_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint * 0.94, Color(2, 2, 4, 0))
+				# Tall share: the share of the patch's stars grown long. Long
+				# grass stands in the stands noise picks, on the grassiest
+				# ground, and every patch between is a mix.
+				# Long grass is the default, as in BG3's meadows; thin ground
+				# (low grassiness) and the stand noise's lows go short.
+				var tall := lerpf(0.55, 0.95, stand) * smoothstep(0.15, 0.6, g)
+				var share := clampf(tall + (_grng.randf() - 0.5) * 0.2, 0.0, 1.0)
+				var size := _grng.randf_range(0.9, 1.1)
+				sc.add(Transform3D(tilt * spin.scaled(Vector3.ONE * size), at), tint * lerpf(0.94, 1.0, share), Color(share, 2, 4, density))
 			var tag := "%d_%d" % [int(cx), int(cz)]
-			counts.tall += _emit_scatter(grass, "Tufts_" + tag, tall, t_sc, 48.0)
-			counts.carpet += _emit_scatter(grass, "Carpet_" + tag, carpet, c_sc, 44.0)
+			var ci := int((cx - CX0) / chunk) * 7 + int((cz - CZ0) / chunk) * 3
+			counts.patches += _emit_scatter(grass, "Grass_" + tag, variants[ci % PATCH_VARIANTS], sc, 48.0)
 			cz += chunk
 		cx += chunk
 
@@ -2205,16 +2506,16 @@ func _build_grass() -> Node3D:
 				var bloom := _patch.get_noise_2d(x * 0.45 - 120.0, z * 0.45 + 60.0)
 				var dry := _patch.get_noise_2d(x * 0.5 + 200.0, z * 0.5 - 11.0)
 				if clover > 0.2 and _grng.randf() < 0.85:
-					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.9, 1.4)), at), tint, Color(0, 1, 4, 0))
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.9, 1.4)), at), tint, Color(0, 1, 4, 1))
 				elif bloom > 0.3 and _grng.randf() < 0.6:
 					# One colour per drift, from a broad noise.
 					var hue := _patch.get_noise_2d(x * 0.12 + 300.0, z * 0.12)
 					var col := floorf(clampf(hue + 0.5, 0.0, 0.999) * 4.0)
-					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.75, 1.15)), at), tint, Color(2, 1, col, 0))
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.75, 1.15)), at), tint, Color(2, 1, col, 1))
 				elif dry > 0.3 and _grng.randf() < 0.5:
-					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.8, 1.25)), at), tint, Color(3, 1, 4, 0))
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.8, 1.25)), at), tint, Color(3, 1, 4, 1))
 				elif _grng.randf() < 0.06:
-					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.7, 1.1)), at), tint, Color(1, 1, 4, 0))
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _grng.randf_range(0.7, 1.1)), at), tint, Color(1, 1, 4, 1))
 			var tag := "%d_%d" % [int(cx), int(cz)]
 			counts.flat += _emit_scatter(grass, "Low_" + tag, flat, f_sc, 40.0)
 			counts.upright += _emit_scatter(grass, "Herbs_" + tag, upright, u_sc, 44.0)
