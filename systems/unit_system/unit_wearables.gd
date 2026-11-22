@@ -31,7 +31,7 @@ func refresh() -> void:
 	var look: Node = null
 	if body:
 		for child in body.get_children():
-			if child is CharacterLook:
+			if child is CharacterLook or child is CCLook:
 				look = child
 	var items: Array[Wearable] = []
 	for slot: EquipSlot.Slot in EquipSlot.Slot.values():

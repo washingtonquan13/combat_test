@@ -6,6 +6,10 @@ A brief window flash is expected — `--headless` cannot render, so this runs wi
 
 To run it directly instead of via the wrapper: `"$GODOT" --path . --rendering-driver opengl3 --resolution 1600x900 res://tools/ui_snapshot.tscn -- --out=<absolute_path.png>`.
 
+# armor_fit
+
+Blender scripts that fit a rigid armour piece (Meshy-generated or downloaded) to a Character Creator base and export it as a skinned .glb per piece per body, for `Wearable.meshes[&"cc_male"/&"cc_female"]`. The pipeline is `base.py` → `fit.py` → `shoot.py` → `export_piece.py`, with `meshy_gen.py` to generate pieces (it costs Meshy credits). The technique is documented in `tools/armor_fit/README.md`: landmark alignment, a conform that keeps detail, body weight transfer, mirroring and the runtime rebind.
+
 # item_layer_demo
 
 A recorded walkthrough of the inventory, run in the real game. It is not a test and is not part of `tests/run.sh`. It boots MainRoot, makes a character and loots the test_arena chest. Then it uses synthetic mouse input to drag items in the grid and onto and off equip slots, uses right-click Equip and Drop, switches the viewed unit, sorts, applies the dialogue item effects, and saves, loads and starts a new game. Each step prints PASS/FAIL, and the result is the closing `DEMO RESULT: n/m passed` line. It moves the real OS cursor while it runs.

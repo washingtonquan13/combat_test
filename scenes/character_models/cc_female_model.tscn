@@ -69,6 +69,7 @@ libraries = {
 [node name="CCLook" type="Node" parent="."]
 script = ExtResource("14_look")
 body_json = "res://assets/characters/cc/female/cc_base_female.json"
+body_type = &"cc_female"
 
 [node name="FaceDriver" type="Node" parent="."]
 script = ExtResource("10_face")

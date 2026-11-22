@@ -9,16 +9,41 @@ extends Node
 ## tints are set again, which changes nothing; the hair is attached only if
 ## the copy did not bring the original's.
 ##
-## A CC body wears no clothes: CC's clothed exports were retired
-## (2026-11-21) for what they cost the editor and the loads.
+## What the body wears goes on with wear(): each Wearable's fit for this
+## body_type (a .glb from tools/armor_fit/, fitted to this base in Blender),
+## bound to the body's skeleton by CCWear. CC's own clothed exports stay
+## retired (2026-11-21) for what they cost the editor and the loads. No
+## covers mask: the skin under a garment still draws.
 
 ## The base's JSON, beside its FBX.
 @export_file("*.json") var body_json: String = ""
 ## Set by CharacterPreset.make_body() before the body enters the tree. Null
 ## is the bare base: CC's materials, no hair, no tints.
 @export var preset: CharacterPreset
+## Which fit of a Wearable this body takes (Wearable.meshes): one per CC
+## base, &"cc_male" or &"cc_female".
+@export var body_type: StringName
 
 const HAIR_META := &"cc_hair"
+
+## What wear() put on.
+var _worn: Array[MeshInstance3D] = []
+
+
+## Dresses the body in items, in place of what it wore. An item with no fit
+## for this body_type shows nothing.
+func wear(items: Array[Wearable]) -> void:
+	for mesh in _worn:
+		if is_instance_valid(mesh):
+			# Out of the tree now, so a re-worn piece keeps its name (Armor_cuirass, not @MeshInstance3D@…).
+			mesh.get_parent().remove_child(mesh)
+			mesh.queue_free()
+	_worn.clear()
+	var character := get_parent() as Node3D
+	for item in items:
+		var scene: PackedScene = item.meshes.get(body_type)
+		if scene:
+			_worn.append_array(CCWear.attach(character, scene))
 
 
 func _ready() -> void:
