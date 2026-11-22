@@ -10,6 +10,8 @@ uniform vec2 detail_scale = vec2(2.3, 0.12);
 // How much of each end fades away.
 uniform float edge_fadeout = 1.0;
 uniform float opacity = 0.25;
+// The wet strip mirrors its surroundings however clear it is.
+uniform float reflect_opacity = 0.7;
 uniform float depth_offset = 0.0001;
 
 void vertex() {
@@ -30,5 +32,6 @@ void fragment() {
 	ROUGHNESS = roughness;
 	SPECULAR = 0.5;
 	NORMAL_MAP = normalize(vec3(wobble, 0.0, 1.0)) * 0.5 + 0.5;
-	ALPHA = opacity * fade;
+	float graze = pow(1.0 - clamp(dot(NORMAL, VIEW), 0.0, 1.0), 2.0);
+	ALPHA = mix(opacity, reflect_opacity, graze) * fade;
 }

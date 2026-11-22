@@ -33,8 +33,28 @@ uniform float unmasked_scatter_scale = 1.0;
 uniform float specular = 0.4;
 // CC's subsurface falloff colour, used for light through the ears.
 uniform vec3 scatter_color : source_color = vec3(1.0, 0.37, 0.3);
-uniform float sss_strength = 1.0;
+uniform float sss_strength = 0.3;
 uniform float transmission_strength = 0.2;
+// Light that scatters under skin comes back redder. Godot's screen-space
+// scatter only blurs the lighting, so the colour shift is done in light():
+// direct light on scattering skin is multiplied by this tint...
+uniform vec3 scatter_tint : source_color = vec3(1.0);
+// ...and wraps past the shadow line, each channel by its share of the
+// scatter colour, so the terminator turns red before it turns dark.
+uniform float scatter_wrap = 0.35;
+uniform vec3 shadow_bleed = vec3(0.6, 1.2, 1.5);
+// The colour map is a touch too light and flat for a lit surface: it is
+// darkened by this gamma, and creases (the occlusion map) darken the colour
+// itself, at ao_colour strength, so they hold under direct light.
+uniform float colour_gamma = 1.1;
+uniform float ao_colour = 0.5;
+varying float v_scatter;
+varying float v_transmit;
+varying float v_f0;
+// How much of the smoothness map shapes roughness; the rest sits at a flat mid value.
+uniform float roughness_map_weight = 0.25;
+// Reflectance at normal incidence for full-mask skin.
+uniform float skin_f0 = 0.028;
 
 // The character's skin tint, per instance so one material serves everyone.
 // Slot 1: slot 0 is the outline pass's outline_color (outline_pass.gdshader).
@@ -58,6 +78,9 @@ uniform vec4 nmuil_scatter = vec4(1.0);
 uniform vec2 en_scatter = vec2(1.0);
 // Inner mouth, nostril, lips gap: how hard each cavity darkens.
 uniform vec3 cavity_ao = vec3(2.5, 3.5, 2.5);
+// The lids sit in the brow's shadow, too fine a fold for the shadow map:
+// the upper and inner lid masks darken the skin by this much instead.
+uniform float lid_shade = 0.4;
 #else
 // The body's R, G, B, A areas.
 uniform sampler2D rgba_mask : hint_default_black, filter_linear_mipmap;
@@ -92,7 +115,7 @@ void fragment() {
 
 	// Roughness: the map's, scaled, with pores a touch rougher and each
 	// region nudged by its own scale.
-	float rough = (1.0 - hdrp.a) * original_roughness_strength + micro_roughness_scale * micro;
+	float rough = mix(0.5, (1.0 - hdrp.a) * original_roughness_strength, roughness_map_weight) + micro_roughness_scale * micro;
 	float scatter;
 #ifdef CC_HEAD
 	vec4 a = texture(cfulc_mask, uv);
@@ -108,21 +131,57 @@ void fragment() {
 	ao *= cavity;
 	// Cavities shut out direct light too; open skin keeps it.
 	AO_LIGHT_AFFECT = 1.0 - cavity;
-	SPECULAR = specular * texture(spec_mask, uv).r;
+	v_f0 = skin_f0 * (specular / 0.4) * texture(spec_mask, uv).r;
+	SPECULAR = sqrt(v_f0 / 0.16);
 #else
 	vec4 r = texture(rgba_mask, uv);
 	float covered = clamp(dot(r, vec4(1.0)), 0.0, 1.0);
 	rough += dot(r, rgba_roughness) + (1.0 - covered) * unmasked_roughness_scale;
 	scatter = dot(r, rgba_scatter) + (1.0 - covered) * unmasked_scatter_scale;
-	SPECULAR = specular;
+	v_f0 = skin_f0 * (specular / 0.4);
+	SPECULAR = sqrt(v_f0 / 0.16);
 #endif
 	// Rougher at grazing angles, as skin's fine fuzz is.
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	rough += edge_roughness_multiplier * (1.0 - facing) + roughness_offset;
 
-	ALBEDO = albedo;
+	ALBEDO = pow(albedo, vec3(colour_gamma)) * mix(1.0, ao * ao, ao_colour);
+#ifdef CC_HEAD
+	ALBEDO *= 1.0 - lid_shade * clamp(b.b + b.a, 0.0, 1.0);
+#endif
+	v_scatter = clamp(scatter, 0.0, 1.0);
 	ROUGHNESS = clamp(rough, 0.05, 1.0);
 	AO = ao;
 	SSS_STRENGTH = sss_strength * texture(sss_map, uv).r * scatter;
-	BACKLIGHT = scatter_color * texture(transmission_map, uv).r * transmission_strength;
+	v_transmit = texture(transmission_map, uv).r * transmission_strength;
+}
+
+void light() {
+	float ndl = dot(NORMAL, LIGHT);
+	vec3 w = scatter_color * scatter_wrap * v_scatter;
+	vec3 diff = clamp((vec3(ndl) + w) / (1.0 + w), 0.0, 1.0);
+	// Thin parts (ears, nostrils) let light through from behind.
+	diff += scatter_color * v_transmit * clamp(-ndl, 0.0, 1.0);
+	vec3 tint = mix(vec3(1.0), scatter_tint, v_scatter);
+	// Light scattered under the skin carries red a little way into a cast
+	// shadow, so the shadow's edge fades through red rather than grey.
+	vec3 shade = vec3(ATTENUATION);
+	if (LIGHT_IS_DIRECTIONAL) {
+		shade = pow(shade, mix(vec3(1.0), shadow_bleed, v_scatter));
+	}
+	DIFFUSE_LIGHT += diff * tint * shade * LIGHT_COLOR / PI;
+
+	// Specular: GGX with a Schlick fresnel.
+	vec3 h = normalize(VIEW + LIGHT);
+	float nl = clamp(ndl, 0.0, 1.0);
+	float nv = max(dot(NORMAL, VIEW), 1e-4);
+	float nh = clamp(dot(NORMAL, h), 0.0, 1.0);
+	float a = ROUGHNESS * ROUGHNESS;
+	float a2 = a * a;
+	float dd = nh * nh * (a2 - 1.0) + 1.0;
+	float D = a2 / (PI * dd * dd);
+	float vis = 0.5 / max(nl * sqrt(nv * nv * (1.0 - a2) + a2) + nv * sqrt(nl * nl * (1.0 - a2) + a2), 1e-4);
+	float f0 = v_f0;
+	float F = f0 + (1.0 - f0) * pow(1.0 - clamp(dot(VIEW, h), 0.0, 1.0), 5.0);
+	SPECULAR_LIGHT += D * vis * F * nl * ATTENUATION * LIGHT_COLOR / PI * SPECULAR_AMOUNT;
 }

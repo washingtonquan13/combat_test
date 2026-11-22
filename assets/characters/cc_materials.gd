@@ -479,16 +479,12 @@ static func _build(mat_name: String, m: Dictionary, files: Dictionary) -> Materi
 					"shadow_top_arc": "Shadow Top Arc", "shadow_bottom": "Shadow Bottom", "shadow_bottom_range": "Shadow Bottom Range",
 					"shadow_bottom_arc": "Shadow Bottom Arc", "shadow_inner": "Shadow Inner Corner", "shadow_inner_range": "Shadow Inner Corner Range",
 					"shadow_outer": "Shadow Outer Corner", "shadow_outer_range": "Shadow Outer Corner Range", "shadow2_strength": "Shadow2 Strength",
-					"shadow2_top": "Shadow2 Top", "shadow2_top_range": "Shadow2 Top Range", "top_contrast": "Top Blur Contrast",
-					"bottom_contrast": "Bottom Blur Contrast", "outer_contrast": "Outer Corner Blur Contrast", "blur_strength": "Blur Strength",
-					"tear_duct_position": "Tear Duct Position", "tear_duct_contrast": "Tear Duct Contrast"}
+					"shadow2_top": "Shadow2 Top", "shadow2_top_range": "Shadow2 Top Range", "tear_duct_position": "Tear Duct Position"}
 			for u: String in p:
 				if v.has(p[u]):
 					sm.set_shader_parameter(u, v[p[u]])
 			if v.has("Shadow Color"):
 				sm.set_shader_parameter("shadow_color", _col(v["Shadow Color"]))
-			if v.has("Shadow2 Color"):
-				sm.set_shader_parameter("shadow2_color", _col(v["Shadow2 Color"]))
 		"RLEyeTearline":
 			sm.shader = load(SHADERS + "cc_tearline.gdshader")
 			sm.set_shader_parameter("roughness", v.get("_Roughness", 0.1))
