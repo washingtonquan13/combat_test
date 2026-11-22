@@ -102,6 +102,11 @@ func wear(items: Array[Wearable]) -> void:
 			skeleton.add_child(mesh)
 			mesh.skeleton = mesh.get_path_to(skeleton)
 			mesh.layers = _body_layers(skeleton)
+			# The body's light group too, on an engine that has them.
+			for child in skeleton.get_children():
+				if child is MeshInstance3D and not _worn.has(child):
+					mesh.set(&"light_group", child.get(&"light_group"))
+					break
 			_worn.append(mesh)
 		fitted.free()
 	_covers = joined_covers(masks)

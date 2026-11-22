@@ -1,0 +1,600 @@
+diff --git a/drivers/gles3/storage/light_storage.cpp b/drivers/gles3/storage/light_storage.cpp
+index 36c2514..2c73b2c 100644
+--- a/drivers/gles3/storage/light_storage.cpp
++++ b/drivers/gles3/storage/light_storage.cpp
+@@ -229,6 +229,23 @@ uint32_t LightStorage::light_get_shadow_caster_mask(RID p_light) const {
+ 	return light->shadow_caster_mask;
+ }
+ 
++void LightStorage::light_set_light_group(RID p_light, uint32_t p_group) {
++	Light *light = light_owner.get_or_null(p_light);
++	ERR_FAIL_NULL(light);
++
++	light->light_group = p_group;
++
++	light->version++;
++	light->dependency.changed_notify(Dependency::DEPENDENCY_CHANGED_LIGHT);
++}
++
++uint32_t LightStorage::light_get_light_group(RID p_light) const {
++	Light *light = light_owner.get_or_null(p_light);
++	ERR_FAIL_NULL_V(light, 0);
++
++	return light->light_group;
++}
++
+ void LightStorage::light_set_distance_fade(RID p_light, bool p_enabled, float p_begin, float p_shadow, float p_length) {
+ 	Light *light = light_owner.get_or_null(p_light);
+ 	ERR_FAIL_NULL(light);
+diff --git a/drivers/gles3/storage/light_storage.h b/drivers/gles3/storage/light_storage.h
+index ddd1d79..e5b9f26 100644
+--- a/drivers/gles3/storage/light_storage.h
++++ b/drivers/gles3/storage/light_storage.h
+@@ -58,6 +58,7 @@ struct Light {
+ 	uint32_t max_sdfgi_cascade = 2;
+ 	uint32_t cull_mask = 0xFFFFFFFF;
+ 	uint32_t shadow_caster_mask = 0xFFFFFFFF;
++	uint32_t light_group = 0;
+ 	bool distance_fade = false;
+ 	real_t distance_fade_begin = 40.0;
+ 	real_t distance_fade_shadow = 50.0;
+@@ -329,6 +330,8 @@ public:
+ 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled) override;
+ 	virtual void light_set_shadow_caster_mask(RID p_light, uint32_t p_caster_mask) override;
+ 	virtual uint32_t light_get_shadow_caster_mask(RID p_light) const override;
++	virtual void light_set_light_group(RID p_light, uint32_t p_group) override;
++	virtual uint32_t light_get_light_group(RID p_light) const override;
+ 	virtual void light_set_bake_mode(RID p_light, RS::LightBakeMode p_bake_mode) override;
+ 	virtual void light_set_max_sdfgi_cascade(RID p_light, uint32_t p_cascade) override {}
+ 
+diff --git a/scene/3d/light_3d.cpp b/scene/3d/light_3d.cpp
+index f4e7815..65a71bc 100644
+--- a/scene/3d/light_3d.cpp
++++ b/scene/3d/light_3d.cpp
+@@ -155,6 +155,15 @@ uint32_t Light3D::get_shadow_caster_mask() const {
+ 	return shadow_caster_mask;
+ }
+ 
++void Light3D::set_light_group(uint32_t p_group) {
++	light_group = p_group;
++	RS::get_singleton()->light_set_light_group(light, light_group);
++}
++
++uint32_t Light3D::get_light_group() const {
++	return light_group;
++}
++
+ AABB Light3D::get_aabb() const {
+ 	if (type == RenderingServer::LIGHT_DIRECTIONAL) {
+ 		return AABB(Vector3(-1, -1, -1), Vector3(2, 2, 2));
+@@ -380,6 +389,9 @@ void Light3D::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("set_shadow_caster_mask", "caster_mask"), &Light3D::set_shadow_caster_mask);
+ 	ClassDB::bind_method(D_METHOD("get_shadow_caster_mask"), &Light3D::get_shadow_caster_mask);
+ 
++	ClassDB::bind_method(D_METHOD("set_light_group", "group"), &Light3D::set_light_group);
++	ClassDB::bind_method(D_METHOD("get_light_group"), &Light3D::get_light_group);
++
+ 	ClassDB::bind_method(D_METHOD("set_bake_mode", "bake_mode"), &Light3D::set_bake_mode);
+ 	ClassDB::bind_method(D_METHOD("get_bake_mode"), &Light3D::get_bake_mode);
+ 
+@@ -406,6 +418,7 @@ void Light3D::_bind_methods() {
+ 	ADD_PROPERTYI(PropertyInfo(Variant::FLOAT, "light_specular", PROPERTY_HINT_RANGE, "0,16,0.001,or_greater"), "set_param", "get_param", PARAM_SPECULAR);
+ 	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_bake_mode", PROPERTY_HINT_ENUM, "Disabled,Static,Dynamic"), "set_bake_mode", "get_bake_mode");
+ 	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_cull_mask", PROPERTY_HINT_LAYERS_3D_RENDER), "set_cull_mask", "get_cull_mask");
++	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_group", PROPERTY_HINT_RANGE, "0,65535,1,or_greater"), "set_light_group", "get_light_group");
+ 
+ 	ADD_GROUP("Shadow", "shadow_");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "shadow_enabled"), "set_shadow", "has_shadow");
+diff --git a/scene/3d/light_3d.h b/scene/3d/light_3d.h
+index 5f54946..4292b08 100644
+--- a/scene/3d/light_3d.h
++++ b/scene/3d/light_3d.h
+@@ -76,6 +76,7 @@ private:
+ 	bool reverse_cull = false;
+ 	uint32_t cull_mask = 0;
+ 	uint32_t shadow_caster_mask = 0xFFFFFFFF;
++	uint32_t light_group = 0;
+ 	bool distance_fade_enabled = false;
+ 	real_t distance_fade_begin = 40.0;
+ 	real_t distance_fade_shadow = 50.0;
+@@ -140,6 +141,9 @@ public:
+ 	void set_shadow_caster_mask(uint32_t p_caster_mask);
+ 	uint32_t get_shadow_caster_mask() const;
+ 
++	void set_light_group(uint32_t p_group);
++	uint32_t get_light_group() const;
++
+ 	void set_bake_mode(BakeMode p_mode);
+ 	BakeMode get_bake_mode() const;
+ 
+diff --git a/scene/3d/visual_instance_3d.cpp b/scene/3d/visual_instance_3d.cpp
+index 9617e0b..85716dc 100644
+--- a/scene/3d/visual_instance_3d.cpp
++++ b/scene/3d/visual_instance_3d.cpp
+@@ -408,6 +408,15 @@ float GeometryInstance3D::get_lod_bias() const {
+ 	return lod_bias;
+ }
+ 
++void GeometryInstance3D::set_light_group(uint32_t p_group) {
++	light_group = p_group;
++	RS::get_singleton()->instance_set_light_group(get_instance(), light_group);
++}
++
++uint32_t GeometryInstance3D::get_light_group() const {
++	return light_group;
++}
++
+ void GeometryInstance3D::set_instance_shader_parameter(const StringName &p_name, const Variant &p_value) {
+ 	if (p_value.get_type() == Variant::NIL) {
+ 		Variant def_value = RS::get_singleton()->instance_geometry_get_shader_parameter_default_value(get_instance(), p_name);
+@@ -566,6 +575,9 @@ void GeometryInstance3D::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("set_lod_bias", "bias"), &GeometryInstance3D::set_lod_bias);
+ 	ClassDB::bind_method(D_METHOD("get_lod_bias"), &GeometryInstance3D::get_lod_bias);
+ 
++	ClassDB::bind_method(D_METHOD("set_light_group", "group"), &GeometryInstance3D::set_light_group);
++	ClassDB::bind_method(D_METHOD("get_light_group"), &GeometryInstance3D::get_light_group);
++
+ 	ClassDB::bind_method(D_METHOD("set_transparency", "transparency"), &GeometryInstance3D::set_transparency);
+ 	ClassDB::bind_method(D_METHOD("get_transparency"), &GeometryInstance3D::get_transparency);
+ 
+@@ -617,6 +629,7 @@ void GeometryInstance3D::_bind_methods() {
+ 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "extra_cull_margin", PROPERTY_HINT_RANGE, "0,16384,0.01,suffix:m"), "set_extra_cull_margin", "get_extra_cull_margin");
+ 	ADD_PROPERTY(PropertyInfo(Variant::AABB, "custom_aabb", PROPERTY_HINT_NONE, "suffix:m"), "set_custom_aabb", "get_custom_aabb");
+ 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "lod_bias", PROPERTY_HINT_RANGE, "0.001,128,0.001"), "set_lod_bias", "get_lod_bias");
++	ADD_PROPERTY(PropertyInfo(Variant::INT, "light_group", PROPERTY_HINT_RANGE, "0,65535,1,or_greater"), "set_light_group", "get_light_group");
+ 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "ignore_occlusion_culling"), "set_ignore_occlusion_culling", "is_ignoring_occlusion_culling");
+ 
+ 	ADD_GROUP("Global Illumination", "gi_");
+diff --git a/scene/3d/visual_instance_3d.h b/scene/3d/visual_instance_3d.h
+index 7091a8f..b9a30d6 100644
+--- a/scene/3d/visual_instance_3d.h
++++ b/scene/3d/visual_instance_3d.h
+@@ -128,6 +128,7 @@ private:
+ 	float transparency = 0.0f;
+ 
+ 	float lod_bias = 1.0;
++	uint32_t light_group = 0;
+ 
+ 	mutable HashMap<StringName, Variant> instance_shader_parameters;
+ 	mutable HashMap<StringName, StringName> instance_shader_parameter_property_remap;
+@@ -182,6 +183,9 @@ public:
+ 	void set_lod_bias(float p_bias);
+ 	float get_lod_bias() const;
+ 
++	void set_light_group(uint32_t p_group);
++	uint32_t get_light_group() const;
++
+ 	void set_gi_mode(GIMode p_mode);
+ 	GIMode get_gi_mode() const;
+ 
+diff --git a/servers/rendering/dummy/rasterizer_scene_dummy.h b/servers/rendering/dummy/rasterizer_scene_dummy.h
+index 9cf2134..8048a74 100644
+--- a/servers/rendering/dummy/rasterizer_scene_dummy.h
++++ b/servers/rendering/dummy/rasterizer_scene_dummy.h
+@@ -53,6 +53,7 @@ public:
+ 		virtual void set_pivot_data(float p_sorting_offset, bool p_use_aabb_center) override {}
+ 		virtual void set_lod_bias(float p_lod_bias) override {}
+ 		virtual void set_layer_mask(uint32_t p_layer_mask) override {}
++		virtual void set_light_group(uint32_t p_light_group) override {}
+ 		virtual void set_fade_range(bool p_enable_near, float p_near_begin, float p_near_end, bool p_enable_far, float p_far_begin, float p_far_end) override {}
+ 		virtual void set_parent_fade_alpha(float p_alpha) override {}
+ 		virtual void set_transparency(float p_transparency) override {}
+diff --git a/servers/rendering/dummy/storage/light_storage.h b/servers/rendering/dummy/storage/light_storage.h
+index 5f67578..453f8e6 100644
+--- a/servers/rendering/dummy/storage/light_storage.h
++++ b/servers/rendering/dummy/storage/light_storage.h
+@@ -80,6 +80,8 @@ public:
+ 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled) override {}
+ 	virtual void light_set_shadow_caster_mask(RID p_light, uint32_t p_caster_mask) override {}
+ 	virtual uint32_t light_get_shadow_caster_mask(RID p_light) const override { return 0xFFFFFFFF; }
++	virtual void light_set_light_group(RID p_light, uint32_t p_group) override {}
++	virtual uint32_t light_get_light_group(RID p_light) const override { return 0; }
+ 	virtual void light_set_bake_mode(RID p_light, RS::LightBakeMode p_bake_mode) override {}
+ 	virtual void light_set_max_sdfgi_cascade(RID p_light, uint32_t p_cascade) override {}
+ 
+diff --git a/servers/rendering/renderer_geometry_instance.cpp b/servers/rendering/renderer_geometry_instance.cpp
+index 4bdd1ea..077c085 100644
+--- a/servers/rendering/renderer_geometry_instance.cpp
++++ b/servers/rendering/renderer_geometry_instance.cpp
+@@ -93,6 +93,10 @@ void RenderGeometryInstanceBase::set_layer_mask(uint32_t p_layer_mask) {
+ 	layer_mask = p_layer_mask;
+ }
+ 
++void RenderGeometryInstanceBase::set_light_group(uint32_t p_light_group) {
++	light_group = p_light_group;
++}
++
+ void RenderGeometryInstanceBase::set_fade_range(bool p_enable_near, float p_near_begin, float p_near_end, bool p_enable_far, float p_far_begin, float p_far_end) {
+ 	fade_near = p_enable_near;
+ 	fade_near_begin = p_near_begin;
+diff --git a/servers/rendering/renderer_geometry_instance.h b/servers/rendering/renderer_geometry_instance.h
+index 9823895..a0a550b 100644
+--- a/servers/rendering/renderer_geometry_instance.h
++++ b/servers/rendering/renderer_geometry_instance.h
+@@ -52,6 +52,7 @@ public:
+ 	virtual void set_pivot_data(float p_sorting_offset, bool p_use_aabb_center) = 0;
+ 	virtual void set_lod_bias(float p_lod_bias) = 0;
+ 	virtual void set_layer_mask(uint32_t p_layer_mask) = 0;
++	virtual void set_light_group(uint32_t p_light_group) = 0;
+ 	virtual void set_fade_range(bool p_enable_near, float p_near_begin, float p_near_end, bool p_enable_far, float p_far_begin, float p_far_end) = 0;
+ 	virtual void set_parent_fade_alpha(float p_alpha) = 0;
+ 	virtual void set_transparency(float p_transparency) = 0;
+@@ -95,6 +96,7 @@ public:
+ 	bool use_aabb_center = true;
+ 
+ 	uint32_t layer_mask = 1;
++	uint32_t light_group = 0;
+ 
+ 	bool fade_near = false;
+ 	float fade_near_begin = 0;
+@@ -138,6 +140,7 @@ public:
+ 	virtual void set_pivot_data(float p_sorting_offset, bool p_use_aabb_center) override;
+ 	virtual void set_lod_bias(float p_lod_bias) override;
+ 	virtual void set_layer_mask(uint32_t p_layer_mask) override;
++	virtual void set_light_group(uint32_t p_light_group) override;
+ 	virtual void set_fade_range(bool p_enable_near, float p_near_begin, float p_near_end, bool p_enable_far, float p_far_begin, float p_far_end) override;
+ 	virtual void set_parent_fade_alpha(float p_alpha) override;
+ 	virtual void set_transparency(float p_transparency) override;
+diff --git a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+index 7acaeb5..b6d6fa0 100644
+--- a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
++++ b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.cpp
+@@ -819,6 +819,7 @@ void RenderForwardClustered::_fill_instance_data(RenderListType p_render_list, i
+ 		instance_data.flags = inst->flags_cache;
+ 		instance_data.gi_offset = inst->gi_offset_cache;
+ 		instance_data.layer_mask = inst->layer_mask;
++		instance_data.light_group = inst->light_group;
+ 		instance_data.instance_uniforms_ofs = uint32_t(inst->shader_uniforms_offset);
+ 		instance_data.lightmap_uv_scale[0] = inst->lightmap_uv_scale.position.x;
+ 		instance_data.lightmap_uv_scale[1] = inst->lightmap_uv_scale.position.y;
+diff --git a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.h b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.h
+index bfde315..4076aaa 100644
+--- a/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.h
++++ b/servers/rendering/renderer_rd/forward_clustered/render_forward_clustered.h
+@@ -322,6 +322,8 @@ private:
+ 			uint32_t instance_uniforms_ofs; //base offset in global buffer for instance variables
+ 			uint32_t gi_offset; //GI information when using lightmapping (VCT or lightmap index)
+ 			uint32_t layer_mask;
++			uint32_t light_group;
++			uint32_t light_group_pad[3];
+ 			float lightmap_uv_scale[4];
+ 			float compressed_aabb_position[4];
+ 			float compressed_aabb_size[4];
+diff --git a/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl b/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl
+index f31a8de..0d962d5 100644
+--- a/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl
++++ b/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered.glsl
+@@ -545,6 +545,10 @@ void vertex_shader(vec3 vertex_input,
+ 					continue; //not masked
+ 				}
+ 
++				if (omni_lights.data[light_index].light_group != 0u && omni_lights.data[light_index].light_group != instances.data[instance_index].light_group) {
++					continue; // another light group
++				}
++
+ 				if (omni_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+ 					continue; // Statically baked light and object uses lightmap, skip
+ 				}
+@@ -580,6 +584,10 @@ void vertex_shader(vec3 vertex_input,
+ 					continue; //not masked
+ 				}
+ 
++				if (spot_lights.data[light_index].light_group != 0u && spot_lights.data[light_index].light_group != instances.data[instance_index].light_group) {
++					continue; // another light group
++				}
++
+ 				if (spot_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+ 					continue; // Statically baked light and object uses lightmap, skip
+ 				}
+@@ -2466,6 +2474,10 @@ void fragment_shader(in SceneData scene_data) {
+ 					continue; //not masked
+ 				}
+ 
++				if (omni_lights.data[light_index].light_group != 0u && omni_lights.data[light_index].light_group != instances.data[instance_index].light_group) {
++					continue; // another light group
++				}
++
+ 				if (omni_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+ 					continue; // Statically baked light and object uses lightmap, skip
+ 				}
+@@ -2534,6 +2546,10 @@ void fragment_shader(in SceneData scene_data) {
+ 					continue; //not masked
+ 				}
+ 
++				if (spot_lights.data[light_index].light_group != 0u && spot_lights.data[light_index].light_group != instances.data[instance_index].light_group) {
++					continue; // another light group
++				}
++
+ 				if (spot_lights.data[light_index].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+ 					continue; // Statically baked light and object uses lightmap, skip
+ 				}
+diff --git a/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered_inc.glsl b/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered_inc.glsl
+index 3257a0d..5e1fad9 100644
+--- a/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered_inc.glsl
++++ b/servers/rendering/renderer_rd/shaders/forward_clustered/scene_forward_clustered_inc.glsl
+@@ -327,6 +327,10 @@ struct InstanceData {
+ 	uint instance_uniforms_ofs; //base offset in global buffer for instance variables
+ 	uint gi_offset; //GI information when using lightmapping (VCT or lightmap index)
+ 	uint layer_mask;
++	uint light_group;
++	uint light_group_pad0;
++	uint light_group_pad1;
++	uint light_group_pad2;
+ 	vec4 lightmap_uv_scale;
+ 	vec4 compressed_aabb_position_pad; // Only .xyz is used. .w is padding.
+ 	vec4 compressed_aabb_size_pad; // Only .xyz is used. .w is padding.
+diff --git a/servers/rendering/renderer_rd/shaders/light_data_inc.glsl b/servers/rendering/renderer_rd/shaders/light_data_inc.glsl
+index 6f0ca21..819791c 100644
+--- a/servers/rendering/renderer_rd/shaders/light_data_inc.glsl
++++ b/servers/rendering/renderer_rd/shaders/light_data_inc.glsl
+@@ -28,6 +28,10 @@ struct LightData { //this structure needs to be as packed as possible
+ 	mediump float volumetric_fog_energy;
+ 	uint bake_mode;
+ 	highp vec4 projector_rect; //projector rect in srgb decal atlas
++	uint light_group; // 0 = lights everything; otherwise only instances of the same group
++	uint light_group_pad0;
++	uint light_group_pad1;
++	uint light_group_pad2;
+ };
+ 
+ #define REFLECTION_AMBIENT_DISABLED 0
+diff --git a/servers/rendering/renderer_rd/storage_rd/light_storage.cpp b/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
+index 83a3c11..3cfa302 100644
+--- a/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
++++ b/servers/rendering/renderer_rd/storage_rd/light_storage.cpp
+@@ -308,6 +308,23 @@ uint32_t LightStorage::light_get_shadow_caster_mask(RID p_light) const {
+ 	return light->shadow_caster_mask;
+ }
+ 
++void LightStorage::light_set_light_group(RID p_light, uint32_t p_group) {
++	Light *light = light_owner.get_or_null(p_light);
++	ERR_FAIL_NULL(light);
++
++	light->light_group = p_group;
++
++	light->version++;
++	light->dependency.changed_notify(Dependency::DEPENDENCY_CHANGED_LIGHT);
++}
++
++uint32_t LightStorage::light_get_light_group(RID p_light) const {
++	Light *light = light_owner.get_or_null(p_light);
++	ERR_FAIL_NULL_V(light, 0);
++
++	return light->light_group;
++}
++
+ void LightStorage::light_set_bake_mode(RID p_light, RS::LightBakeMode p_bake_mode) {
+ 	Light *light = light_owner.get_or_null(p_light);
+ 	ERR_FAIL_NULL(light);
+@@ -909,6 +926,7 @@ void LightStorage::update_light_buffers(RenderDataRD *p_render_data, const Paged
+ 		light_data.cos_spot_angle = Math::cos(Math::deg_to_rad(spot_angle));
+ 
+ 		light_data.mask = light->cull_mask;
++		light_data.light_group = light->light_group;
+ 
+ 		light_data.atlas_rect[0] = 0;
+ 		light_data.atlas_rect[1] = 0;
+diff --git a/servers/rendering/renderer_rd/storage_rd/light_storage.h b/servers/rendering/renderer_rd/storage_rd/light_storage.h
+index 73543ce..754810a 100644
+--- a/servers/rendering/renderer_rd/storage_rd/light_storage.h
++++ b/servers/rendering/renderer_rd/storage_rd/light_storage.h
+@@ -73,6 +73,7 @@ private:
+ 		uint32_t max_sdfgi_cascade = 2;
+ 		uint32_t cull_mask = 0xFFFFFFFF;
+ 		uint32_t shadow_caster_mask = 0xFFFFFFFF;
++		uint32_t light_group = 0;
+ 		bool distance_fade = false;
+ 		real_t distance_fade_begin = 40.0;
+ 		real_t distance_fade_shadow = 50.0;
+@@ -161,6 +162,8 @@ private:
+ 		float volumetric_fog_energy;
+ 		uint32_t bake_mode;
+ 		float projector_rect[4];
++		uint32_t light_group;
++		uint32_t light_group_pad[3];
+ 	};
+ 
+ 	struct LightInstanceDepthSort {
+@@ -492,6 +495,8 @@ public:
+ 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled) override;
+ 	virtual void light_set_shadow_caster_mask(RID p_light, uint32_t p_caster_mask) override;
+ 	virtual uint32_t light_get_shadow_caster_mask(RID p_light) const override;
++	virtual void light_set_light_group(RID p_light, uint32_t p_group) override;
++	virtual uint32_t light_get_light_group(RID p_light) const override;
+ 	virtual void light_set_bake_mode(RID p_light, RS::LightBakeMode p_bake_mode) override;
+ 	virtual void light_set_max_sdfgi_cascade(RID p_light, uint32_t p_cascade) override;
+ 
+diff --git a/servers/rendering/renderer_scene_cull.cpp b/servers/rendering/renderer_scene_cull.cpp
+index 49f93cb..3bda6e6 100644
+--- a/servers/rendering/renderer_scene_cull.cpp
++++ b/servers/rendering/renderer_scene_cull.cpp
+@@ -691,6 +691,7 @@ void RendererSceneCull::instance_set_base(RID p_instance, RID p_base) {
+ 				geom->geometry_instance->set_surface_materials(instance->materials);
+ 				geom->geometry_instance->set_transform(instance->transform, instance->aabb, instance->transformed_aabb);
+ 				geom->geometry_instance->set_layer_mask(instance->layer_mask);
++				geom->geometry_instance->set_light_group(instance->light_group);
+ 				geom->geometry_instance->set_pivot_data(instance->sorting_offset, instance->use_aabb_center);
+ 				geom->geometry_instance->set_lod_bias(instance->lod_bias);
+ 				geom->geometry_instance->set_transparency(instance->transparency);
+@@ -907,6 +908,40 @@ void RendererSceneCull::instance_set_layer_mask(RID p_instance, uint32_t p_mask)
+ 	}
+ }
+ 
++// A light with a group lights, and takes shadows from, only instances of the same group.
++static _FORCE_INLINE_ bool _light_group_reaches(RID p_light, uint32_t p_instance_group) {
++	uint32_t group = RSG::light_storage->light_get_light_group(p_light);
++	return group == 0 || group == p_instance_group;
++}
++
++void RendererSceneCull::instance_set_light_group(RID p_instance, uint32_t p_group) {
++	Instance *instance = instance_owner.get_or_null(p_instance);
++	ERR_FAIL_NULL(instance);
++
++	if (instance->light_group == p_group) {
++		return;
++	}
++
++	instance->light_group = p_group;
++
++	if ((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK && instance->base_data) {
++		InstanceGeometryData *geom = static_cast<InstanceGeometryData *>(instance->base_data);
++		ERR_FAIL_NULL(geom->geometry_instance);
++		geom->geometry_instance->set_light_group(p_group);
++
++		if (instance->scenario && instance->array_index >= 0) {
++			instance->scenario->instance_data[instance->array_index].flags |= InstanceData::FLAG_GEOM_LIGHTING_DIRTY;
++		}
++
++		if (geom->can_cast_shadows) {
++			for (HashSet<RendererSceneCull::Instance *>::Iterator I = geom->lights.begin(); I != geom->lights.end(); ++I) {
++				InstanceLightData *light = static_cast<InstanceLightData *>((*I)->base_data);
++				light->make_shadow_dirty();
++			}
++		}
++	}
++}
++
+ void RendererSceneCull::instance_set_pivot_data(RID p_instance, float p_sorting_offset, bool p_use_aabb_center) {
+ 	Instance *instance = instance_owner.get_or_null(p_instance);
+ 	ERR_FAIL_NULL(instance);
+@@ -2482,7 +2517,7 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
+ 
+ 					for (int j = 0; j < (int)instance_shadow_cull_result.size(); j++) {
+ 						Instance *instance = instance_shadow_cull_result[j];
+-						if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base))) {
++						if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base)) || !_light_group_reaches(p_instance->base, instance->light_group)) {
+ 							continue;
+ 						} else {
+ 							if (static_cast<InstanceGeometryData *>(instance->base_data)->material_is_animated) {
+@@ -2565,7 +2600,7 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
+ 
+ 					for (int j = 0; j < (int)instance_shadow_cull_result.size(); j++) {
+ 						Instance *instance = instance_shadow_cull_result[j];
+-						if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base))) {
++						if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base)) || !_light_group_reaches(p_instance->base, instance->light_group)) {
+ 							continue;
+ 						} else {
+ 							if (static_cast<InstanceGeometryData *>(instance->base_data)->material_is_animated) {
+@@ -2633,7 +2668,7 @@ bool RendererSceneCull::_light_instance_update_shadow(Instance *p_instance, cons
+ 
+ 			for (int j = 0; j < (int)instance_shadow_cull_result.size(); j++) {
+ 				Instance *instance = instance_shadow_cull_result[j];
+-				if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base))) {
++				if (!instance->visible || !((1 << instance->base_type) & RS::INSTANCE_GEOMETRY_MASK) || !static_cast<InstanceGeometryData *>(instance->base_data)->can_cast_shadows || !(p_visible_layers & instance->layer_mask & RSG::light_storage->light_get_shadow_caster_mask(p_instance->base)) || !_light_group_reaches(p_instance->base, instance->light_group)) {
+ 					continue;
+ 				} else {
+ 					if (static_cast<InstanceGeometryData *>(instance->base_data)->material_is_animated) {
+@@ -3004,7 +3039,7 @@ void RendererSceneCull::_scene_cull(CullData &cull_data, InstanceCullResult &cul
+ 
+ 						for (const Instance *E : geom->lights) {
+ 							InstanceLightData *light = static_cast<InstanceLightData *>(E->base_data);
+-							if (!(RSG::light_storage->light_get_cull_mask(E->base) & idata.layer_mask)) {
++							if (!(RSG::light_storage->light_get_cull_mask(E->base) & idata.layer_mask) || !_light_group_reaches(E->base, idata.instance->light_group)) {
+ 								continue;
+ 							}
+ 
+diff --git a/servers/rendering/renderer_scene_cull.h b/servers/rendering/renderer_scene_cull.h
+index 24f11ec..c4e54d3 100644
+--- a/servers/rendering/renderer_scene_cull.h
++++ b/servers/rendering/renderer_scene_cull.h
+@@ -433,6 +433,7 @@ public:
+ 		RS::ShadowCastingSetting cast_shadows;
+ 
+ 		uint32_t layer_mask;
++		uint32_t light_group = 0;
+ 		// Fit in 32 bits.
+ 		bool mirror : 1;
+ 		bool receive_shadows : 1;
+@@ -1049,6 +1050,7 @@ public:
+ 	virtual void instance_set_base(RID p_instance, RID p_base);
+ 	virtual void instance_set_scenario(RID p_instance, RID p_scenario);
+ 	virtual void instance_set_layer_mask(RID p_instance, uint32_t p_mask);
++	virtual void instance_set_light_group(RID p_instance, uint32_t p_group);
+ 	virtual void instance_set_pivot_data(RID p_instance, float p_sorting_offset, bool p_use_aabb_center);
+ 	virtual void instance_set_transform(RID p_instance, const Transform3D &p_transform);
+ 	virtual void instance_set_interpolated(RID p_instance, bool p_interpolated);
+diff --git a/servers/rendering/rendering_method.h b/servers/rendering/rendering_method.h
+index 34f1192..fdb0cd9 100644
+--- a/servers/rendering/rendering_method.h
++++ b/servers/rendering/rendering_method.h
+@@ -81,6 +81,7 @@ public:
+ 	virtual void instance_set_base(RID p_instance, RID p_base) = 0;
+ 	virtual void instance_set_scenario(RID p_instance, RID p_scenario) = 0;
+ 	virtual void instance_set_layer_mask(RID p_instance, uint32_t p_mask) = 0;
++	virtual void instance_set_light_group(RID p_instance, uint32_t p_group) = 0;
+ 	virtual void instance_set_pivot_data(RID p_instance, float p_sorting_offset, bool p_use_aabb_center) = 0;
+ 	virtual void instance_set_transform(RID p_instance, const Transform3D &p_transform) = 0;
+ 	virtual void instance_set_interpolated(RID p_instance, bool p_interpolated) = 0;
+diff --git a/servers/rendering/rendering_server_default.h b/servers/rendering/rendering_server_default.h
+index ffbc5c7..ec7261f 100644
+--- a/servers/rendering/rendering_server_default.h
++++ b/servers/rendering/rendering_server_default.h
+@@ -446,6 +446,7 @@ public:
+ 	FUNC5(light_set_distance_fade, RID, bool, float, float, float)
+ 	FUNC2(light_set_reverse_cull_face_mode, RID, bool)
+ 	FUNC2(light_set_shadow_caster_mask, RID, uint32_t)
++	FUNC2(light_set_light_group, RID, uint32_t)
+ 	FUNC2(light_set_bake_mode, RID, LightBakeMode)
+ 	FUNC2(light_set_max_sdfgi_cascade, RID, uint32_t)
+ 
+@@ -879,6 +880,7 @@ public:
+ 	FUNC2(instance_set_base, RID, RID)
+ 	FUNC2(instance_set_scenario, RID, RID)
+ 	FUNC2(instance_set_layer_mask, RID, uint32_t)
++	FUNC2(instance_set_light_group, RID, uint32_t)
+ 	FUNC3(instance_set_pivot_data, RID, float, bool)
+ 	FUNC2(instance_set_transform, RID, const Transform3D &)
+ 	FUNC2(instance_set_interpolated, RID, bool)
+diff --git a/servers/rendering/storage/light_storage.h b/servers/rendering/storage/light_storage.h
+index 2a3c4d5..ab82dad 100644
+--- a/servers/rendering/storage/light_storage.h
++++ b/servers/rendering/storage/light_storage.h
+@@ -61,6 +61,8 @@ public:
+ 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled) = 0;
+ 	virtual void light_set_shadow_caster_mask(RID p_light, uint32_t p_caster_mask) = 0;
+ 	virtual uint32_t light_get_shadow_caster_mask(RID p_light) const = 0;
++	virtual void light_set_light_group(RID p_light, uint32_t p_group) = 0;
++	virtual uint32_t light_get_light_group(RID p_light) const = 0;
+ 	virtual void light_set_bake_mode(RID p_light, RS::LightBakeMode p_bake_mode) = 0;
+ 	virtual void light_set_max_sdfgi_cascade(RID p_light, uint32_t p_cascade) = 0;
+ 
+diff --git a/servers/rendering_server.cpp b/servers/rendering_server.cpp
+index 0b3c918..559f1cd 100644
+--- a/servers/rendering_server.cpp
++++ b/servers/rendering_server.cpp
+@@ -2499,6 +2499,7 @@ void RenderingServer::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("light_set_distance_fade", "decal", "enabled", "begin", "shadow", "length"), &RenderingServer::light_set_distance_fade);
+ 	ClassDB::bind_method(D_METHOD("light_set_reverse_cull_face_mode", "light", "enabled"), &RenderingServer::light_set_reverse_cull_face_mode);
+ 	ClassDB::bind_method(D_METHOD("light_set_shadow_caster_mask", "light", "mask"), &RenderingServer::light_set_shadow_caster_mask);
++	ClassDB::bind_method(D_METHOD("light_set_light_group", "light", "group"), &RenderingServer::light_set_light_group);
+ 	ClassDB::bind_method(D_METHOD("light_set_bake_mode", "light", "bake_mode"), &RenderingServer::light_set_bake_mode);
+ 	ClassDB::bind_method(D_METHOD("light_set_max_sdfgi_cascade", "light", "cascade"), &RenderingServer::light_set_max_sdfgi_cascade);
+ 
+@@ -3162,6 +3163,7 @@ void RenderingServer::_bind_methods() {
+ 	ClassDB::bind_method(D_METHOD("instance_set_base", "instance", "base"), &RenderingServer::instance_set_base);
+ 	ClassDB::bind_method(D_METHOD("instance_set_scenario", "instance", "scenario"), &RenderingServer::instance_set_scenario);
+ 	ClassDB::bind_method(D_METHOD("instance_set_layer_mask", "instance", "mask"), &RenderingServer::instance_set_layer_mask);
++	ClassDB::bind_method(D_METHOD("instance_set_light_group", "instance", "group"), &RenderingServer::instance_set_light_group);
+ 	ClassDB::bind_method(D_METHOD("instance_set_pivot_data", "instance", "sorting_offset", "use_aabb_center"), &RenderingServer::instance_set_pivot_data);
+ 	ClassDB::bind_method(D_METHOD("instance_set_transform", "instance", "transform"), &RenderingServer::instance_set_transform);
+ 	ClassDB::bind_method(D_METHOD("instance_set_interpolated", "instance", "interpolated"), &RenderingServer::instance_set_interpolated);
+diff --git a/servers/rendering_server.h b/servers/rendering_server.h
+index f889cce..168a306 100644
+--- a/servers/rendering_server.h
++++ b/servers/rendering_server.h
+@@ -553,6 +553,7 @@ public:
+ 	virtual void light_set_distance_fade(RID p_light, bool p_enabled, float p_begin, float p_shadow, float p_length) = 0;
+ 	virtual void light_set_reverse_cull_face_mode(RID p_light, bool p_enabled) = 0;
+ 	virtual void light_set_shadow_caster_mask(RID p_light, uint32_t p_caster_mask) = 0;
++	virtual void light_set_light_group(RID p_light, uint32_t p_group) = 0;
+ 
+ 	enum LightBakeMode {
+ 		LIGHT_BAKE_DISABLED,
+@@ -1426,6 +1427,7 @@ public:
+ 	virtual void instance_set_base(RID p_instance, RID p_base) = 0;
+ 	virtual void instance_set_scenario(RID p_instance, RID p_scenario) = 0;
+ 	virtual void instance_set_layer_mask(RID p_instance, uint32_t p_mask) = 0;
++	virtual void instance_set_light_group(RID p_instance, uint32_t p_group) = 0;
+ 	virtual void instance_set_pivot_data(RID p_instance, float p_sorting_offset, bool p_use_aabb_center) = 0;
+ 	virtual void instance_set_transform(RID p_instance, const Transform3D &p_transform) = 0;
+ 	virtual void instance_set_interpolated(RID p_instance, bool p_interpolated) = 0;

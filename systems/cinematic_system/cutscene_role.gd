@@ -131,6 +131,7 @@ func dress() -> void:
 		skeleton.notification(Skeleton3D.NOTIFICATION_UPDATE_SKELETON)
 	_original_was_visible = _original.visible
 	_original.visible = false
+	unit.light_follows(copy)
 
 
 ## Puts the real unit where this role's body ended.

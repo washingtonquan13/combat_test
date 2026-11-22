@@ -114,7 +114,7 @@ func _hold(body: CharacterModel, slot: EquipSlot.Slot, weapon: WeaponData) -> vo
 		return
 	var model: Node3D = weapon.model_scene.instantiate()
 	grip.add_child(model)
-	Unit.wear_render_layer(model)
+	unit.light_as_body(model)
 	_held[slot] = model
 
 
@@ -138,7 +138,7 @@ func _carry(home: Dictionary, slot: EquipSlot.Slot, weapon: WeaponData) -> void:
 	var to_socket: Basis = Basis(out, handle, out.cross(handle)).transposed()
 	model.transform = Transform3D(to_socket, Vector3(SURFACE_GAP + lift, 0.0, 0.0) - to_socket * anchor_point)
 	socket.add_child(model)
-	Unit.wear_render_layer(model)
+	unit.light_as_body(model)
 	_carried[slot] = model
 
 

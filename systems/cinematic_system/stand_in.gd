@@ -68,6 +68,7 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	for skeleton: Skeleton3D in copy.find_children("*", "Skeleton3D", true, false):
 		skeleton.notification(Skeleton3D.NOTIFICATION_UPDATE_SKELETON)
 	original.visible = false
+	unit.light_follows(stand)
 	return stand
 
 

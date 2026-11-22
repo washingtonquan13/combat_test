@@ -586,6 +586,8 @@ var has_attacked: bool:
 var _action_state: UnitActionState
 var _facing: UnitFacing
 var _selection: UnitSelection
+## This unit's own key, fill and rim; built by light_as_body.
+var _light_rig: CharacterLightRig = null
 var _movement: UnitMovement
 var _combat: UnitCombat
 ## Built on first use, not in _ready — the definition setter writes
@@ -709,7 +711,7 @@ func _bind_model() -> void:
 	avoidance_margin = body.avoidance_margin
 	_wear_size(false)
 	_fit_size_strength()
-	wear_render_layer(body)
+	light_as_body(body)
 
 	var animator: Node = get_node_or_null("UnitAnimator")
 	if animator and animator.has_method("adopt_model"):
@@ -773,6 +775,25 @@ func _anchor_fallback(kind: CharacterModel.Anchor) -> float:
 		CharacterModel.Anchor.MOUTH: return 0.55
 		CharacterModel.Anchor.GROUND: return 0.0
 	return 0.0
+
+
+## Makes node part of this unit's body as the renderer sees it: on
+## RENDER_LAYER, and lit by this unit's own light rig. For the body, and for
+## anything the unit holds or carries.
+func light_as_body(node: Node) -> void:
+	wear_render_layer(node)
+	if _light_rig == null:
+		_light_rig = CharacterLightRig.new()
+		_light_rig.name = "CharacterLightRig"
+		add_child(_light_rig)
+	_light_rig.adopt(node)
+
+
+## Stands this unit's light rig on `copy`, a copy of its body shown in its
+## place (a StandIn, a CutsceneRole's body), until the copy is freed.
+func light_follows(copy: Node3D) -> void:
+	if _light_rig:
+		_light_rig.shown_as = copy
 
 
 ## Puts node and everything visible under it on RENDER_LAYER alone.

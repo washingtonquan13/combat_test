@@ -102,12 +102,10 @@ func _ready() -> void:
 	if ResourceLoader.exists(BINDINGS_PATH):
 		_bindings = load(BINDINGS_PATH) as SceneBinding
 	set_process(false)
-	add_child(DialogueLighting.new())
 	Conversations.follow(self, _on_conversation_began)
 
 
-## Who is speaking in the conversation being staged, or null (DialogueLighting
-## lights them).
+## Who is speaking in the conversation being staged, or null.
 func speaker() -> Unit:
 	return _speaker if _conversation and is_instance_valid(_speaker) else null
 
