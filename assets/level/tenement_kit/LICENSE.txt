@@ -1,0 +1,8 @@
+"Modular Buildings" (https://sketchfab.com/3d-models/modular-buildings-0722317320bc485d8b5191d35dd07910)
+by BeratKazim / BB ARTS (https://sketchfab.com/BeratKazim), licensed under
+CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/).
+
+Changes: the loose modules were rebased onto one frame (facade wall plane,
+left edge and bottom at the origin) and re-exported per piece; the assembled
+building is kept whole as "tenement". The pieces are scaled 1.25x
+(src_gltf/ is at the original scale; tools/kits/make_pieces.gd bakes it).
