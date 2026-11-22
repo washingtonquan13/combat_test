@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Wall_Plaster_Straight_Base.mesh" id="1_pd2mo"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Wall_Plaster_Straight_Base_shape.res" id="2_j1jat"]
+
+[node name="WallPlasterStraightBase" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_pd2mo")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_j1jat")

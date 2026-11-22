@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Roof_RoundTiles_6x4.mesh" id="1_spb7q"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Roof_RoundTiles_6x4_shape.res" id="2_sp53k"]
+
+[node name="RoofRoundTiles6x4" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_spb7q")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_sp53k")

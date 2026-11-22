@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Overhang_RoofIncline_Plaster.mesh" id="1_wnyu3"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Overhang_RoofIncline_Plaster_shape.res" id="2_fcney"]
+
+[node name="OverhangRoofInclinePlaster" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_wnyu3")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_fcney")

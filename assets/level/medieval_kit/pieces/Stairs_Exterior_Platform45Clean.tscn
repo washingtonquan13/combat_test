@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Stairs_Exterior_Platform45Clean.mesh" id="1_yetqr"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Stairs_Exterior_Platform45Clean_shape.res" id="2_634co"]
+
+[node name="StairsExteriorPlatform45Clean" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_yetqr")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_634co")

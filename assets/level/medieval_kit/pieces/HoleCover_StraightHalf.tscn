@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/HoleCover_StraightHalf.mesh" id="1_e4385"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/HoleCover_StraightHalf_shape.res" id="2_ixrmc"]
+
+[node name="HoleCoverStraightHalf" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_e4385")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_ixrmc")

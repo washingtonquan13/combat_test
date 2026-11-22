@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Overhang_Side_UnevenBrick_Short_R.mesh" id="1_804fe"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Overhang_Side_UnevenBrick_Short_R_shape.res" id="2_4vwkd"]
+
+[node name="OverhangSideUnevenBrickShortR" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_804fe")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_4vwkd")

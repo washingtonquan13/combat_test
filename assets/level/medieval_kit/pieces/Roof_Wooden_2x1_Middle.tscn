@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Roof_Wooden_2x1_Middle.mesh" id="1_npguj"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Roof_Wooden_2x1_Middle_shape.res" id="2_0vw66"]
+
+[node name="RoofWooden2x1Middle" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_npguj")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_0vw66")

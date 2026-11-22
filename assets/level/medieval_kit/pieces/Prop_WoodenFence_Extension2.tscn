@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Prop_WoodenFence_Extension2.mesh" id="1_naq23"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Prop_WoodenFence_Extension2_shape.res" id="2_31p30"]
+
+[node name="PropWoodenFenceExtension2" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_naq23")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_31p30")

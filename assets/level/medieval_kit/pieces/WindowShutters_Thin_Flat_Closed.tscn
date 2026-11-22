@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/WindowShutters_Thin_Flat_Closed.mesh" id="1_gnjpp"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/WindowShutters_Thin_Flat_Closed_shape.res" id="2_lenmk"]
+
+[node name="WindowShuttersThinFlatClosed" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_gnjpp")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_lenmk")

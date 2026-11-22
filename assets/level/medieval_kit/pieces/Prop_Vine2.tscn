@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Prop_Vine2.mesh" id="1_sqenb"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Prop_Vine2_shape.res" id="2_xfiw5"]
+
+[node name="PropVine2" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_sqenb")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_xfiw5")

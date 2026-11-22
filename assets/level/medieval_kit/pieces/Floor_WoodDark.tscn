@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Floor_WoodDark.mesh" id="1_015s5"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Floor_WoodDark_shape.res" id="2_0dkf1"]
+
+[node name="FloorWoodDark" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_015s5")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_0dkf1")

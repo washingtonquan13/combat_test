@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Prop_Wagon.mesh" id="1_coxux"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Prop_Wagon_shape.res" id="2_ufaiq"]
+
+[node name="PropWagon" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_coxux")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_ufaiq")

@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Prop_Crate.mesh" id="1_13nnq"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Prop_Crate_shape.res" id="2_87n26"]
+
+[node name="PropCrate" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_13nnq")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_87n26")

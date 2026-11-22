@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Door_4_Flat.mesh" id="1_qwlhk"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Door_4_Flat_shape.res" id="2_eckfp"]
+
+[node name="Door4Flat" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_qwlhk")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_eckfp")

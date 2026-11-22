@@ -1,0 +1,19 @@
+"Medieval Village MegaKit" (Standard, free version) by Quaternius
+(https://quaternius.com), CC0 1.0 (src_gltf/License_Standard.txt).
+Changes: the 176 per-piece glTFs were merged into src_gltf/medieval_kit.gltf
+(transforms applied, one object per piece, duplicate materials merged).
+
+Re-textures, all CC0 from Poly Haven (https://polyhaven.com):
+  medieval_wall_01, castle_wall_varriation, castle_brick_07, medieval_wood
+  by Rob Tuytel; clay_roof_tiles_02 by Amal Kumar; rock_boulder_dry by
+  Dimitrios Savva and Rico Cilliers.
+materials/*.tres replace the kit's stylized materials of the same name when
+tools/kits/make_pieces.gd builds pieces/ (its 4th argument). The wood trim
+atlas textures/T_WoodTrim_PH_* is the kit's T_WoodTrim with its two wood bands
+replaced by medieval_wood (nails patched out, rotated so grain runs along U)
+and its end-grain blocks desaturated; the metal and grey bands are the kit's.
+textures/T_RockTrim_PH_* is the kit's T_RockTrim with its painted edge
+highlights removed and most of its tint taken out, keeping its per-stone tone,
+joints and bevel normals, with rock_boulder_dry surface detail on top.
+textures/T_VineLeaf_PH.png is the kit's leaf cutout recoloured per leaf in
+ivy greens with rock_boulder_dry mottling.

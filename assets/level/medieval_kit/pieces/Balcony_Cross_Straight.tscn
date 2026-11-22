@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Balcony_Cross_Straight.mesh" id="1_g5xnx"]
+[ext_resource type="Shape3D" path="res://assets/level/medieval_kit/pieces/Balcony_Cross_Straight_shape.res" id="2_5gj6q"]
+
+[node name="BalconyCrossStraight" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_g5xnx")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_5gj6q")
