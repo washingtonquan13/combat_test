@@ -1,0 +1,61 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://tools/ruins_kit/ruins_test.gd" id="s"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/bay_a.tscn" id="1"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/bay_b.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/end_l.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/end_r.tscn" id="4"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/upper_a.tscn" id="5"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/rubble_l.tscn" id="6"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/rubble_r.tscn" id="7"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/slab_fallen_l.tscn" id="8"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/slab_fallen_r.tscn" id="9"]
+[ext_resource type="PackedScene" path="res://assets/level/ruins_kit/pieces/column_fallen.tscn" id="10"]
+
+[node name="RuinsTest" type="Node3D"]
+script = ExtResource("s")
+
+[node name="end_l_0" parent="." instance=ExtResource("3")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.000, 0.000, 0.000)
+
+[node name="bay_b_1" parent="." instance=ExtResource("2")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 0.000, 0.000, 0.000)
+
+[node name="bay_a_2" parent="." instance=ExtResource("1")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 4.870, 0.000, 0.000)
+
+[node name="bay_a_3" parent="." instance=ExtResource("1")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 9.720, 0.000, 0.000)
+
+[node name="end_r_4" parent="." instance=ExtResource("4")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 14.570, 0.000, 0.000)
+
+[node name="upper_a_5" parent="." instance=ExtResource("5")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 4.870, 0.000, 0.000)
+
+[node name="end_l_6" parent="." instance=ExtResource("3")]
+transform = Transform3D(-1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, -1.0000, 12.000, 0.000, -11.000)
+
+[node name="bay_b_7" parent="." instance=ExtResource("2")]
+transform = Transform3D(-1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, -1.0000, 12.000, 0.000, -11.000)
+
+[node name="end_r_8" parent="." instance=ExtResource("4")]
+transform = Transform3D(-1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, -1.0000, 7.130, 0.000, -11.000)
+
+[node name="slab_fallen_l_9" parent="." instance=ExtResource("8")]
+transform = Transform3D(0.9063, 0, -0.4226, 0, 1, 0, 0.4226, 0, 0.9063, 2.500, 0.000, -7.000)
+
+[node name="rubble_r_10" parent="." instance=ExtResource("7")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, 17.200, 0.000, -1.500)
+
+[node name="column_fallen_11" parent="." instance=ExtResource("10")]
+transform = Transform3D(0.5000, 0, -0.8660, 0, 1, 0, 0.8660, 0, 0.5000, 7.000, 0.000, -6.500)
+
+[node name="rubble_l_12" parent="." instance=ExtResource("6")]
+transform = Transform3D(1.0000, 0, -0.0000, 0, 1, 0, 0.0000, 0, 1.0000, -3.500, 0.000, -2.000)
+
+[node name="slab_fallen_r_13" parent="." instance=ExtResource("9")]
+transform = Transform3D(0.9397, 0, 0.3420, 0, 1, 0, -0.3420, 0, 0.9397, 10.500, 0.000, -6.500)
+
+[node name="rubble_l_14" parent="." instance=ExtResource("6")]
+transform = Transform3D(-0.7660, 0, -0.6428, 0, 1, 0, 0.6428, 0, -0.7660, 4.000, 0.000, -12.000)

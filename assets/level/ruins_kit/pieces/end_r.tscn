@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="ArrayMesh" path="res://assets/level/ruins_kit/pieces/end_r.mesh" id="1_ak0a2"]
+[ext_resource type="Shape3D" path="res://assets/level/ruins_kit/pieces/end_r_shape.res" id="2_hyq7f"]
+
+[node name="EndR" type="StaticBody3D"]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+mesh = ExtResource("1_ak0a2")
+
+[node name="Collision" type="CollisionShape3D" parent="."]
+shape = ExtResource("2_hyq7f")
