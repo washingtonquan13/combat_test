@@ -48,3 +48,16 @@ tools/blockout/*.pkl
 
 # Procedural generator previews and caches (tools/blockout/*.py stages).
 tools/blockout/build/
+
+# Cleanup 2026-11-23: build objects, editor backups, recordings, local caches.
+gdextension/src/*.obj
+*.blend1
+*.avi
+/recordings/
+/assets/characters/cc/
+/.loudness-cache/
+/tools/pinst/p5_*/
+/demos/*.mp4
+/*.mp3
+/*.mp3.import
+/--headless
