@@ -7,7 +7,12 @@
 #   blender -b -Y --python tools/humanoid/seed_hand_clips.py -- Hover Fly_Fwd Takeoff Land
 #
 # Refuses a clip the .blend already has, so hand work is never overwritten;
-# delete the action in Blender first to reseed it.
+# delete the action in Blender first to reseed it, or pass --replace when the
+# script's version is meant to win over what is there.
+#
+# Also keeps the golden poses (golden_poses.py) in the .blend as one-frame
+# pose actions, "Pose_<name>", marked as assets for the Pose Library, under
+# the same rule.
 
 import os
 import sys
@@ -19,6 +24,7 @@ sys.path.insert(0, HERE)
 sys.path.append(os.path.join(HERE, "..", "dragon"))
 import action_clips  # noqa: E402
 import body_rig  # noqa: E402
+from golden_poses import GOLDEN  # noqa: E402
 import lab_setup as lab  # noqa: E402
 
 FPS = 24
@@ -27,7 +33,9 @@ BLEND = os.path.join(lab.PROJECT, "assets", "humanoid", "source", "hand_clips.bl
 # parts, metres for the hips. About a fifth of a degree.
 TOLERANCE = 0.002
 
-NAMES = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+ARGS = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+REPLACE = "--replace" in ARGS
+NAMES = [a for a in ARGS if a != "--replace"]
 
 
 def _keep(values, tol):
@@ -67,6 +75,22 @@ def _continuous(frames):
             if sum(frames[i][k] * frames[i - 1][k] for k in keys) < 0.0:
                 for k in keys:
                     frames[i][k] = -frames[i][k]
+
+
+def _pose_action(arm, rig, name):
+    """One golden pose as a one-frame action, for the Pose Library."""
+    rig.solve(GOLDEN[name])
+    rig.apply()
+    act = bpy.data.actions.new("Pose_" + name)
+    slot = act.slots.new("OBJECT", arm.name)
+    bag = act.layers.new("Layer").strips.new(type="KEYFRAME").channelbag(slot, ensure=True)
+    for (path, i), v in _channels(arm).items():
+        fc = bag.fcurves.new(path, index=i, group_name=path.split('"')[1])
+        fc.keyframe_points.insert(0.0, v, options={"FAST"})
+    act.use_frame_range = True
+    act.frame_start = act.frame_end = 0
+    act.asset_mark()
+    print("POSE", act.name)
 
 
 def _seed(arm, rig, name):
@@ -113,16 +137,26 @@ def main():
     have = {a.name for a in bpy.data.actions}
     rig = body_rig.Rig(arm)
     rest = {pb.name: (pb.location.copy(), pb.rotation_quaternion.copy()) for pb in arm.pose.bones}
-    held = arm.animation_data.action
+    held = arm.animation_data.action.name if arm.animation_data.action else None
     arm.animation_data.action = None
     for name in NAMES:
         if name in have:
-            print("SKIPPED", name, "already in the .blend; delete it there to reseed")
-            continue
+            if not REPLACE:
+                print("SKIPPED", name, "already in the .blend; delete it there or pass --replace")
+                continue
+            bpy.data.actions.remove(bpy.data.actions[name])
+            print("REPLACING", name)
         _seed(arm, rig, name)
+    for name in GOLDEN:
+        old = bpy.data.actions.get("Pose_" + name)
+        if old and not REPLACE:
+            continue
+        if old:
+            bpy.data.actions.remove(old)
+        _pose_action(arm, rig, name)
     for pb in arm.pose.bones:
         pb.location, pb.rotation_quaternion = rest[pb.name]
-    first = held or next((a for a in bpy.data.actions if a.name in NAMES), None)
+    first = bpy.data.actions.get(held or "") or next((a for a in bpy.data.actions if a.name in NAMES), None)
     if first:
         arm.animation_data.action = first
         arm.animation_data.action_slot = first.slots[0]
