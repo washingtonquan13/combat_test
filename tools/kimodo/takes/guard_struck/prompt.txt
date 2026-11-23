@@ -1,0 +1,3 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 2
+24 frames: A person stands still in a defensive fighting stance, facing forward.
+96 frames: A person is struck hard on the shoulder from above, drops to their knees and falls forward onto their face.
