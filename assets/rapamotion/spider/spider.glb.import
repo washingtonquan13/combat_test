@@ -4,12 +4,12 @@ importer="scene"
 importer_version=1
 type="PackedScene"
 uid="uid://bwdlk0nhdq8ep"
-path="res://.godot/imported/spider.glb-2aa69a811d09910a80cee72d3ed4cfad.scn"
+path="res://.godot/imported/spider.glb-a0ca56b905de3a66560b2d73f71911a7.scn"
 
 [deps]
 
-source_file="res://assets/spider/spider.glb"
-dest_files=["res://.godot/imported/spider.glb-2aa69a811d09910a80cee72d3ed4cfad.scn"]
+source_file="res://assets/rapamotion/spider/spider.glb"
+dest_files=["res://.godot/imported/spider.glb-a0ca56b905de3a66560b2d73f71911a7.scn"]
 
 [params]
 
