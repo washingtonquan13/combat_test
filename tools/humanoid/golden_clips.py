@@ -32,26 +32,33 @@ def _rolled(keys, frames, f, side):
     return _with_pole(m.plant(*BALLS[side], heel=heel, yaw=yaw, roll=roll), side)
 
 
-def _key(name):
-    return _hip_relative(GOLDEN[name])
+def _key(name, hands=False):
+    return _hip_relative(GOLDEN[name], hands)
 
 
-def _hip_relative(pose):
+def _offset(limb, hip, sign):
+    return dict(limb, at=tuple(a + sign * h for a, h in zip(limb["at"], hip)))
+
+
+def _hip_relative(pose, hands=False):
     """Feet written as offsets from the hips. A leg that rides the bob late then
     changes shape late, rather than its foot being left behind in the world,
-    which would ask the leg to reach past its length and snap the knee straight."""
+    which would ask the leg to reach past its length and snap the knee straight.
+    With hands, the same for hands placed in the world (no "space"): an arm
+    riding the bob late bends late instead of being stretched."""
     hip = pose["hip"]
-    feet = {}
-    for s, f in pose["feet"].items():
-        f = _with_pole(f, s)
-        feet[s] = dict(f, at=tuple(a - h for a, h in zip(f["at"], hip)))
-    return dict(pose, feet=feet)
+    out = dict(pose, feet={s: _offset(_with_pole(f, s), hip, -1.0) for s, f in pose["feet"].items()})
+    if hands:
+        out["hands"] = {s: h if "space" in h else _offset(h, hip, -1.0) for s, h in pose["hands"].items()}
+    return out
 
 
-def _placed(pose):
-    """Back from hip-relative feet to world, under where the hips are now."""
+def _placed(pose, hands=False):
+    """Back from hip-relative limbs to world, under where the hips are now."""
     hip = pose["hip"]
-    pose["feet"] = {s: dict(f, at=tuple(a + h for a, h in zip(f["at"], hip))) for s, f in pose["feet"].items()}
+    pose["feet"] = {s: _offset(f, hip, 1.0) for s, f in pose["feet"].items()}
+    if hands:
+        pose["hands"] = {s: h if "space" in h else _offset(h, hip, 1.0) for s, h in pose["hands"].items()}
     return pose
 
 
@@ -124,4 +131,27 @@ def _takeoff():
 
 TAKEOFF = _takeoff()
 
-CLIPS = {"Hover": HOVER, "Takeoff": TAKEOFF}
+# ---- Fly forward ------------------------------------------------------------
+# Two pumps in the loop, each bottom to top and back. The hips carry the pump;
+# the lean follows, then the legs fold and open late (the knees a beat behind the
+# hips) and the hands, laid back along the body, trail last. Hands are kept
+# hip-relative like the feet, so riding the pump late bends the arm, never
+# stretches it.
+
+FLY_SECONDS = 1.25
+PUMPS = 2
+FLY_LAG = {
+    "hip": 0.0, "hip_rot": 0.02, "chest_rot": 0.035, "look": 0.05,
+    "feet": {"l": 0.065, "r": 0.05},
+    "hands": {"l": 0.08, "r": 0.095},
+}
+
+_FLY_KEYS, _FLY_TIMES = [], []
+for p in range(PUMPS):
+    _FLY_KEYS += [_key("Fly_Down", hands=True), _key("Fly_Up", hands=True)]
+    _FLY_TIMES += [p / PUMPS, (p + 0.5) / PUMPS]
+
+_FLY_LOOP = m.loop(_FLY_KEYS, _FLY_TIMES, FLY_SECONDS, FLY_LAG)
+FLY = dict(_FLY_LOOP, at=lambda t: _placed(_FLY_LOOP["at"](t), hands=True))
+
+CLIPS = {"Hover": HOVER, "Takeoff": TAKEOFF, "Fly_Fwd": FLY}

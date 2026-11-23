@@ -151,7 +151,68 @@ TAKEOFF_PEAK = {  # carried a little past the hover: left leg long, right knee u
     },
 }
 
+# ---- Fly forward --------------------------------------------------------------
+# Going somewhere, carried chest-first: the body lies well into the way it goes,
+# about half-way to flat, the pelvis less than the chest so the back curves
+# rather than hinging. The legs trail out behind, never mirrored: the left long
+# and nearly straight, as it hangs in the hover, the right folded at the knee
+# with its shin lifted back. The arms are let go: they hang from the shoulders
+# and the air lays them back along the body, elbows soft and pointing back, the
+# hands loose by the hips, the right a little more bent than the left. At the
+# bottom of the pump they are left a touch higher, dragged by the dip.
+# The face looks ahead and down at where it is going. Two drawings, the top and
+# bottom of the pump; the legs and hands ride it late.
+
+
+def swept(side, hip, off, curl, thumb=0.2, spread=0.0, pole=None):
+    """A hand free in the air, written as an offset from the hips (no space, so
+    the chest's lean does not swing it)."""
+    s = L if side == "l" else R
+    return {"at": tuple(h + o for h, o in zip(hip, off)), "pole": pole or (s * 0.3, 0.75, 0.6),
+            "curl": curl, "thumb": thumb, "spread": spread}
+
+
+def trailing(side, hip, off, pitch, toe, pole):
+    """A foot trailing behind the hips, toes pointed back."""
+    s = L if side == "l" else R
+    return {"at": tuple(h + o for h, o in zip(hip, off)), "rot": (pitch, 0.0, s * 6.0), "toe": toe, "pole": pole}
+
+
+FLY_UP_HIP = (0.006, 0.0, 1.245)
+FLY_UP = {  # top of the pump: the chest lifted a little, the long leg at its straightest, arms hanging
+    "hip": FLY_UP_HIP,
+    "hip_rot": (40.0, -1.5, -2.5),
+    "chest_rot": (60.0, 2.0, 2.0),
+    "look": (0.02, -1.0, -0.5),
+    "feet": {
+        "l": trailing("l", FLY_UP_HIP, (0.09, 0.63, -0.37), 112.0, 4.0, (0.2, -0.6, -1.0)),
+        "r": trailing("r", FLY_UP_HIP, (-0.1, 0.42, -0.3), 100.0, 6.0, (-0.25, -1.0, -0.5)),
+    },
+    "hands": {
+        "l": swept("l", FLY_UP_HIP, (0.33, 0.02, 0.12), 0.42, thumb=0.3, spread=0.06),
+        "r": swept("r", FLY_UP_HIP, (-0.29, -0.04, 0.1), 0.5, thumb=0.3),
+    },
+}
+
+FLY_DOWN_HIP = (-0.004, 0.01, 1.165)
+FLY_DOWN = {  # bottom of the pump: the body dips deeper into the lean, the long knee gives, arms left high
+    "hip": FLY_DOWN_HIP,
+    "hip_rot": (43.0, -0.5, -1.5),
+    "chest_rot": (64.0, 1.0, 1.0),
+    "look": (0.0, -1.0, -0.56),
+    "feet": {
+        "l": trailing("l", FLY_DOWN_HIP, (0.095, 0.59, -0.34), 116.0, 6.0, (0.2, -0.6, -1.0)),
+        "r": trailing("r", FLY_DOWN_HIP, (-0.1, 0.43, -0.26), 104.0, 8.0, (-0.25, -1.0, -0.5)),
+    },
+    "hands": {
+        "l": swept("l", FLY_DOWN_HIP, (0.33, 0.0, 0.15), 0.45, thumb=0.3, spread=0.04),
+        "r": swept("r", FLY_DOWN_HIP, (-0.29, -0.05, 0.13), 0.52, thumb=0.3),
+    },
+}
+
 GOLDEN = {
+    "Fly_Up": FLY_UP,
+    "Fly_Down": FLY_DOWN,
     "Hover_Up": HOVER_UP,
     "Hover_Down": HOVER_DOWN,
     "Takeoff_Stance": TAKEOFF_STANCE,

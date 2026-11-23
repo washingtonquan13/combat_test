@@ -345,42 +345,8 @@ ON_KEYS = [
 ON_FRAMES = [0.0, 6.0, 13.0, 19.0, 27.0, 32.0, 37.0, 43.0, 47.5, 52.0, 57.6]
 
 # ---- Flight ----------------------------------------------------------------
-
-
-
-FLY_SECONDS = 1.25
-
-
-def fly_at(t):
-    """Going somewhere: the body breaks at the hips, chest down into the way it goes and
-    the legs folded back behind, about 55 degrees off the vertical. Two pumps a loop,
-    each a little different, the legs a beat behind the hips; the arms hang back
-    along the body and swing against each other."""
-    pump = math.sin(TAU * 2.0 * t)
-    late = math.sin(TAU * 2.0 * (t - 0.05))
-    once = math.sin(TAU * (t + 0.3))
-    z = 1.2 + 0.05 * pump + 0.01 * once
-    zl = 1.2 + 0.05 * late
-    return {
-        "hip": (0.01 * once, 0.0, z),
-        "hip_rot": (4.0 + 2.0 * late, -1.5 * once, -2.0 * once),
-        "chest_rot": (16.0 + 2.5 * math.sin(TAU * 2.0 * (t - 0.025)), 2.0 * once, 3.0 * math.sin(TAU * (t + 0.1))),
-        "look": (0.03 * once, -1.0, -0.03 + 0.02 * pump),
-        "feet": {
-            # Knee folded well past a right angle's half: the ankle about 58 back of the hip.
-            "l": {"at": (0.105 + 0.01 * once, 0.52 + 0.03 * late, zl - 0.38 + 0.035 * late), "rot": (112.0 + 6.0 * late, 0.0, 7.0), "toe": 4.0, "pole": (0.25, -0.5, -1.0)},
-            # Opened a little more, a little lower: about 52 back.
-            "r": {"at": (-0.12 + 0.01 * once, 0.47 - 0.02 * late, zl - 0.44 - 0.025 * late), "rot": (102.0 - 5.0 * late, 0.0, -9.0), "toe": 4.0, "pole": (-0.25, -0.5, -1.0)},
-        },
-        "hands": {
-            "l": {"at": (0.27 + 0.01 * once, 0.1 - 0.025 * pump, 0.89 + 0.015 * pump), "space": "chest", "pole": (0.45, 0.9, -0.6), "curl": 0.35, "thumb": 0.22},
-            "r": {"at": (-0.3 + 0.01 * once, 0.12 + 0.025 * pump, 0.89 - 0.015 * pump), "space": "chest", "pole": (-0.45, 0.9, -0.6), "curl": 0.42, "thumb": 0.25},
-        },
-    }
-
-
-# Hover and Takeoff are drawn from golden poses (golden_clips.py); Land starts
-# where the hover loop does.
+# Hover, Fly_Fwd and Takeoff are drawn from golden poses (golden_clips.py);
+# Land starts where the hover loop does.
 HOVER0 = golden_clips.HOVER["at"](0.0)
 
 
@@ -437,7 +403,7 @@ LAND = [
 
 CLIPS = {
     "Hover": golden_clips.HOVER,
-    "Fly_Fwd": {"length": FLY_SECONDS, "loop": True, "at": fly_at},
+    "Fly_Fwd": golden_clips.FLY,
     "Takeoff": golden_clips.TAKEOFF,
     "Land": flow(LAND, [0.0, 5.0, 8.0, 12.0, 17.0, 24.0], grounded=True),
     "Climb_Up": {"length": 1.367, "loop": True, "at": climb_at, "rise": RISE},
