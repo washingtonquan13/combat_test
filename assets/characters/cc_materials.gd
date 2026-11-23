@@ -161,6 +161,11 @@ static func attach_hair(character: Node3D, hair: String, json_path: String) -> M
 	out.name = baked.get_meta(&"cc_name")
 	out.mesh = baked
 	out.skin = baked.get_meta(&"cc_skin")
+	# Hair is part of the body: it draws on the body's render layers, whichever
+	# of the two is set up first (a Unit puts its body on Unit.RENDER_LAYER,
+	# and hair left on the default layer counts as level to the x-ray).
+	if body:
+		out.layers = body.layers
 	bs.add_child(out)
 	out.skeleton = NodePath("..")
 	apply(out, json_path)

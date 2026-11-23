@@ -27,13 +27,15 @@ uniform float edge_roughness_multiplier = 0.044;
 uniform float unmasked_roughness_scale = 0.0;
 // Not CC's: a Godot-side tune. Godot lights skin with one sharp specular
 // lobe; this dulls it toward the softer sheen CC shows.
-uniform float roughness_offset = 0.15;
+uniform float roughness_offset = 0.0;
 uniform float unmasked_scatter_scale = 1.0;
 // CC's "_Specular": 0.5 is the usual 4% dielectric, as Godot's SPECULAR.
 uniform float specular = 0.4;
 // CC's subsurface falloff colour, used for light through the ears.
 uniform vec3 scatter_color : source_color = vec3(1.0, 0.37, 0.3);
-uniform float sss_strength = 0.3;
+// Kept low: Godot's screen-space scatter blurs the lit skin, and much more
+// than this wipes the pores off a face.
+uniform float sss_strength = 0.08;
 uniform float transmission_strength = 0.2;
 // Light that scatters under skin comes back redder. Godot's screen-space
 // scatter only blurs the lighting, so the colour shift is done in light():
@@ -43,6 +45,11 @@ uniform vec3 scatter_tint : source_color = vec3(1.0);
 // scatter colour, so the terminator turns red before it turns dark.
 uniform float scatter_wrap = 0.35;
 uniform vec3 shadow_bleed = vec3(0.6, 1.2, 1.5);
+// The red edge is tuned for a light of about this energy. Under a brighter
+// light the edge is pushed past what the tonemapper can hold and clips to
+// crimson, so its colour fades toward neutral by the excess. 0 switches the
+// fade off.
+uniform float scatter_energy_ref = 0.0;
 // The colour map is a touch too light and flat for a lit surface: it is
 // darkened by this gamma, and creases (the occlusion map) darken the colour
 // itself, at ao_colour strength, so they hold under direct light.
@@ -158,7 +165,12 @@ void fragment() {
 
 void light() {
 	float ndl = dot(NORMAL, LIGHT);
-	vec3 w = scatter_color * scatter_wrap * v_scatter;
+	float keep = 1.0;
+	if (scatter_energy_ref > 0.0) {
+		keep = min(1.0, scatter_energy_ref * PI / max(dot(LIGHT_COLOR, vec3(0.2126, 0.7152, 0.0722)), 1e-4));
+	}
+	vec3 sc = mix(vec3(dot(scatter_color, vec3(1.0 / 3.0))), scatter_color, keep);
+	vec3 w = sc * scatter_wrap * v_scatter;
 	vec3 diff = clamp((vec3(ndl) + w) / (1.0 + w), 0.0, 1.0);
 	// Thin parts (ears, nostrils) let light through from behind.
 	diff += scatter_color * v_transmit * clamp(-ndl, 0.0, 1.0);
@@ -167,7 +179,7 @@ void light() {
 	// shadow, so the shadow's edge fades through red rather than grey.
 	vec3 shade = vec3(ATTENUATION);
 	if (LIGHT_IS_DIRECTIONAL) {
-		shade = pow(shade, mix(vec3(1.0), shadow_bleed, v_scatter));
+		shade = pow(shade, mix(vec3(1.0), shadow_bleed, v_scatter * keep));
 	}
 	DIFFUSE_LIGHT += diff * tint * shade * LIGHT_COLOR / PI;
 
