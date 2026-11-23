@@ -27,6 +27,9 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
+apply_motion = &""
+remove_motion = &""
+hit_reaction_motion = &""
 metadata/_custom_type_script = "uid://cplabynayhpiv"
 
 [sub_resource type="Resource" id="Resource_applystatus"]
@@ -56,10 +59,13 @@ element = 0
 is_toggle = false
 toggle_group = &""
 max_level = 0
+on_when_granted = false
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
 armed_hold_vfx_at = 3
+armed_motion = &""
+motion = &"cast"
 plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

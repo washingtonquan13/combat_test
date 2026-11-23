@@ -12,9 +12,14 @@ script = ExtResource("2_effect")
 [sub_resource type="Resource" id="Resource_targeting"]
 script = ExtResource("3_targeting")
 max_range = 8.0
+range_from_strength = false
+strength_rule = 0
+flight_arc_height = 0.0
 navmesh_tolerance = 0.5
 validate_as_caster_flying = false
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 
 [resource]
 script = ExtResource("1_ability")
@@ -24,7 +29,16 @@ icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_fnyxh")]([SubResource("Resource_summondemoneffect")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
+on_when_granted = false
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_motion = &""
+motion = &"cast"
+plays_cast_animation = true

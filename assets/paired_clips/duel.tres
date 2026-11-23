@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="PairedClip" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="PairedClip" load_steps=6 format=3 uid="uid://chbc0embjo6o5"]
 
-[ext_resource type="Script" path="res://systems/cinematic_system/paired_clip.gd" id="1_csuit"]
-[ext_resource type="Script" path="res://systems/cinematic_system/contact_event.gd" id="2_event"]
+[ext_resource type="Script" uid="uid://cvej3o504gstm" path="res://systems/cinematic_system/paired_clip.gd" id="1_csuit"]
+[ext_resource type="Script" uid="uid://creoghq24raqn" path="res://systems/cinematic_system/contact_event.gd" id="2_event"]
 
 [sub_resource type="Resource" id="c0"]
 script = ExtResource("2_event")

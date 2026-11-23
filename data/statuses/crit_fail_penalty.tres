@@ -22,4 +22,7 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
+apply_motion = &""
+remove_motion = &""
+hit_reaction_motion = &""
 metadata/_custom_type_script = "uid://cplabynayhpiv"

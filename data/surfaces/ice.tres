@@ -38,11 +38,13 @@ resisted_by = &"DX"
 resistance_modifier = 0
 apply_motion = &"knockdown"
 remove_motion = &"get_up"
+hit_reaction_motion = &""
 
 [resource]
 script = ExtResource("1_surface")
 surface_name = "Ice"
 duration_rounds = 3
+fixed = false
 shape = 0
 height_scale = 1.0
 wall_height = 4.0

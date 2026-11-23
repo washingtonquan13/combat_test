@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=2 format=3 uid="uid://bke8ktk50w705"]
 
-[ext_resource type="Script" path="res://tools/medieval_kit/medieval_test.gd" id="1"]
+[ext_resource type="Script" uid="uid://34v2d3mtgrmu" path="res://tools/medieval_kit/medieval_test.gd" id="1"]
 
 [node name="MedievalTest" type="Node3D"]
 script = ExtResource("1")

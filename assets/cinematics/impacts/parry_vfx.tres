@@ -1,15 +1,21 @@
-[gd_resource type="Resource" script_class="VfxEffect" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="VfxEffect" load_steps=6 format=3 uid="uid://dbbs7w1b10xq0"]
 
-[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="1"]
-[ext_resource type="Script" path="res://systems/ability_system/spawn_particle_step.gd" id="2"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="1"]
+[ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://systems/ability_system/spawn_particle_step.gd" id="2"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="2_8l1bd"]
 [ext_resource type="PackedScene" path="res://assets/cinematics/impacts/spark_burst.tscn" id="3"]
 
 [sub_resource type="Resource" id="step"]
 script = ExtResource("2")
 scene = ExtResource("3")
 at = 1
+caster_anchor = 3
+force_one_shot = true
 fallback_lifetime = 1.0
+scale_to_ability_radius = false
+authored_radius = 1.0
+height_scale_factor = 0.0
 
 [resource]
 script = ExtResource("1")
-steps = Array[ExtResource("2")]([SubResource("step")])
+steps = Array[ExtResource("2_8l1bd")]([SubResource("step")])

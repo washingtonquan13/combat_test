@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="RagdollProfile" load_steps=15 format=3]
+[gd_resource type="Resource" script_class="RagdollProfile" load_steps=15 format=3 uid="uid://xcf1aqwqwvph"]
 
-[ext_resource type="Script" path="res://systems/unit_system/ragdoll_profile.gd" id="1_profile"]
-[ext_resource type="Script" path="res://systems/unit_system/ragdoll_part.gd" id="2_part"]
+[ext_resource type="Script" uid="uid://hrsuqv15agxo" path="res://systems/unit_system/ragdoll_profile.gd" id="1_profile"]
+[ext_resource type="Script" uid="uid://catvii7xl8hjb" path="res://systems/unit_system/ragdoll_part.gd" id="2_part"]
 
 [sub_resource type="Resource" id="part_Hips"]
 script = ExtResource("2_part")
@@ -18,6 +18,7 @@ twist_degrees = 0.0
 script = ExtResource("2_part")
 bone = &"Spine"
 tip = &"UpperChest"
+tip_b = &""
 radius_ratio = 0.8
 sphere_radius = 0.1
 mass = 3.0
@@ -28,6 +29,7 @@ twist_degrees = 15.0
 script = ExtResource("2_part")
 bone = &"UpperChest"
 tip = &"Neck"
+tip_b = &""
 radius_ratio = 0.38
 sphere_radius = 0.1
 mass = 4.0
@@ -37,6 +39,8 @@ twist_degrees = 15.0
 [sub_resource type="Resource" id="part_Head"]
 script = ExtResource("2_part")
 bone = &"Head"
+tip = &""
+tip_b = &""
 radius_ratio = 0.2
 sphere_radius = 0.11
 mass = 1.5
@@ -47,6 +51,7 @@ twist_degrees = 30.0
 script = ExtResource("2_part")
 bone = &"LeftUpperArm"
 tip = &"LeftLowerArm"
+tip_b = &""
 radius_ratio = 0.2
 sphere_radius = 0.1
 mass = 1.2
@@ -57,6 +62,7 @@ twist_degrees = 30.0
 script = ExtResource("2_part")
 bone = &"RightUpperArm"
 tip = &"RightLowerArm"
+tip_b = &""
 radius_ratio = 0.2
 sphere_radius = 0.1
 mass = 1.2
@@ -67,6 +73,7 @@ twist_degrees = 30.0
 script = ExtResource("2_part")
 bone = &"LeftLowerArm"
 tip = &"LeftHand"
+tip_b = &""
 radius_ratio = 0.17
 sphere_radius = 0.1
 mass = 1.0
@@ -77,6 +84,7 @@ twist_degrees = 10.0
 script = ExtResource("2_part")
 bone = &"RightLowerArm"
 tip = &"RightHand"
+tip_b = &""
 radius_ratio = 0.17
 sphere_radius = 0.1
 mass = 1.0
@@ -87,6 +95,7 @@ twist_degrees = 10.0
 script = ExtResource("2_part")
 bone = &"LeftUpperLeg"
 tip = &"LeftLowerLeg"
+tip_b = &""
 radius_ratio = 0.17
 sphere_radius = 0.1
 mass = 2.5
@@ -97,6 +106,7 @@ twist_degrees = 20.0
 script = ExtResource("2_part")
 bone = &"RightUpperLeg"
 tip = &"RightLowerLeg"
+tip_b = &""
 radius_ratio = 0.17
 sphere_radius = 0.1
 mass = 2.5
@@ -107,6 +117,7 @@ twist_degrees = 20.0
 script = ExtResource("2_part")
 bone = &"LeftLowerLeg"
 tip = &"LeftFoot"
+tip_b = &""
 radius_ratio = 0.12
 sphere_radius = 0.1
 mass = 1.5
@@ -117,6 +128,7 @@ twist_degrees = 5.0
 script = ExtResource("2_part")
 bone = &"RightLowerLeg"
 tip = &"RightFoot"
+tip_b = &""
 radius_ratio = 0.12
 sphere_radius = 0.1
 mass = 1.5

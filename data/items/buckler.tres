@@ -44,6 +44,7 @@ shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = false
 stance_motion = &"stance.shield"
+reload_motion = &""
 sheath = 0
 
 [resource]

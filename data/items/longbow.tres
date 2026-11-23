@@ -40,6 +40,7 @@ shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = true
 stance_motion = &"stance.bow"
+reload_motion = &""
 sheath = 0
 
 [resource]

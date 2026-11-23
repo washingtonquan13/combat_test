@@ -2,12 +2,15 @@
 
 [ext_resource type="Script" uid="uid://5a0k8j5hqk44" path="res://world/overworld_avatar.gd" id="1_avatar"]
 [ext_resource type="PackedScene" uid="uid://3u6rr0f1cnr0" path="res://person_icon_v3.glb" id="2_k4irb"]
-[ext_resource type="Shader" path="res://world/overworld_avatar.gdshader" id="3_body"]
+[ext_resource type="Shader" uid="uid://cv040jxlddpgd" path="res://world/overworld_avatar.gdshader" id="3_body"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_body"]
+render_priority = 0
 shader = ExtResource("3_body")
+shader_parameter/rim_glow = 1.3
+shader_parameter/rim_power = 3.0
 
 [node name="OverworldAvatar" type="CharacterBody3D"]
 script = ExtResource("1_avatar")

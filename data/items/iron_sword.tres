@@ -28,6 +28,7 @@ recoil = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0
+motion = &""
 
 [sub_resource type="Resource" id="Resource_thrust"]
 script = ExtResource("4_row")
@@ -60,6 +61,7 @@ shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = false
 stance_motion = &"stance.sword"
+reload_motion = &""
 sheath = 0
 
 [resource]

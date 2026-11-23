@@ -1,7 +1,7 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=8 format=3 uid="uid://b6l3kghgf6p8x"]
 
-[ext_resource type="Script" path="res://systems/cinematic_system/cutscene.gd" id="1_qeohj"]
-[ext_resource type="Script" path="res://systems/cinematic_system/cutscene_role.gd" id="2_jwi2s"]
+[ext_resource type="Script" uid="uid://bhvqtc2px2dlk" path="res://systems/cinematic_system/cutscene.gd" id="1_qeohj"]
+[ext_resource type="Script" uid="uid://cg1fdc66h4jrw" path="res://systems/cinematic_system/cutscene_role.gd" id="2_jwi2s"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/cc_male_model.tscn" id="3_1moec"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="8_qc712"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/cc_female_model.tscn" id="9_adgub"]
@@ -92,14 +92,17 @@ definition = ExtResource("8_qc712")
 
 [node name="Wide" type="Camera3D" parent="Cameras"]
 transform = Transform3D(0.0475652, -0.106293, 0.993196, 0, 0.994322, 0.106414, -0.998868, -0.0050616, 0.0472951, 4.2, 1.5, 2.2)
+current = true
 fov = 40.0
 
 [node name="OnTownsperson" type="Camera3D" parent="Cameras"]
 transform = Transform3D(-0.970142, -0.0181309, 0.241857, 0, 0.997202, 0.0747558, -0.242536, 0.0725238, -0.967428, 0.55, 1.62, -0.8)
+current = true
 fov = 32.0
 
 [node name="OnHero" type="Camera3D" parent="Cameras"]
 transform = Transform3D(0.970142, -0.00106951, 0.242533, 0, 0.99999, 0.00440969, -0.242536, -0.00427803, 0.970133, 0.55, 1.56, 2.2)
+current = true
 fov = 32.0
 
 [node name="Timeline" type="AnimationPlayer" parent="."]

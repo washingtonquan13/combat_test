@@ -1,13 +1,15 @@
-[gd_resource type="Resource" script_class="SfxCue" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="SfxCue" load_steps=5 format=3 uid="uid://c06r0rljsr11o"]
 
-[ext_resource type="Script" path="res://systems/audio_system/sfx_cue.gd" id="1"]
-[ext_resource type="Script" path="res://systems/audio_system/sfx_layer.gd" id="2"]
-[ext_resource type="AudioStream" path="res://assets/cinematics/impacts/flesh_hit.wav" id="3"]
+[ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://systems/audio_system/sfx_cue.gd" id="1"]
+[ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://systems/audio_system/sfx_layer.gd" id="2"]
+[ext_resource type="AudioStream" uid="uid://unlyxvx7kfiw" path="res://assets/cinematics/impacts/flesh_hit.wav" id="3"]
 
 [sub_resource type="Resource" id="layer"]
 script = ExtResource("2")
 stream = ExtResource("3")
+delay = 0.0
 volume_db = 2.0
+pitch_scale = 1.0
 
 [resource]
 script = ExtResource("1")

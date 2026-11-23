@@ -72,6 +72,9 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
+apply_motion = &""
+remove_motion = &""
+hit_reaction_motion = &""
 
 [sub_resource type="Resource" id="Resource_apply"]
 script = ExtResource("4_status")
@@ -112,6 +115,7 @@ element = 1
 is_toggle = false
 toggle_group = &""
 max_level = 0
+on_when_granted = false
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
@@ -119,6 +123,7 @@ fp_cost = 0.0
 timing = SubResource("Resource_timing")
 cast_vfx = SubResource("Resource_cast_vfx")
 armed_hold_vfx_at = 3
+armed_motion = &""
 cast_sfx = SubResource("Resource_launch")
 motion = &"breath"
 plays_cast_animation = true
