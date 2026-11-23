@@ -1,0 +1,170 @@
+// Frontier Valley - exploration music for the goblin quarry's valley, written
+// for the Frontier ensemble. Wary frontier: a plucked zither tune that keeps
+// looking over its shoulder, over a pizzicato walk that limps.
+//
+// Meter. 7/8, grouped 2+2+3, an eighth at 168. The long group at the end of
+// every bar is the limp: the walk drags its foot there, the lone tick lands
+// on it, and at intensity 1 the kalimba fills it. Everything that keeps time
+// keeps this one.
+//
+// Key. E minor. The bridge leans on F major - the flat second - for its
+// darkest two bars, then climbs back through B minor without leaving the
+// key: the F is the only note in the piece that does not belong to it.
+//
+// Players.
+//   lead    the dan tranh carries the tune, scooping up into the notes a
+//           phrase arrives at. It never holds; a long note is restruck.
+//   answer  violas, from intensity 1: a slow line under the tune, a descant
+//           above it in the reprise.
+//   tick    a kalimba in the long group of every bar, from intensity 1.
+//   walk    plucked upright bass and cellos an octave up, on the roots.
+//   drone   the cello section on open fifths; tremolo at intensity 2.
+//   perc    a lone muted frame drum on the limp at 0; a frame-drum pulse at
+//           1; frame drums, darbuka and slit drums filling out the bar at 2.
+//   timp    timpani on the downbeats, intensity 2 only.
+//
+// Form. A four-bar intro of walk and drone with the zither's pickup, then a
+// loop of tune (8), bridge (8), reprise (8) and a four-bar lull where almost
+// everything stops to listen - about 70 seconds a pass. `out` lands on E.
+
+title: Frontier Valley
+ensemble: frontier
+parts: lead answer:strings tick:keys walk:bass drone:pad perc timp:perc
+tempo: 168
+meter: 7/8
+key: e minor
+order: intro [tune bridge reprise lull] out
+
+// The walk on E: root, fifth, root, and the step below dragged into the
+// limp. Moved to each chord's root.
+pattern walk
+  | e2:1' r:1 b2:1' r:1 e2:1' r:1 d2:1. |
+
+pattern tick_em
+  | r:4 b4:1. e5:1. b4:1. |
+pattern tick_g
+  | r:4 b4:1. d5:1. b4:1. |
+pattern tick_d
+  | r:4 a4:1. d5:1. a4:1. |
+pattern tick_c
+  | r:4 c5:1. e5:1. c5:1. |
+pattern tick_f
+  | r:4 a4:1. c5:1. a4:1. |
+pattern tick_bm
+  | r:4 b4:1. d5:1. b4:1. |
+
+pattern limp0
+  | r:4 frame_high_muted:1 r:2 |
+pattern limp1
+  | frame_low:1 r:3 frame_high_muted:1 r:1 frame_high_muted:1. |
+pattern groove
+  | frame_low:1! frame_low_muted:1. frame_high:1 frame_high_muted:1. darbuka_1:1 darbuka_3:1. darbuka_2:1 |
+pattern slits
+  | slit_low:2 r:2 slit_high:1 slit_high:1. r:1 |
+
+section intro bars:4
+  lead dyn:mp feel:loose
+    | r:7 | r:7 | r:7 | r:4 b3:1 d4:1 e4:1 |
+  walk dyn:p..mp feel:tight shape:light
+    | walk | walk | walk | walk |
+  drone.calm dyn:pp..p art:sustain layer:..1
+    | [e2 b2]:28^ |
+  drone.shiver dyn:p art:tremolo layer:2
+    | [e2 b2]:28^ |
+  perc.limp dyn:p layer:..0
+    | limp0*4 |
+  perc.pulse dyn:mp layer:1..1
+    | limp1*4 |
+  perc.groove dyn:mp feel:loose layer:2
+    | groove*4 |
+  timp dyn:p..mf layer:2
+    | e2:7 | r:7 | e2:7 | r:7 |
+
+// Em Em G D | Em C D Em
+section tune bars:8
+  lead dyn:mf feel:loose shape:broad
+    | e4:2 g4:2 a4:2 b4:1 | b4:2< a4:2 g4:3 | g4:1 a4:1 b4:2 d5:3< | a4:2 b4:1 a4:1 f#4:3 |
+    | e4:2 g4:2 a4:2 b4:1 | e5:2< d5:2 b4:3 | a4:1 b4:1 a4:2 g4:2 f#4:1 | e4:4 r:3 |
+  answer dyn:p..mp art:sustain layer:1
+    | r:7 | r:7 | b3:7~ | a3:7 | r:7 | g3:7~ | a3:7 | b3:7 |
+  tick dyn:p layer:1
+    | tick_em | tick_em | tick_g | tick_d | tick_em | tick_c | tick_d | tick_em |
+  walk dyn:mp feel:tight shape:light
+    | walk | walk | walk+3 | walk-2 | walk | walk-4 | walk-2 | walk |
+  drone.calm dyn:p art:sustain layer:..1
+    | [e2 b2]:56^ |
+  drone.shiver dyn:mp art:tremolo layer:2
+    | [e2 b2]:56^ |
+  perc.limp dyn:p layer:..0
+    | limp0*8 |
+  perc.pulse dyn:mp layer:1..1
+    | limp1*8 |
+  perc.groove dyn:mf feel:loose layer:2
+    | groove*8 |
+  perc.slits dyn:mp feel:loose layer:2
+    | slits*8 |
+  timp dyn:mf layer:2
+    | e2:7 | r:7 | g2:7 | d2:7 | e2:7 | c2:7 | d2:7 | e2:7 |
+
+// C F Em Em | C F Bm Bm
+section bridge bars:8
+  lead dyn:mf feel:loose shape:broad
+    | c5:2 b4:2 a4:3 | a4:2 g4:2 f4:3< | e4:2 f4:1 e4:1 d4:3 | e4:3 r:1 b3:1 d4:1 e4:1 |
+    | g4:2 a4:2 c5:3< | c5:2 a4:2 f4:3 | f#4:2 a4:2 b4:1 a4:1 f#4:1 | f#4:4 r:3 |
+  answer dyn:mp art:sustain layer:1
+    | e4:7~ | f4:7 | g4:7~ | e4:7 | e4:7~ | f4:7 | f#4:7~ | d4:7 |
+  tick dyn:p layer:1
+    | tick_c | tick_f | tick_em | tick_em | tick_c | tick_f | tick_bm | tick_bm |
+  walk dyn:mp feel:tight shape:light
+    | walk-4 | walk+1 | walk | walk | walk-4 | walk+1 | walk-5 | walk-5 |
+  drone.calm dyn:p..mp art:sustain layer:..1
+    | [c2 g2]:14^ | [e2 b2]:14 | [c2 g2]:14^ | [f#2 b2]:14 |
+  drone.shiver dyn:mp..mf art:tremolo layer:2
+    | [c2 g2]:14^ | [e2 b2]:14 | [c2 g2]:14^ | [f#2 b2]:14 |
+  perc.limp dyn:p layer:..0
+    | limp0*8 |
+  perc.pulse dyn:mp layer:1..1
+    | limp1*8 |
+  perc.groove dyn:mf feel:loose layer:2
+    | groove*8 |
+  perc.slits dyn:mp feel:loose layer:2
+    | slits*8 |
+  timp dyn:mf..f layer:2
+    | c2:7 | f2:7 | e2:7 | e2:7 | c2:7 | f2:7 | b2:3.5 b2:3.5 | b2:1 b2:1 b2:1 b2:1 b2:1 b2:1 b2:1 |
+
+// The tune again, the violas above it.
+section reprise bars:8 from:tune
+  lead dyn:mf feel:loose shape:broad
+    | e4:2 g4:2 a4:2 b4:1 | b4:2< a4:2 g4:3 | g4:1 a4:1 b4:2 d5:3< | a4:2 b4:1 a4:1 f#4:3 |
+    | e4:2 g4:2 a4:2 b4:1 | e5:2< d5:2 b4:3 | a4:1 b4:1 a4:2 g4:2 f#4:1 | e4:2 e4:1. r:4 |
+  answer dyn:mp art:expressive layer:1
+    | g4:7~ | f#4:7 | d5:7~ | a4:7 | b4:7~ | c5:7 | a4:7 | b4:7 |
+
+// Almost everything stops to listen. Em C Em Bm
+section lull bars:4
+  lead dyn:mp feel:loose
+    | r:7 | e5:1< r:3 d5:1. b4:2 | r:7 | f#4:3 r:4 |
+  answer dyn:pp art:sustain layer:1
+    | b3:14 | c4:7 | b3:7 |
+  walk dyn:p feel:tight shape:none
+    | e2:1' r:6 | c2:1' r:6 | e2:1' r:6 | b1:1' r:4 d2:1. r:1 |
+  drone.calm dyn:pp art:sustain layer:..1
+    | [e2 b2]:28 |
+  drone.shiver dyn:p art:tremolo layer:2
+    | [e2 b2]:28 |
+  perc.limp dyn:pp layer:..0
+    | limp0*4 |
+  perc.pulse dyn:p layer:1..1
+    | limp0*4 |
+  perc.groove dyn:mp layer:2
+    | limp1*4 |
+  timp dyn:p layer:2
+    | e2:7 | r:7 | r:7 | b2:1 b2:1 b2:1 b2:1 b2:1 b2:1 b2:1 |
+
+section out bars:2
+  lead dyn:mp
+    | e4:1 b4:1 e5:5 | r:7 |
+  walk dyn:p
+    | e2:7 | r:7 |
+  drone dyn:p..ppp art:sustain
+    | [e2 b2]:14 |

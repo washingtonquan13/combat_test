@@ -1,0 +1,150 @@
+{
+  "format": 2,
+  "id": "frontier",
+  "name": "Frontier",
+  "description": "A small, dry ensemble for the valley in the wary-frontier manner. The voice is a plucked zither, VCSL's dan tranh, bent and scooped like a dulcimer played by someone listening over their shoulder. Under it a pizzicato walk in 7/8, a Virtual Playing Orchestra upright bass doubled an octave up by plucked cellos, limps along with the zither, and the cello section holds a low drone. As the music's intensity rises, violas take an answering line and a kalimba ticks in the long group of the bar; at the top, the VCSL ritual kit's frame drums and slit drums fill out the limp, timpani mark the downbeats and the drone goes to tremolo. A room rather than a hall, so the valley sounds open and close at once.",
+  "buses": {
+    "lead": {
+      "space": "room",
+      "wet": 0.26,
+      "predelay": 20.0
+    },
+    "keys": {
+      "space": "room",
+      "wet": 0.3,
+      "predelay": 20.0
+    },
+    "bass": {
+      "space": "room",
+      "wet": 0.14,
+      "predelay": 10.0
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "room",
+      "wet": 0.24,
+      "predelay": 10.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "vcsl/dan-tranh",
+          "name": "dan tranh"
+        }
+      ],
+      "range": [
+        47,
+        84
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": 10.0
+    },
+    "answer": {
+      "family": "strings",
+      "bus": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/violas",
+          "name": "violas"
+        }
+      ],
+      "range": [
+        48,
+        93
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": -3.0
+    },
+    "tick": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "vcsl/kalimba",
+          "name": "kalimba"
+        }
+      ],
+      "range": [
+        59,
+        84
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": 10.0
+    },
+    "walk": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "vpo/upright-pizz",
+          "name": "upright pizz"
+        },
+        {
+          "instrument": "vpo/cello-pizz",
+          "name": "cello pizz",
+          "transpose": 12
+        }
+      ],
+      "range": [
+        24,
+        67
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": 6.0
+    },
+    "drone": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/cellos",
+          "name": "cellos"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": 1.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "vcsl/ritual-kit",
+          "name": "ritual",
+          "take": {
+            "timing": 0.006,
+            "velocity": 6
+          }
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -20.0
+    },
+    "timp": {
+      "family": "perc",
+      "bus": "perc",
+      "layers": [
+        {
+          "instrument": "vsco2/timpani",
+          "name": "timpani"
+        }
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": -6.0
+    }
+  }
+}
