@@ -349,48 +349,66 @@ ON_FRAMES = [0.0, 6.0, 13.0, 19.0, 27.0, 32.0, 37.0, 43.0, 47.5, 52.0, 57.6]
 HOVER_Z = 1.24
 
 
+HOVER_SECONDS = 6.0
+FLY_SECONDS = 1.25
+
+
 def hover_at(t):
-    """Hanging in the air: one slow rise and fall, the legs following it late, and the
-    arms out a little, feeling for balance."""
+    """Hanging in the air, carried rather than standing. One slow rise and fall a loop;
+    the legs hang nearly straight from the hips and trail back, riding the bob a
+    tenth of a loop late, so the knees give a little on the way up. The chest leans
+    back over them and the arms hang a little behind, never mirrored."""
     bob = math.sin(TAU * t)
-    late = math.sin(TAU * (t - 0.09))
+    late = math.sin(TAU * (t - 0.1))
+    later = math.sin(TAU * (t - 0.16))
     sway = math.sin(TAU * (t + 0.2))
     drift = math.sin(TAU * (t + 0.55))
+    z = HOVER_Z + 0.045 * bob + 0.006 * math.sin(TAU * (2.0 * t + 0.15))
+    # Where the legs hang from: the hips as they were a moment ago.
+    zl = HOVER_Z + 0.045 * late
+    zr = HOVER_Z + 0.045 * later
     return {
-        "hip": (0.015 * sway, 0.02 * drift, HOVER_Z + 0.03 * bob + 0.005 * math.sin(TAU * (2.0 * t + 0.1))),
-        "hip_rot": (4.0 + 1.4 * drift, -1.5 * sway, 1.2 * math.sin(TAU * (t + 0.4))),
-        "chest_rot": (2.0 + 1.6 * math.sin(TAU * (t + 0.67)), 1.2 * math.sin(TAU * (t + 0.3)), -2.0 * math.sin(TAU * (t + 0.5))),
-        "look": (0.06 * math.sin(TAU * (t + 0.3)), -1.0, -0.04 + 0.02 * drift),
+        "hip": (0.012 * sway, 0.015 * drift, z),
+        "hip_rot": (-3.0 + 1.5 * late, -1.2 * sway, 2.0 * math.sin(TAU * (t + 0.4))),
+        "chest_rot": (-6.0 + 2.0 * math.sin(TAU * (t + 0.62)), 1.0 * math.sin(TAU * (t + 0.3)), -2.5 * math.sin(TAU * (t + 0.5))),
+        "look": (0.05 * math.sin(TAU * (t + 0.3)), -1.0, -0.12 + 0.03 * drift),
         "feet": {
-            "l": {"at": (0.125 + 0.012 * sway, -0.05 + 0.02 * drift, HOVER_Z - 0.69 + 0.025 * late), "rot": (34.0 + 3.0 * late, 1.0, 8.0), "toe": 6.0, "pole": (0.3, -1.0, 0.1)},
-            "r": {"at": (-0.135 + 0.012 * sway, 0.11 + 0.02 * drift, HOVER_Z - 0.75 + 0.022 * math.sin(TAU * (t - 0.14))), "rot": (28.0 + 3.0 * late, -1.0, -10.0), "toe": 8.0, "pole": (-0.3, -1.0, 0.1)},
+            # About 23 degrees back, nearly straight.
+            "l": {"at": (0.11 + 0.01 * sway, 0.29 + 0.02 * late, zl - 0.73), "rot": (58.0 + 4.0 * late, 1.0, 7.0), "toe": 4.0, "pole": (0.25, -1.0, -0.2)},
+            # About 27 back, the knee a touch softer.
+            "r": {"at": (-0.125 + 0.01 * sway, 0.33 + 0.02 * later, zr - 0.69), "rot": (64.0 + 4.0 * later, -1.0, -9.0), "toe": 6.0, "pole": (-0.25, -1.0, -0.2)},
         },
         "hands": {
-            "l": {"at": (0.33 + 0.012 * late, -0.04 + 0.02 * drift, 0.985 + 0.018 * math.sin(TAU * (t + 0.08))), "space": "chest", "pole": (0.4, 0.8, -0.9), "curl": 0.34, "thumb": 0.25},
-            "r": {"at": (-0.34 - 0.01 * late, -0.02 + 0.02 * drift, 0.965 + 0.018 * math.sin(TAU * (t - 0.05))), "space": "chest", "pole": (-0.4, 0.8, -0.9), "curl": 0.38, "thumb": 0.25},
+            "l": {"at": (0.29 + 0.01 * late, 0.09 + 0.02 * drift, 0.93 + 0.02 * math.sin(TAU * (t + 0.08))), "space": "chest", "pole": (0.4, 0.8, -0.9), "curl": 0.38, "thumb": 0.25},
+            "r": {"at": (-0.27 - 0.01 * late, 0.13 + 0.015 * drift, 0.9 + 0.02 * math.sin(TAU * (t - 0.07))), "space": "chest", "pole": (-0.4, 0.8, -0.9), "curl": 0.45, "thumb": 0.3},
         },
     }
 
 
 def fly_at(t):
-    """A gentle forward drift, close to the hover: the body leans in, the legs trail and
-    flutter, the arms hang back a little and steer."""
-    flap = math.sin(TAU * t)
-    late = math.sin(TAU * (t - 0.12))
-    weave = math.sin(TAU * (t + 0.25))
-    height = 1.18
+    """Going somewhere: the body breaks at the hips, chest down into the way it goes and
+    the legs folded back behind, about 55 degrees off the vertical. Two pumps a loop,
+    each a little different, the legs a beat behind the hips; the arms hang back
+    along the body and swing against each other."""
+    pump = math.sin(TAU * 2.0 * t)
+    late = math.sin(TAU * 2.0 * (t - 0.05))
+    once = math.sin(TAU * (t + 0.3))
+    z = 1.2 + 0.05 * pump + 0.01 * once
+    zl = 1.2 + 0.05 * late
     return {
-        "hip": (0.012 * weave, 0.03 + 0.01 * late, height + 0.018 * flap),
-        "hip_rot": (17.0 + 2.0 * late, -1.5 * weave, -1.5 * flap),
-        "chest_rot": (27.0 + 2.5 * flap, 2.0 * weave, 2.0 * flap),
-        "look": (0.04 * weave, -1.0, -0.04 + 0.03 * flap),
+        "hip": (0.01 * once, 0.0, z),
+        "hip_rot": (4.0 + 2.0 * late, -1.5 * once, -2.0 * once),
+        "chest_rot": (16.0 + 2.5 * math.sin(TAU * 2.0 * (t - 0.025)), 2.0 * once, 3.0 * math.sin(TAU * (t + 0.1))),
+        "look": (0.03 * once, -1.0, -0.03 + 0.02 * pump),
         "feet": {
-            "l": {"at": (0.11 + 0.01 * weave, 0.25 + 0.03 * late, height - 0.69 + 0.04 * late), "rot": (62.0 + 5.0 * late, 0.0, 7.0), "toe": 4.0, "pole": (0.28, -1.0, -0.3)},
-            "r": {"at": (-0.125 + 0.01 * weave, 0.36 - 0.03 * late, height - 0.67 - 0.04 * late), "rot": (72.0 - 5.0 * late, 0.0, -9.0), "toe": 4.0, "pole": (-0.28, -1.0, -0.3)},
+            # Knee folded well past a right angle's half: the ankle about 58 back of the hip.
+            "l": {"at": (0.105 + 0.01 * once, 0.52 + 0.03 * late, zl - 0.38 + 0.035 * late), "rot": (112.0 + 6.0 * late, 0.0, 7.0), "toe": 4.0, "pole": (0.25, -0.5, -1.0)},
+            # Opened a little more, a little lower: about 52 back.
+            "r": {"at": (-0.12 + 0.01 * once, 0.47 - 0.02 * late, zl - 0.44 - 0.025 * late), "rot": (102.0 - 5.0 * late, 0.0, -9.0), "toe": 4.0, "pole": (-0.25, -0.5, -1.0)},
         },
         "hands": {
-            "l": {"at": (0.32 + 0.02 * weave, 0.08 - 0.015 * flap, 0.945 + 0.015 * flap), "space": "chest", "pole": (0.5, 0.85, -0.5), "curl": 0.3, "thumb": 0.22},
-            "r": {"at": (-0.325 + 0.02 * weave, 0.09 + 0.015 * flap, 0.94 - 0.015 * flap), "space": "chest", "pole": (-0.5, 0.85, -0.5), "curl": 0.32, "thumb": 0.22},
+            "l": {"at": (0.27 + 0.01 * once, 0.1 - 0.025 * pump, 0.89 + 0.015 * pump), "space": "chest", "pole": (0.45, 0.9, -0.6), "curl": 0.35, "thumb": 0.22},
+            "r": {"at": (-0.3 + 0.01 * once, 0.12 + 0.025 * pump, 0.89 - 0.015 * pump), "space": "chest", "pole": (-0.45, 0.9, -0.6), "curl": 0.42, "thumb": 0.25},
         },
     }
 
@@ -422,51 +440,75 @@ def planted(side, heel=0.0):
     return dict(stance_foot(side, heel=heel), pole=(SIDE[side] * 0.3, -1.0, 0.1))
 
 
+def tucked(side, x, y, z, pitch, toe=3.0):
+    """An airborne foot with the knee forward and folded, as in the tuck."""
+    return dict(air_foot(side, x, y, z, pitch, toe), pole=(SIDE[side] * 0.3, -1.0, 0.1))
+
+
+# The game lifts the unit 0.2 s after the cast and has it at height by about 0.8 s
+# (fly.tres lift_delay and vertical_speed): the push lands on the lift, the tuck
+# rides the climb, and the overshoot and dip are the body arriving.
 TAKEOFF = [
     m.merge(STANCE, {"feet": {"l": planted("l"), "r": planted("r")}}),
     m.merge(STANCE, {  # gathers: hips drop and sit back, arms drawn behind
-        "hip": (0.012, 0.075, 0.79), "hip_rot": (15.0, -1.0, -2.0), "chest_rot": (21.0, 1.0, 1.0), "look": (0.0, -1.0, -0.2),
+        "hip": (0.012, 0.07, 0.78), "hip_rot": (16.0, -1.0, -2.0), "chest_rot": (22.0, 1.0, 1.0), "look": (0.0, -1.0, -0.2),
         "feet": {"l": planted("l"), "r": planted("r")},
-        "hands": {"l": stance_hand("l", (0.29, 0.13, 0.9), (0.4, 0.9, -0.6)), "r": stance_hand("r", (-0.29, 0.14, 0.9), (-0.4, 0.9, -0.6))},
+        "hands": {"l": stance_hand("l", (0.29, 0.11, 0.89), (0.4, 0.9, -0.6)), "r": stance_hand("r", (-0.29, 0.12, 0.89), (-0.4, 0.9, -0.6))},
     }),
     m.merge(STANCE, {  # the push: legs drive, heels up, chest opens, arms sweep out and up
-        "hip": (0.01, 0.01, 0.985), "hip_rot": (1.0, 0.0, -1.0), "chest_rot": (-5.0, 0.5, 1.0), "look": (0.0, -1.0, 0.12),
-        "feet": {"l": planted("l", heel=38.0), "r": planted("r", heel=38.0)},
-        "hands": {"l": stance_hand("l", (0.4, -0.02, 1.06), (0.5, 0.8, -0.7), 0.2), "r": stance_hand("r", (-0.4, -0.02, 1.05), (-0.5, 0.8, -0.7), 0.22)},
+        "hip": (0.01, 0.01, 0.99), "hip_rot": (0.0, 0.0, -1.0), "chest_rot": (-6.0, 0.5, 1.0), "look": (0.0, -1.0, 0.15),
+        "feet": {"l": planted("l", heel=40.0), "r": planted("r", heel=40.0)},
+        "hands": {"l": stance_hand("l", (0.36, 0.04, 0.98), (0.4, 0.9, -0.6), 0.2), "r": stance_hand("r", (-0.35, 0.06, 0.97), (-0.4, 0.9, -0.6), 0.22)},
     }),
-    m.merge(HOVER0, {  # off the floor and carried past where it will hang, toes trailing
-        "hip": (0.005, 0.015, HOVER_Z + 0.08), "hip_rot": (2.0, 0.0, 0.0), "chest_rot": (-4.0, 0.5, 0.5), "look": (0.0, -1.0, 0.08),
-        "feet": {"l": air_foot("l", 0.125, -0.1, 0.5, 46.0, 2.0), "r": air_foot("r", -0.13, -0.02, 0.47, 42.0, 2.0)},
-        "hands": {"l": {"at": (0.38, -0.03, 1.07), "curl": 0.25}, "r": {"at": (-0.39, -0.02, 1.06), "curl": 0.28}},
+    m.merge(HOVER0, {  # off the floor: knees snap up, heels under the seat, arms high and wide
+        "hip": (0.0, 0.03, HOVER_Z + 0.08), "hip_rot": (6.0, 0.0, 0.0), "chest_rot": (-2.0, 0.5, 0.5), "look": (0.0, -1.0, 0.1),
+        "feet": {"l": tucked("l", 0.11, 0.14, HOVER_Z - 0.42, 92.0), "r": tucked("r", -0.12, 0.08, HOVER_Z - 0.46, 86.0)},
+        "hands": {"l": {"at": (0.42, 0.02, 1.1), "curl": 0.22}, "r": {"at": (-0.43, 0.03, 1.08), "curl": 0.25}},
+    }),
+    m.merge(HOVER0, {  # carried past the hang: legs let down and trail, arms come in
+        "hip": (0.005, 0.01, HOVER_Z + 0.16), "hip_rot": (-4.0, 0.0, 0.5), "chest_rot": (-8.0, 0.5, 0.5), "look": (0.0, -1.0, -0.02),
+        "feet": {"l": tucked("l", 0.11, 0.22, HOVER_Z - 0.54, 60.0), "r": tucked("r", -0.125, 0.25, HOVER_Z - 0.55, 64.0)},
+        "hands": {"l": {"at": (0.33, 0.06, 0.98), "curl": 0.32}, "r": {"at": (-0.32, 0.08, 0.96), "curl": 0.38}},
+    }),
+    m.merge(HOVER0, {  # sinks back a little under the hang, the legs still coming down after it
+        "hip": (0.008, 0.01, HOVER_Z - 0.04), "hip_rot": (-2.0, -0.5, 1.0), "chest_rot": (-5.0, 0.8, 0.0), "look": (0.0, -1.0, -0.14),
+        "feet": {"l": tucked("l", 0.11, 0.3, HOVER_Z - 0.75, 60.0), "r": tucked("r", -0.125, 0.33, HOVER_Z - 0.72, 66.0)},
     }),
     HOVER0,
 ]
 
+# Land starts at touched_down, the unit already on the floor: the drop from the hang,
+# toes first, a crouch, a rebound past the stance and the settle.
 LAND = [
     HOVER0,
-    m.merge(HOVER0, {  # coming down, feet reach for the floor toes first, arms lifting to balance
-        "hip": (0.01, 0.025, 1.0), "hip_rot": (6.0, -0.5, -1.0), "chest_rot": (5.0, 0.5, 1.0), "look": (0.0, -1.0, -0.18),
-        "feet": {"l": air_foot("l", 0.118, -0.14, 0.2, 30.0, 14.0), "r": air_foot("r", -0.128, -0.06, 0.17, 24.0, 12.0)},
-        "hands": {"l": {"at": (0.37, -0.03, 1.05), "curl": 0.25}, "r": {"at": (-0.38, -0.02, 1.04), "curl": 0.28}},
+    m.merge(HOVER0, {  # legs swing down and forward under the body, chest flares back
+        "hip": (0.01, 0.02, 1.02), "hip_rot": (2.0, -0.5, -1.0), "chest_rot": (-8.0, 0.5, 1.0), "look": (0.0, -1.0, -0.25),
+        "feet": {"l": air_foot("l", 0.118, -0.12, 0.2, 30.0, 12.0), "r": air_foot("r", -0.128, -0.05, 0.24, 26.0, 10.0)},
+        "hands": {"l": {"at": (0.38, -0.02, 1.06), "curl": 0.25}, "r": {"at": (-0.35, 0.04, 1.0), "curl": 0.3}},
     }),
     m.merge(STANCE, {  # toes touch; the heels still high and the knees starting to give
-        "hip": (0.012, 0.03, 0.925), "hip_rot": (9.0, -1.0, -1.5), "chest_rot": (10.0, 1.0, 1.5), "look": (0.0, -1.0, -0.14),
+        "hip": (0.012, 0.03, 0.93), "hip_rot": (8.0, -1.0, -1.5), "chest_rot": (8.0, 1.0, 1.5), "look": (0.0, -1.0, -0.14),
         "feet": {"l": planted("l", heel=22.0), "r": planted("r", heel=26.0)},
         "hands": {"l": stance_hand("l", (0.34, 0.0, 1.0), (0.45, 0.85, -0.8)), "r": stance_hand("r", (-0.35, 0.01, 0.99), (-0.45, 0.85, -0.8))},
     }),
     m.merge(STANCE, {  # the bottom of it: heels down, hips sunk, chest over the knees, arms dropping
-        "hip": (0.012, 0.065, 0.8), "hip_rot": (17.0, -1.0, -2.0), "chest_rot": (22.0, 1.0, 1.0), "look": (0.0, -1.0, -0.2),
+        "hip": (0.012, 0.065, 0.79), "hip_rot": (18.0, -1.0, -2.0), "chest_rot": (22.0, 1.0, 1.0), "look": (0.0, -1.0, -0.2),
         "feet": {"l": planted("l"), "r": planted("r")},
-        "hands": {"l": stance_hand("l", (0.28, 0.06, 0.93), (0.35, 0.85, -0.9)), "r": stance_hand("r", (-0.285, 0.07, 0.93), (-0.35, 0.85, -0.9))},
+        "hands": {"l": stance_hand("l", (0.28, 0.05, 0.93), (0.35, 0.85, -0.9)), "r": stance_hand("r", (-0.285, 0.07, 0.93), (-0.35, 0.85, -0.9))},
+    }),
+    m.merge(STANCE, {  # comes back up a touch past the stance, chest lifting
+        "hip": (0.012, 0.03, 0.915), "hip_rot": (3.0, -1.5, -2.0), "chest_rot": (0.0, 1.0, 1.5), "look": (0.0, -1.0, -0.05),
+        "feet": {"l": planted("l"), "r": planted("r")},
+        "hands": {"l": stance_hand("l", (0.26, 0.02, 0.92)), "r": stance_hand("r", (-0.265, 0.035, 0.925))},
     }),
     m.merge(STANCE, {"feet": {"l": planted("l"), "r": planted("r")}}),
 ]
 
 CLIPS = {
-    "Hover": {"length": 3.0, "loop": True, "at": hover_at},
-    "Fly_Fwd": {"length": 1.6, "loop": True, "at": fly_at},
-    "Takeoff": flow(TAKEOFF, [0.0, 6.0, 10.0, 14.0, 19.2], grounded=True),
-    "Land": flow(LAND, [0.0, 6.0, 9.0, 12.0, 16.8], grounded=True),
+    "Hover": {"length": HOVER_SECONDS, "loop": True, "at": hover_at},
+    "Fly_Fwd": {"length": FLY_SECONDS, "loop": True, "at": fly_at},
+    "Takeoff": flow(TAKEOFF, [0.0, 4.0, 7.0, 12.0, 17.0, 21.0, 25.0], grounded=True),
+    "Land": flow(LAND, [0.0, 5.0, 8.0, 12.0, 17.0, 24.0], grounded=True),
     "Climb_Up": {"length": 1.367, "loop": True, "at": climb_at, "rise": RISE},
     "Climb_Over_Top": in_place(flow(OVER_KEYS, OVER_FRAMES), True),
     "Climb_On_Top": in_place(flow(ON_KEYS, ON_FRAMES), False),
