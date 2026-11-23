@@ -247,7 +247,7 @@ def trees():
             continue
         if any(abs(x - t[0]) < 9 and abs(z - t[1]) < 9 for t in out[-60:]):
             continue
-        out.append((x, z, rng.uniform(0.8, 1.4), ground.at(x, z)))
+        out.append((x, z, rng.uniform(0.8, 1.4), ground.at(x, z), 0))
     # Downtown's parks: a loose grid of smaller trees.
     for park in city["parks"]:
         inner = Polygon(park).buffer(-5.0)
@@ -256,7 +256,7 @@ def trees():
             for z in np.arange(z0, z1, 12.0):
                 tx, tz = float(x) + rng.uniform(-3, 3), float(z) + rng.uniform(-3, 3)
                 if inner.contains(Point(tx, tz)):
-                    out.append((tx, tz, rng.uniform(0.6, 0.9), ground.at(tx, tz)))
+                    out.append((tx, tz, rng.uniform(0.6, 0.9), ground.at(tx, tz), 1))
     return out
 
 
@@ -306,8 +306,6 @@ def build():
         "fog_density": "1.0", "fog_depth_curve": "1.6", "fog_depth_begin": "350.0", "fog_depth_end": "1400.0",
     })
 
-    bark = material(sc, (0.32, 0.24, 0.17))
-    leaves = material(sc, (1, 1, 1), 0.9, vertex=True)
     rock = material(sc, (0.48, 0.46, 0.43))
     inn = material(sc, (0.6, 0.42, 0.28))
 
@@ -413,14 +411,12 @@ def build():
     # The wilderness.
     sc.node("Wilds", "Node3D", ".")
     tr = trees()
-    trunk = sc.sub_res("CylinderMesh", {"top_radius": "0.6", "bottom_radius": "0.8", "height": "1.0",
-                                        "material": bark, "radial_segments": "6", "rings": "1"})
-    crown = sc.sub_res("CylinderMesh", {"top_radius": "0.0", "bottom_radius": "1.0", "height": "1.0",
-                                        "material": leaves, "radial_segments": "7", "rings": "1"})
-    multimesh(sc, "Trunks", "Wilds", trunk, [(x, y + 2.5 * s - 0.5, z, 1.6 * s, 5 * s + 1, 1.6 * s) for (x, z, s, y) in tr])
-    greens = [(rng.uniform(0.16, 0.26), rng.uniform(0.3, 0.42), rng.uniform(0.15, 0.22), 1.0) for _ in tr]
-    multimesh(sc, "Crowns", "Wilds", crown, [(x, y + 11 * s, z, 7 * s, 14 * s, 7 * s) for (x, z, s, y) in tr], greens)
-    static_cylinders(sc, "TreeTrunks", "Wilds", [(x, y, z) for (x, z, _, y) in tr], 1.6, 8.0)
+    # The quarry's trees, built on load (morrow_forest.gd): firs in the
+    # woods, broadleaves in the parks.
+    sc.node("Forest", "Node3D", "Wilds", {
+        "script": sc.ext_res("Script", "res://world/morrow/morrow_forest.gd"),
+        "trees": "PackedFloat32Array(%s)" % ", ".join(f(v) for (x, z, s, y, k) in tr for v in (x, y, z, s, k))})
+    static_cylinders(sc, "TreeTrunks", "Wilds", [(x, y, z) for (x, z, _, y, _k) in tr], 1.6, 8.0)
 
     rk = [on_ground(r, 1.0) for r in rocks()]
     unit_rock = sc.sub_res("BoxMesh", {"size": "Vector3(1, 1, 1)", "material": rock})
