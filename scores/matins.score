@@ -1,0 +1,226 @@
+// Matins - exploration music for a ruined mountain monastery, written for
+// the Cloister ensemble. An original piece, not a transcription: what it
+// takes from sacred fantasy-RPG scores is the room, not the notes. Stone,
+// a long reverb, voices with no words, a bell from somewhere further up
+// the mountain, and the sense that the sun is about to come over a ridge.
+//
+// Mode. A aeolian, slow, in three. The colour is the B natural over F major
+// in the chant's second bar - the fourth of the scale raised against the
+// chord, which is the old sound of plainchant harmonised. Each phrase ends
+// on E major, so the loop always leans back towards A.
+//
+// The light. The third section is the dawn. It walks F, G and then A
+// *major* - the C sharp is the first sun on the wall - and stays bright
+// through D major before folding back through C to the E that every
+// section ends on.
+//
+// Players.
+//   voice   the women's choir sings the chant, wordless and slow, and in
+//           the hymn holds one long descant line over the cello.
+//   cello   the solo cello answers the chant underneath, then takes the
+//           tune itself in the hymn.
+//   harp    turns every chord over in eighths with the ninth in it. It is
+//           the only clock in the piece.
+//   strings violins and violas hold the harmony. They drop out for the
+//           hymn so the cello is alone with the room.
+//   low     cello and bass sections on the roots; open fifths in the hymn.
+//   bell    a tubular bell, far off: the top of the chant, once in the
+//           hymn, and the A major chord of the dawn.
+//   glass   a celesta catching light, a three-note fall at phrase ends.
+//
+// Intensity, as Hearthwild has it, so the quarry behaves the same:
+//   0       the piece as above.
+//   1       the strings go to tremolo (and come in under the hymn), and a
+//           hand drum keeps a slow heartbeat on the first beat.
+//   2       the men's choir enters under everything, the heartbeat
+//           doubles, and a gong marks the top of every section.
+//
+// Form. A four-bar intro of bell, drone and harp, then a loop of four
+// eight-bar sections - chant, hymn, dawn, chant again - about a minute and
+// three quarters a pass. `out` folds home to A and lets the bell ring.
+
+title: Matins
+ensemble: cloister
+parts: voice:choir cello:lead harp:keys glass:bells bell:bells strings low:bass choir perc
+tempo: 56
+meter: 3/4
+key: a minor
+order: intro [chant hymn dawn again] out
+
+// The harp's figures, one bar each: up the chord with its ninth.
+pattern h_am
+  | a2:0.5 e3:0.5. a3:0.5 b3:0.5. c4:0.5 e4:0.5. |
+pattern h_f
+  | f2:0.5 c3:0.5. f3:0.5 g3:0.5. a3:0.5 c4:0.5. |
+pattern h_c
+  | c2:0.5 g2:0.5. c3:0.5 d3:0.5. e3:0.5 g3:0.5. |
+pattern h_g
+  | g2:0.5 d3:0.5. g3:0.5 a3:0.5. b3:0.5 d4:0.5. |
+pattern h_dm
+  | d2:0.5 a2:0.5. d3:0.5 e3:0.5. f3:0.5 a3:0.5. |
+pattern h_e
+  | e2:0.5 b2:0.5. e3:0.5 f#3:0.5. g#3:0.5 b3:0.5. |
+pattern h_a
+  | a2:0.5 e3:0.5. a3:0.5 b3:0.5. c#4:0.5 e4:0.5. |
+pattern h_d
+  | d2:0.5 a2:0.5. d3:0.5 e3:0.5. f#3:0.5 a3:0.5. |
+
+// The heartbeat at intensity 1: a low hand drum on one, its muted stroke.
+pattern heart
+  | frame_low:1! frame_low_muted:1. r:1 |
+// Doubled at intensity 2.
+pattern heart2
+  | frame_low:1! frame_low_muted:1. frame_low:1. |
+// The top of a section at intensity 2.
+pattern gong_top
+  | gong:1! frame_low_muted:1. frame_low:1. |
+
+// Bell, drone and harp; the strings swell in.
+section intro bars:4
+  harp dyn:pp..p feel:loose
+    | h_am | h_am | h_f | h_e |
+  bell dyn:p
+    | a4:6 | e5:6. |
+  glass dyn:pp
+    | r:6 | r:1.5 e6:0.5. c6:0.5. a5:0.5. | r:3 |
+  strings.calm dyn:pp..p art:sustain layer:..0
+    | [a3 e4]:9^ [g#3 b3 e4]:3 |
+  strings.shiver dyn:p art:tremolo layer:1..
+    | [a3 e4]:9^ [g#3 b3 e4]:3 |
+  low dyn:pp..p art:sustain
+    | a2:9^ e2:3 |
+  perc.heart dyn:p layer:1..1
+    | heart*4 |
+  perc.drive dyn:mp layer:2..
+    | gong_top | heart2*3 |
+  choir dyn:pp layer:2..
+    | [a2 e3 a3]:9^ [b2 e3 g#3]:3 |
+
+// The chant. Two four-bar phrases, the first turning on the B natural over
+// F, the second climbing to E and settling on E major.
+section chant bars:8
+  voice dyn:p..mp shape:broad
+    | a4:2_ c5:1 | c5:1 b4:1 a4:1 | g4:3^ | r:1 g4:1 b4:1 |
+    | c5:2_ e5:1 | e5:1 d5:1 c5:1 | d5:2^ c5:1 | b4:3. |
+  cello dyn:p art:sustain feel:loose pocket:lay
+    | r:6 | e3:3_ | d3:3 |
+    | c3:3_ | a2:3 | f3:2 a3:1 | g#3:3^ |
+  harp dyn:p feel:loose
+    | h_am | h_f | h_c | h_g |
+    | h_am | h_f | h_dm | h_e |
+  bell dyn:p
+    | a4:6. | r:18 |
+  glass dyn:pp
+    | r:9 | r:1.5 d6:0.5. b5:0.5. g5:0.5. |
+    | r:9 | r:1.5 b5:0.5. g#5:0.5. e5:0.5. |
+  strings.calm dyn:pp..p art:sustain layer:..0
+    | [a3 c4 e4]:3 | [a3 c4 f4]:3 | [g3 c4 e4]:3 | [g3 b3 d4]:3 |
+    | [a3 c4 e4]:3 | [a3 c4 f4]:3 | [a3 d4 f4]:3 | [g#3 b3 e4]:3 |
+  strings.shiver dyn:p art:tremolo layer:1..
+    | [a3 c4 e4]:3 | [a3 c4 f4]:3 | [g3 c4 e4]:3 | [g3 b3 d4]:3 |
+    | [a3 c4 e4]:3 | [a3 c4 f4]:3 | [a3 d4 f4]:3 | [g#3 b3 e4]:3 |
+  low dyn:p art:sustain
+    | a2:3 | f2:3 | c2:3 | g2:3 |
+    | a2:3 | f2:3 | d2:3 | e2:3 |
+  perc.heart dyn:p layer:1..1
+    | heart*8 |
+  perc.drive dyn:mp layer:2..
+    | gong_top | heart2*7 |
+  choir dyn:pp..p layer:2..
+    | [a2 e3 a3]:3 | [a2 c3 f3]:3 | [g2 c3 e3]:3 | [g2 b2 d3]:3 |
+    | [a2 e3 a3]:3 | [a2 c3 f3]:3 | [a2 d3 f3]:3 | [b2 e3 g#3]:3 |
+
+// The hymn. The cello takes the tune; the strings leave, the choir holds a
+// single descant above it, and the low strings open out to fifths.
+section hymn bars:8
+  cello dyn:mp art:sustain feel:loose pocket:lay shape:broad vib:warm
+    | a3:2 c4:1 | e4:3^ | d4:1 c4:1 b3:1 | c4:2 a3:1 |
+    | a3:1 c4:1 f4:1 | e4:2^ g4:1 | f4:1 e4:1 d4:1 | e4:3. |
+  voice dyn:pp..p shape:broad
+    | c5:6^ | b4:3 | a4:3 |
+    | c5:3 | e5:3^ | f5:3 | e5:3. |
+  harp dyn:p feel:loose
+    | h_f | h_c | h_g | h_am |
+    | h_f | h_c | h_dm | h_e |
+  bell dyn:p
+    | r:12 | e5:6. | r:6 |
+  strings.calm dyn:pp layer:..0
+    | r:24 |
+  strings.shiver dyn:pp art:tremolo layer:1..
+    | [a3 f4]:3 | [g3 e4]:3 | [g3 d4]:3 | [a3 e4]:3 |
+    | [a3 f4]:3 | [g3 e4]:3 | [a3 f4]:3 | [g#3 e4]:3 |
+  low dyn:p art:sustain
+    | [f2 c3]:3 | [c2 g2]:3 | [g2 d3]:3 | [a2 e3]:3 |
+    | [f2 c3]:3 | [c2 g2]:3 | [d2 a2]:3 | [e2 b2]:3 |
+  perc.heart dyn:p layer:1..1
+    | heart*8 |
+  perc.drive dyn:mp layer:2..
+    | gong_top | heart2*7 |
+  choir dyn:pp layer:2..
+    | [a2 c3 f3]:3 | [g2 c3 e3]:3 | [g2 b2 d3]:3 | [a2 c3 e3]:3 |
+    | [a2 c3 f3]:3 | [g2 c3 e3]:3 | [a2 d3 f3]:3 | [b2 e3 g#3]:3 |
+
+// The dawn. F, G, then A major with its C sharp, D major, and the climb to
+// the high A before it folds back through C to E.
+section dawn bars:8
+  voice dyn:mp..mf shape:broad
+    | a4:1 c5:1 f5:1 | d5:2^ b4:1 | c#5:3^ | d5:1 e5:1 f#5:1 |
+    | a5:3^ | g5:1 f5:1 d5:1 | e5:2 c5:1 | b4:3. |
+  cello dyn:p..mp art:sustain feel:loose pocket:lay
+    | f3:3 | g3:3 | e3:3^ | f#3:3 |
+    | c4:3 | b3:3 | g3:3 | g#3:3 |
+  harp dyn:mp feel:loose
+    | h_f | h_g | h_a | h_d |
+    | h_f | h_g | h_c | h_e |
+  bell dyn:mp
+    | r:6 | a4:6. | r:12 |
+  glass dyn:p
+    | r:6 | r:1.5 e6:0.5. c#6:0.5. a5:0.5. | r:3 |
+    | r:1.5 c6:0.5. a5:0.5. f5:0.5. | r:3 | r:1.5 g5:0.5. e5:0.5. c5:0.5. | r:3 |
+  strings.calm dyn:p..mf art:sustain layer:..0
+    | [a3 c4 f4]:3 | [b3 d4 g4]:3 | [a3 c#4 e4]:3^ | [a3 d4 f#4]:3 |
+    | [c4 f4 a4]:3 | [d4 g4 b4]:3 | [e4 g4 c5]:3 | [e4 g#4 b4]:3 |
+  strings.shiver dyn:mp..f art:tremolo layer:1..
+    | [a3 c4 f4]:3 | [b3 d4 g4]:3 | [a3 c#4 e4]:3^ | [a3 d4 f#4]:3 |
+    | [c4 f4 a4]:3 | [d4 g4 b4]:3 | [e4 g4 c5]:3 | [e4 g#4 b4]:3 |
+  low dyn:p..mp art:sustain
+    | f2:3 | g2:3 | a2:3 | d2:3 |
+    | f2:3 | g2:3 | c2:3 | e2:3 |
+  perc.heart dyn:p layer:1..1
+    | heart*8 |
+  perc.drive dyn:mp..mf layer:2..
+    | gong_top | heart2*7 |
+  choir dyn:p..mp layer:2..
+    | [a2 c3 f3]:3 | [b2 d3 g3]:3 | [a2 c#3 e3]:3 | [a2 d3 f#3]:3 |
+    | [a2 c3 f3]:3 | [b2 d3 g3]:3 | [g2 c3 e3]:3 | [b2 e3 g#3]:3 |
+
+// The chant again, the cello higher and singing against it.
+section again bars:8 from:chant
+  cello dyn:p..mp art:sustain feel:loose pocket:lay vib:warm
+    | e3:3_ | c4:3 | e4:3^ | d4:3 |
+    | e4:3_ | c4:3 | a3:2 d4:1 | b3:3. |
+
+// Home to A; the bell is left to ring.
+section out bars:4
+  voice dyn:p..pp shape:broad
+    | c5:3 | a4:9. |
+  cello dyn:p..pp art:sustain
+    | e3:3 | a2:9. |
+  harp dyn:p..pp feel:loose
+    | h_f | h_am | [a2 e3 a3 c4 e4 b4]:6. |
+  bell dyn:p
+    | r:3 | a4:9. |
+  glass dyn:pp
+    | r:6 | r:1.5 e6:0.5. b5:0.5. a5:0.5. | r:3 |
+  strings.calm dyn:p..pp art:sustain layer:..0
+    | [a3 c4 f4]:3 | [a3 c4 e4]:9. |
+  strings.shiver dyn:p..pp art:tremolo layer:1..
+    | [a3 c4 f4]:3 | [a3 c4 e4]:9. |
+  low dyn:p..pp art:sustain
+    | f2:3 | a2:9. |
+  perc.heart dyn:p..pp layer:1..1
+    | heart*2 | r:6 |
+  perc.drive dyn:mp..p layer:2..
+    | heart2*2 | gong:6. |
+  choir dyn:p..pp layer:2..
+    | [a2 c3 f3]:3 | [a2 e3 a3]:9. |
