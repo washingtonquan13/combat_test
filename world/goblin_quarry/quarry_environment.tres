@@ -1,4 +1,4 @@
-[gd_resource type="Environment" load_steps=3 format=3]
+[gd_resource type="Environment" load_steps=3 format=3 uid="uid://x7djj1w451k5"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_j8w71"]
 sky_top_color = Color(0.32, 0.47, 0.72, 1)
@@ -16,7 +16,7 @@ sky = SubResource("Sky_lnrd8")
 ambient_light_source = 3
 ambient_light_energy = 0.75
 reflected_light_source = 2
-tonemap_mode = 3
+tonemap_mode = 4
 tonemap_white = 6.0
 ssao_enabled = true
 ssao_radius = 1.4
