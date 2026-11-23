@@ -41,12 +41,20 @@ def _angle(a, b):
 def check(name, clip):
     """Things a picture hides. Reach: hand asked to go where the arm can't.
     Floor: a foot below the ground. Jump: one bone turning too far in one
-    frame (a flip or an elbow snapping). Close: a loop's last frame vs first."""
+    frame (a flip or an elbow snapping). Close: a loop's last frame vs first.
+    Wrist: the hand's bend off the forearm; the arm solver has no wrist limit,
+    and past ~60 deg a gripping hand is broken."""
     total = max(1, int(round(clip["length"] * FPS)))
     reach, floor, jump, last, first = (0, 0), (0, 0), (0, "", 0), None, None
+    wrist = {"l": (0, 0), "r": (0, 0)}
     for f in range(total + 1):
         rig.solve(clip["at"](f / total))
         reach = max(reach, (max(rig.miss.values() or [0.0]), f))
+        for side in "lr":
+            lower, hand = "lowerarm_" + side, "hand_" + side
+            straight = rig.P[lower].to_3x3() @ rig.L[lower].to_3x3().inverted() @ rig.L[hand].to_3x3().col[1]
+            bend = math.degrees(rig.P[hand].to_3x3().col[1].angle(straight))
+            wrist[side] = max(wrist[side], (bend, f))
         for side in "lr":
             ball = rig.P["ball_" + side]
             tip = ball @ Vector((0.0, rig.bones["ball_" + side].length, 0.0))
@@ -63,7 +71,9 @@ def check(name, clip):
     if clip.get("loop"):
         close = max(_angle(q, first[b]) for b, q in last.items())
     print("CHECK %s reach_miss %.1f cm @%d | below_floor %.1f cm @%d | biggest_bone_step %.0f deg %s @%d | loop_close %.1f deg"
-          % (name, reach[0] * 100, reach[1], floor[0] * 100, floor[1], jump[0], jump[1], jump[2], close), flush=True)
+          " | wrist_bend l %.0f @%d r %.0f @%d deg"
+          % (name, reach[0] * 100, reach[1], floor[0] * 100, floor[1], jump[0], jump[1], jump[2], close,
+             wrist["l"][0], wrist["l"][1], wrist["r"][0], wrist["r"][1]), flush=True)
 
 
 for request in NAMES:
