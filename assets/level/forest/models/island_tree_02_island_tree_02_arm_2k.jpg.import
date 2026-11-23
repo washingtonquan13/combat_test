@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d3byqirkkwmfi"
-path="res://.godot/imported/island_tree_02_island_tree_02_arm_2k.jpg-28357363e8c648a60900450df506d3d6.ctex"
+path.s3tc="res://.godot/imported/island_tree_02_island_tree_02_arm_2k.jpg-28357363e8c648a60900450df506d3d6.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "7461111815a4ca8a03f0044fdc6ebd30"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/level/forest/models/island_tree_02_island_tree_02_arm_2k.jpg"
-dest_files=["res://.godot/imported/island_tree_02_island_tree_02_arm_2k.jpg-28357363e8c648a60900450df506d3d6.ctex"]
+dest_files=["res://.godot/imported/island_tree_02_island_tree_02_arm_2k.jpg-28357363e8c648a60900450df506d3d6.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
@@ -34,4 +35,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

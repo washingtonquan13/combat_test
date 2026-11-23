@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cojixdxwua1uu"
-path="res://.godot/imported/townsperson_shoes02_diffuse.png-7161a3f9a59e13906802453c422601eb.ctex"
+path.s3tc="res://.godot/imported/townsperson_shoes02_diffuse.png-7161a3f9a59e13906802453c422601eb.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0b58813c388422d0b3af4e238f520f1e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/characters/townsperson/townsperson_shoes02_diffuse.png"
-dest_files=["res://.godot/imported/townsperson_shoes02_diffuse.png-7161a3f9a59e13906802453c422601eb.ctex"]
+dest_files=["res://.godot/imported/townsperson_shoes02_diffuse.png-7161a3f9a59e13906802453c422601eb.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
@@ -34,4 +35,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

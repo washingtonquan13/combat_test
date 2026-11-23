@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bnpl6f62s3kd6"
-path="res://.godot/imported/coast_rocks_01_coast_rocks_01_arm_2k.jpg-7d707a081134d60bf5a46ae7cd110eaa.ctex"
+path.s3tc="res://.godot/imported/coast_rocks_01_coast_rocks_01_arm_2k.jpg-7d707a081134d60bf5a46ae7cd110eaa.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "35e62d3d6453326f3d622e6aa5ef9be9"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/level/forest/models/coast_rocks_01_coast_rocks_01_arm_2k.jpg"
-dest_files=["res://.godot/imported/coast_rocks_01_coast_rocks_01_arm_2k.jpg-7d707a081134d60bf5a46ae7cd110eaa.ctex"]
+dest_files=["res://.godot/imported/coast_rocks_01_coast_rocks_01_arm_2k.jpg-7d707a081134d60bf5a46ae7cd110eaa.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
@@ -34,4 +35,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

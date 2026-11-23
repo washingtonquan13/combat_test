@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bc2uluup8iv50"
-path="res://.godot/imported/island_tree_03_island_tree_03_diff_2k.jpg-02fb43c6fcc25c1c3e3693449cd3834c.ctex"
+path.s3tc="res://.godot/imported/island_tree_03_island_tree_03_diff_2k.jpg-02fb43c6fcc25c1c3e3693449cd3834c.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "69de2ae2bb7f3b86f5548afcbd27c60e"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/level/forest/models/island_tree_03_island_tree_03_diff_2k.jpg"
-dest_files=["res://.godot/imported/island_tree_03_island_tree_03_diff_2k.jpg-02fb43c6fcc25c1c3e3693449cd3834c.ctex"]
+dest_files=["res://.godot/imported/island_tree_03_island_tree_03_diff_2k.jpg-02fb43c6fcc25c1c3e3693449cd3834c.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/hdr_compression=1
@@ -34,4 +35,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
