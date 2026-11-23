@@ -100,6 +100,19 @@ if MOTIFECT:
     MOTIFECT_DIR = os.environ.get("MOTIFECT_DIR", "D:/ai_motion/motifect/BVH/")
     CLIPS = {"idle": (MOTIFECT_DIR + "idle_neutral", False)}
 
+# ARM SPACE, degrees per clip (Mixamo's "Character Arm-Space"): each whole arm,
+# upper arm to fingertips, swung out from the body about the chest's forward
+# axis at the shoulder, every frame. Not a posture correction but a
+# proportion: the takes' arms hang at the source actor's width, and the game's
+# broadest bodies (the CC female's hips) are wider, so a hand that rests at
+# the source's thigh rests inside theirs. Measured (2026-11-22) with an
+# untracked probe skinning each body per frame: the female's hands sank 42 mm
+# into her thighs at 0, 9 mm at 4, cleared at 5; 6 leaves ~1 cm. A
+# MOTIFECT=1 ARM_SPACE=<deg> run overrides it for every clip.
+ARM_SPACE = {"idle": 6.0} if MOTIFECT else {}
+if os.environ.get("ARM_SPACE"):
+    ARM_SPACE = {n: float(os.environ["ARM_SPACE"]) for n in CLIPS}
+
 # DUEL=1: the duel's candidate clips (docs/plans/bg3_cinematics.md, the
 # Mixamo rebuild of M1/M2) into their own glb, for review and for the
 # exchange bake. From D:/ai_motion/mixamo/duel (see its LICENSE.txt): the
@@ -178,7 +191,28 @@ FLIP = Matrix.Diagonal((-1.0, 1.0, 1.0))          # across the source's middle (
 FLIP4 = Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
 
 
+ARM_CHAIN = ("Arm", "ForeArm", "Hand")
+
+
+def arm_space(G, Mw, deg):
+    """Each arm, upper arm down, turned `deg` out from the body about the
+    chest's forward axis (in place: G is every source bone's world turn from
+    rest, which the target's arm bones take, positions following the chain)."""
+    left = (Mw[P + "LeftShoulder"].translation - Mw[P + "RightShoulder"].translation).normalized()
+    up = (Mw[P + "Neck"].translation - Mw[P + "Spine"].translation).normalized()
+    fwd = left.cross(up).normalized()
+    for s, out in (("Left", left), ("Right", -left)):
+        arm = (Mw[P + s + "ForeArm"].translation - Mw[P + s + "Arm"].translation).normalized()
+        R = Matrix.Rotation(math.radians(deg), 3, fwd)
+        if (R @ arm).dot(out) < arm.dot(out):    # the way that takes the arm from the body
+            R = Matrix.Rotation(-math.radians(deg), 3, fwd)
+        for n in G:
+            if n.startswith(s) and (n[len(s):] in ARM_CHAIN or n[len(s):].startswith("Hand")):
+                G[n] = R @ G[n]
+
+
 def retarget(fbx, action, mirror=False):
+    spread = ARM_SPACE.get(action, 0.0)
     before, acts = set(bpy.data.objects), set(bpy.data.actions)
     if MOTIFECT:
         bpy.ops.import_anim.bvh(filepath=fbx, global_scale=0.01, use_fps_scale=False, update_scene_fps=False)
@@ -211,6 +245,8 @@ def retarget(fbx, action, mirror=False):
         if mirror:                               # across the body's middle: the other side's turn, x flipped
             G = {n: FLIP @ G[swap(n)] @ FLIP for n in G}
             Mw = {n: FLIP4 @ Mw[swap(n)] for n in Mw}
+        if spread:
+            arm_space(G, Mw, spread)
         frames.append((G, Mw[P + "Hips"].translation.copy()))
         src_dirs.append({b: (Mw[aim[P + b]].translation - Mw[P + b].translation).normalized()
                          for b in BONES if b not in BUILD and aim.get(P + b) in Mw and aim[P + b][len(P):] in REST})
@@ -298,7 +334,7 @@ def measure(out, src_dirs, aim, frames, T):
 
 
 for name, (fbx, mirror) in CLIPS.items():
-    print("CLIP %-11s %s" % (name, retarget(fbx + (".bvh" if MOTIFECT else ".fbx"), name, mirror)))
+    print("CLIP %-11s arm space %.1f deg  %s" % (name, ARM_SPACE.get(name, 0.0), retarget(fbx + (".bvh" if MOTIFECT else ".fbx"), name, mirror)))
 A.animation_data.action = None
 for b in A.pose.bones:
     b.rotation_quaternion = (1, 0, 0, 0)
