@@ -1,100 +1,56 @@
-[gd_scene load_steps=100 format=3]
+[gd_scene load_steps=115 format=3 uid="uid://qu482ob1ymw4"]
 
-[ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
-[ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
+[ext_resource type="Script" uid="uid://cnj62bswphp00" path="res://world/goblin_quarry.gd" id="1_area"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_unit"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_cam"]
-[ext_resource type="PackedScene" path="res://world/ladder.tscn" id="4_ladder"]
+[ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://world/ladder.tscn" id="4_ladder"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="7_town"]
-[ext_resource type="Resource" path="res://data/units/demons/goblin_rogue.tres" id="8_rogue"]
-[ext_resource type="Resource" path="res://data/units/demons/hobgoblin.tres" id="9_hob"]
-[ext_resource type="Resource" path="res://data/units/demons/goblin_shaman.tres" id="10_shaman"]
-[ext_resource type="Resource" path="res://data/units/npcs/quarry_watchman.tres" id="q_watchman"]
-[ext_resource type="Texture2D" path="res://assets/portraits/elf_archer.jpg" id="11_portrait"]
-[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="12_ability"]
-[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="13_melee"]
-[ext_resource type="Resource" path="res://data/abilities/basic_attack_ranged.tres" id="14_ranged"]
-[ext_resource type="Resource" path="res://data/abilities/jump.tres" id="15_jump"]
-[ext_resource type="Script" path="res://systems/interaction_system/interaction_option.gd" id="16_iopt"]
+[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/units/demons/goblin_rogue.tres" id="8_rogue"]
+[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/units/demons/hobgoblin.tres" id="9_hob"]
+[ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/units/demons/goblin_shaman.tres" id="10_shaman"]
+[ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="11_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="12_ability"]
+[ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="13_melee"]
+[ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="14_ranged"]
+[ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://data/abilities/jump.tres" id="15_jump"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="16_iopt"]
 [ext_resource type="Resource" path="res://data/interactions/talk.tres" id="17_talk"]
 [ext_resource type="Resource" path="res://data/interactions/examine.tres" id="18_examine"]
-[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_root_option.gd" id="20_rootopt"]
-[ext_resource type="Script" path="res://systems/skill_system/flag_prerequisite.gd" id="22_flag"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="20_rootopt"]
+[ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="22_flag"]
 [ext_resource type="PackedScene" path="res://systems/interaction_system/movable_box.tscn" id="23_box"]
-[ext_resource type="PackedScene" path="res://systems/interaction_system/interactable_prop.tscn" id="24_prop"]
+[ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://systems/interaction_system/interactable_prop.tscn" id="24_prop"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="25_travel"]
-[ext_resource type="Script" path="res://systems/world_system/area_exit.gd" id="26_exit"]
-[ext_resource type="PackedScene" path="res://world/goblin_quarry/terrain.scn" id="q_terrain"]
-[ext_resource type="Environment" path="res://world/goblin_quarry/quarry_environment.tres" id="q_env"]
-[ext_resource type="Script" path="res://world/walk_in_building.gd" id="q_walkin"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_roof.res" id="q_walkin_roof"]
-[ext_resource type="PackedScene" path="res://world/goblin_quarry/raid_camp.scn" id="q_raid_camp"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west.res" id="p_house_west"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_back.res" id="p_house_west_back"]
+[ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="26_exit"]
+[ext_resource type="Script" uid="uid://bhvqtc2px2dlk" path="res://systems/cinematic_system/cutscene.gd" id="42_uqyli"]
+[ext_resource type="Script" uid="uid://cg1fdc66h4jrw" path="res://systems/cinematic_system/cutscene_role.gd" id="43_hhpvr"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/cc_male_model.tscn" id="43_rclhf"]
+[ext_resource type="Script" uid="uid://dmrcy42egt14w" path="res://systems/advantage_system/advantage.gd" id="44_b31qv"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="45_17wlx"]
+[ext_resource type="Script" uid="uid://1cuiym8es4oi" path="res://systems/inventory_system/item_definition.gd" id="46_7yh80"]
+[ext_resource type="Script" uid="uid://bkr3yoaeg4j87" path="res://systems/combat_system/hit_location.gd" id="47_av8dw"]
+[ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="48_r3mlg"]
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="49_rf0o1"]
+[ext_resource type="Script" uid="uid://2l5kece6i6sd" path="res://systems/party_system/party_skill_record.gd" id="50_h3778"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/cart.res" id="p_cart"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate.res" id="p_crate"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crates_3.res" id="p_crates_3"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate_2.res" id="p_crate_2"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/fence.res" id="p_fence"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east.res" id="p_house_east"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east_back.res" id="p_house_east_back"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/fence.res" id="p_fence"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/well.res" id="p_well"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/cart.res" id="p_cart"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west.res" id="p_house_west"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_back.res" id="p_house_west_back"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/low_wall.res" id="p_low_wall"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/tent_west.res" id="p_tent_west"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/tent_east.res" id="p_tent_east"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate.res" id="p_crate"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate_2.res" id="p_crate_2"]
-[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crates_3.res" id="p_crates_3"]
-
-[sub_resource type="Resource" id="Resource_raids_resolved"]
-script = ExtResource("22_flag")
-flag_name = "townsperson_raids_resolved"
-requires_absent = false
-
-[sub_resource type="Resource" id="Resource_resolved_dlgopt"]
-script = ExtResource("20_rootopt")
-root_id = "townsperson_resolved_hub"
-prerequisite = SubResource("Resource_raids_resolved")
-
-[sub_resource type="Resource" id="Resource_hub_dlgopt"]
-script = ExtResource("20_rootopt")
-root_id = "townsperson_hub"
-
-[sub_resource type="BoxShape3D" id="Shape_ambush"]
-size = Vector3(8, 9, 5.5)
-
-[sub_resource type="BoxShape3D" id="Shape_9"]
-size = Vector3(6, 5, 5)
-
-[sub_resource type="BoxShape3D" id="Shape_10"]
-size = Vector3(6, 4, 7)
-
-[sub_resource type="BoxShape3D" id="Shape_11"]
-size = Vector3(8, 3.5, 5)
-
-[sub_resource type="BoxShape3D" id="Shape_12"]
-size = Vector3(6, 1, 0.3)
-
-[sub_resource type="CylinderShape3D" id="Shape_well"]
-radius = 1.2
-height = 1.0
-
-[sub_resource type="BoxShape3D" id="Shape_13"]
-size = Vector3(2, 1.2, 3)
-
-[sub_resource type="BoxShape3D" id="Shape_14"]
-size = Vector3(5, 1, 0.5)
-
-[sub_resource type="BoxShape3D" id="Shape_19"]
-size = Vector3(3, 2.2, 3)
-
-[sub_resource type="BoxShape3D" id="Shape_20"]
-size = Vector3(3, 2.2, 3)
-
-[sub_resource type="BoxShape3D" id="Shape_22"]
-size = Vector3(1, 1, 1)
-
-[sub_resource type="BoxShape3D" id="Shape_23"]
-size = Vector3(1, 1, 1)
-
-[sub_resource type="BoxShape3D" id="Shape_24"]
-size = Vector3(1.2, 1.2, 2.2)
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/tent_west.res" id="p_tent_west"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/well.res" id="p_well"]
+[ext_resource type="Environment" uid="uid://x7djj1w451k5" path="res://world/goblin_quarry/quarry_environment.tres" id="q_env"]
+[ext_resource type="PackedScene" path="res://world/goblin_quarry/raid_camp.scn" id="q_raid_camp"]
+[ext_resource type="PackedScene" path="res://world/goblin_quarry/terrain.scn" id="q_terrain"]
+[ext_resource type="Script" uid="uid://ccbykg6gbxf18" path="res://world/walk_in_building.gd" id="q_walkin"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_roof.res" id="q_walkin_roof"]
+[ext_resource type="Resource" path="res://data/units/npcs/quarry_watchman.tres" id="q_watchman"]
 
 [sub_resource type="BoxShape3D" id="walkin_0"]
 size = Vector3(2.66, 1.45, 2.26)
@@ -222,26 +178,194 @@ size = Vector3(0.15, 2.14169, 0.15)
 [sub_resource type="BoxShape3D" id="walkin_41"]
 size = Vector3(0.9, 4.63105, 0.9)
 
+[sub_resource type="BoxShape3D" id="Shape_9"]
+size = Vector3(6, 5, 5)
+
+[sub_resource type="BoxShape3D" id="Shape_10"]
+size = Vector3(6, 4, 7)
+
+[sub_resource type="BoxShape3D" id="Shape_11"]
+size = Vector3(8, 3.5, 5)
+
+[sub_resource type="BoxShape3D" id="Shape_12"]
+size = Vector3(6, 1, 0.3)
+
+[sub_resource type="CylinderShape3D" id="Shape_well"]
+height = 1.0
+radius = 1.2
+
+[sub_resource type="BoxShape3D" id="Shape_13"]
+size = Vector3(2, 1.2, 3)
+
+[sub_resource type="BoxShape3D" id="Shape_14"]
+size = Vector3(5, 1, 0.5)
+
+[sub_resource type="BoxShape3D" id="Shape_19"]
+size = Vector3(3, 2.2, 3)
+
+[sub_resource type="BoxShape3D" id="Shape_20"]
+size = Vector3(3, 2.2, 3)
+
+[sub_resource type="BoxShape3D" id="Shape_22"]
+
+[sub_resource type="BoxShape3D" id="Shape_23"]
+
+[sub_resource type="BoxShape3D" id="Shape_24"]
+size = Vector3(1.2, 1.2, 2.2)
+
+[sub_resource type="Resource" id="Resource_raids_resolved"]
+script = ExtResource("22_flag")
+flag_name = "townsperson_raids_resolved"
+requires_absent = false
+
+[sub_resource type="Resource" id="Resource_resolved_dlgopt"]
+script = ExtResource("20_rootopt")
+root_id = "townsperson_resolved_hub"
+prerequisite = SubResource("Resource_raids_resolved")
+
+[sub_resource type="Resource" id="Resource_hub_dlgopt"]
+script = ExtResource("20_rootopt")
+root_id = "townsperson_hub"
+
+[sub_resource type="BoxShape3D" id="Shape_ambush"]
+size = Vector3(8, 9, 5.5)
+
+[sub_resource type="Resource" id="Resource_ua5g1"]
+script = ExtResource("49_rf0o1")
+id = ""
+display_name = ""
+stats = Dictionary[StringName, int]({})
+advantages = Dictionary[ExtResource("44_b31qv"), int]({})
+vision_cone_degrees = 120.0
+max_sight_range = 18.0
+proximity_radius = 2.5
+dark_vision = false
+faction = &"player"
+order = &""
+rank = 1
+personality = &""
+is_special = false
+abilities = Array[ExtResource("12_ability")]([])
+natural_attacks = Array[ExtResource("48_r3mlg")]([])
+equipment = Dictionary[int, ExtResource("46_7yh80")]({})
+missing_locations = Array[ExtResource("47_av8dw")]([])
+injury_divisor = 1.0
+ai_behaviors = Array[ExtResource("45_17wlx")]([])
+ai_smartness = 2
+level = 1
+max_drops = 2
+drop_chance = 0.5
+alignment = 0
+tendency = 0
+move_speed = 4.0
+selected_color = Color(1, 0.85, 0.2, 0.9)
+dialogue_options = Array[ExtResource("20_rootopt")]([])
+skills = Array[ExtResource("50_h3778")]([])
+negotiable = false
+negotiation_options = Array[ExtResource("20_rootopt")]([])
+metadata/_custom_type_script = "uid://c56l4crul5ds"
+
+[sub_resource type="Resource" id="Resource_k0i66"]
+script = ExtResource("49_rf0o1")
+id = ""
+display_name = ""
+stats = Dictionary[StringName, int]({})
+advantages = Dictionary[ExtResource("44_b31qv"), int]({})
+vision_cone_degrees = 120.0
+max_sight_range = 18.0
+proximity_radius = 2.5
+dark_vision = false
+faction = &"player"
+order = &""
+rank = 1
+personality = &""
+is_special = false
+abilities = Array[ExtResource("12_ability")]([])
+natural_attacks = Array[ExtResource("48_r3mlg")]([])
+equipment = Dictionary[int, ExtResource("46_7yh80")]({})
+missing_locations = Array[ExtResource("47_av8dw")]([])
+injury_divisor = 1.0
+ai_behaviors = Array[ExtResource("45_17wlx")]([])
+ai_smartness = 2
+level = 1
+max_drops = 2
+drop_chance = 0.5
+alignment = 0
+tendency = 0
+move_speed = 4.0
+selected_color = Color(1, 0.85, 0.2, 0.9)
+dialogue_options = Array[ExtResource("20_rootopt")]([])
+skills = Array[ExtResource("50_h3778")]([])
+negotiable = false
+negotiation_options = Array[ExtResource("20_rootopt")]([])
+metadata/_custom_type_script = "uid://c56l4crul5ds"
+
+[sub_resource type="Animation" id="Animation_1f77e"]
+length = 0.001
+
+[sub_resource type="Animation" id="Animation_rclhf"]
+resource_name = "scene"
+length = 4.0
+tracks/0/type = "animation"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Jericho/CCMaleModel/Body/AnimationPlayer2")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"clips": PackedStringArray("Cutscene/jump_takeoff", "Cutscene/jump_land"),
+"times": PackedFloat32Array(0, 0.9)
+}
+tracks/1/type = "bezier"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Jericho:position:y")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"handle_modes": PackedInt32Array(0, 0),
+"points": PackedFloat32Array(4.61, -0.25, 0, 0.32, 0, 0.05, -0.32, 3.04, 0.25, 0),
+"times": PackedFloat32Array(0.6, 1.41)
+}
+tracks/2/type = "bezier"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Jericho:position:z")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"handle_modes": PackedInt32Array(0, 0),
+"points": PackedFloat32Array(15, -0.25, 0, 0.32, -2, 9, -0.32, 2, 0.25, 0),
+"times": PackedFloat32Array(0.6, 1.41)
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_oye05"]
+_data = {
+&"RESET": SubResource("Animation_1f77e"),
+&"scene": SubResource("Animation_rclhf")
+}
+
 [node name="GoblinQuarry" type="Node3D"]
 script = ExtResource("1_area")
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
 [node name="Terrain" parent="LevelGeometry" instance=ExtResource("q_terrain")]
+metadata/_edit_lock_ = true
 
 [node name="RaidCamp" parent="LevelGeometry" instance=ExtResource("q_raid_camp")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.0, 3.0, -6.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66, 3, -6)
 
 [node name="Ladder" parent="LevelGeometry" instance=ExtResource("4_ladder")]
-transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -13.4, -5.9719, -50.0)
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -13.4, -5.9719, -50)
 
 [node name="Top" parent="LevelGeometry/Ladder" index="1"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 6.0684, 1.4)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6.0684, 1.4)
 
 [node name="Town" type="Node3D" parent="LevelGeometry"]
 
 [node name="HouseWest" type="StaticBody3D" parent="LevelGeometry/Town" node_paths=PackedStringArray("roof")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.0, 1.87, 30.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13, 1.87, 30)
 script = ExtResource("q_walkin")
 roof = NodePath("Roof")
 rooms = Array[AABB]([AABB(-3.15, -1.75, 0.15, 2.1, 4.03105, 2.5), AABB(-3.15, -1.75, -2.65, 6.3, 4.32474, 2.8), AABB(-1.05, -1.75, 0.215739, 1.1, 2.75, 2.41426)])
@@ -421,7 +545,7 @@ transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -1.952
 shape = SubResource("walkin_41")
 
 [node name="HouseWestBack" type="StaticBody3D" parent="LevelGeometry/Town"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.0, 2.37, 40.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 2.37, 40)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWestBack"]
 mesh = ExtResource("p_house_west_back")
@@ -430,7 +554,7 @@ mesh = ExtResource("p_house_west_back")
 shape = SubResource("Shape_9")
 
 [node name="HouseEast" type="StaticBody3D" parent="LevelGeometry/Town"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.0, 1.87, 28.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14, 1.87, 28)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseEast"]
 mesh = ExtResource("p_house_east")
@@ -439,7 +563,7 @@ mesh = ExtResource("p_house_east")
 shape = SubResource("Shape_10")
 
 [node name="HouseEastBack" type="StaticBody3D" parent="LevelGeometry/Town"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.0, 1.62, 39.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, 1.62, 39)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseEastBack"]
 mesh = ExtResource("p_house_east_back")
@@ -448,7 +572,7 @@ mesh = ExtResource("p_house_east_back")
 shape = SubResource("Shape_11")
 
 [node name="Fence" type="StaticBody3D" parent="LevelGeometry/Town"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.0, 0.3974, 23.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 0.3974, 23)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/Fence"]
 mesh = ExtResource("p_fence")
@@ -457,7 +581,7 @@ mesh = ExtResource("p_fence")
 shape = SubResource("Shape_12")
 
 [node name="Well" type="StaticBody3D" parent="LevelGeometry/Town"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 0.3777, 22.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0.3777, 22)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/Well"]
 mesh = ExtResource("p_well")
@@ -468,7 +592,7 @@ shape = SubResource("Shape_well")
 [node name="Road" type="Node3D" parent="LevelGeometry"]
 
 [node name="Cart" type="StaticBody3D" parent="LevelGeometry/Road"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.9018, -2.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.9018, -2)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Road/Cart"]
 mesh = ExtResource("p_cart")
@@ -477,7 +601,7 @@ mesh = ExtResource("p_cart")
 shape = SubResource("Shape_13")
 
 [node name="LowWall" type="StaticBody3D" parent="LevelGeometry/Road"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, -2.3922, -14.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, -2.3922, -14)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Road/LowWall"]
 mesh = ExtResource("p_low_wall")
@@ -488,7 +612,7 @@ shape = SubResource("Shape_14")
 [node name="Camp" type="Node3D" parent="LevelGeometry"]
 
 [node name="TentWest" type="StaticBody3D" parent="LevelGeometry/Camp"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0, -4.9066, -52.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, -4.9066, -52)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentWest"]
 mesh = ExtResource("p_tent_west")
@@ -497,7 +621,7 @@ mesh = ExtResource("p_tent_west")
 shape = SubResource("Shape_19")
 
 [node name="TentEast" type="StaticBody3D" parent="LevelGeometry/Camp"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0, -5.019, -54.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, -5.019, -54)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentEast"]
 mesh = ExtResource("p_tent_east")
@@ -506,7 +630,7 @@ mesh = ExtResource("p_tent_east")
 shape = SubResource("Shape_20")
 
 [node name="Crate" type="StaticBody3D" parent="LevelGeometry/Camp"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, -5.5753, -41.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, -5.5753, -41)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Crate"]
 mesh = ExtResource("p_crate")
@@ -524,7 +648,7 @@ mesh = ExtResource("p_crate_2")
 shape = SubResource("Shape_23")
 
 [node name="Crates3" type="StaticBody3D" parent="LevelGeometry/Camp"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.0, -5.5536, -42.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, -5.5536, -42)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Crates3"]
 mesh = ExtResource("p_crates_3")
@@ -533,7 +657,7 @@ mesh = ExtResource("p_crates_3")
 shape = SubResource("Shape_24")
 
 [node name="Scared Townperson" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.0616, 20.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.5, 0.0616, 20)
 definition = ExtResource("7_town")
 display_name = "Scared Townperson"
 stat_overrides = Dictionary[StringName, int]({
@@ -548,14 +672,14 @@ selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("11_portrait")
 
 [node name="GoblinRogue" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.0, -5.9601, -45.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, -5.9601, -45.5)
 definition = ExtResource("8_rogue")
 persistent_id = &"goblin_quarry_goblin_rogue"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="Hobgoblin" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, -5.9929, -46.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, -5.9929, -46)
 definition = ExtResource("9_hob")
 persistent_id = &"goblin_quarry_hobgoblin"
 formation_spread_radius = 2.5
@@ -563,19 +687,19 @@ hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="GoblinShaman" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, -2.9375, -57.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -2.9375, -57.5)
 definition = ExtResource("10_shaman")
 persistent_id = &"goblin_quarry_goblin_shaman"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="Watchman" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 5.8, -2.56, -2.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 5.8, -2.56, -2)
 definition = ExtResource("q_watchman")
 persistent_id = &"goblin_quarry_watchman"
 
 [node name="CampAmbushTrigger" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.0, -3.5, -26.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13, -3.5, -39.25)
 collision_layer = 0
 monitorable = false
 
@@ -589,7 +713,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.5, -5.47, -26.5)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, -5.75, -48.5)
 
 [node name="AmbushHobgoblin" type="Marker3D" parent="." groups=["scene_marks"]]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 14.5, -3.5, -34.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 14.5, -3.5, -34)
 
 [node name="AmbushRoguePath" type="Marker3D" parent="." groups=["scene_marks"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, -5.85, -49.5)
@@ -598,17 +722,17 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, -5.85, -49.5)
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 13.3, -3.75, -35.5)
 
 [node name="AmbushWatchmanEnter" type="Marker3D" parent="." groups=["scene_marks"]]
-transform = Transform3D(-0.76, 0, -0.65, 0, 1, 0, 0.65, 0, -0.76, 20.0, -6.06, -21.5)
+transform = Transform3D(-0.76, 0, -0.65, 0, 1, 0, 0.65, 0, -0.76, 20, -6.06, -21.5)
 
 [node name="AmbushWatchmanStand" type="Marker3D" parent="." groups=["scene_marks"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.8, -5.51, -25.2)
 
 [node name="MovableBox" parent="." instance=ExtResource("23_box")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.35, 32.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.35, 32)
 persistent_id = &"quarry_box"
 
 [node name="OverworldExit" parent="." instance=ExtResource("24_prop")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 1.05, 43.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 43)
 interactions = Array[ExtResource("16_iopt")]([ExtResource("25_travel")])
 
 [node name="AreaExit" type="Node" parent="OverworldExit" node_paths=PackedStringArray("arrival_point")]
@@ -620,7 +744,7 @@ arrival_point = NodePath("../ArrivalPoint")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, -3)
 
 [node name="CaveExit" parent="." instance=ExtResource("24_prop")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.0, 4.48, -80.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14, 4.48, -80)
 interactions = Array[ExtResource("16_iopt")]([ExtResource("25_travel")])
 
 [node name="AreaExit" type="Node" parent="CaveExit" node_paths=PackedStringArray("arrival_point")]
@@ -632,7 +756,7 @@ arrival_point = NodePath("../ArrivalPoint")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 8)
 
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.0, 0.05, 34.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0.05, 34)
 
 [node name="CRPGCamera" parent="." instance=ExtResource("3_cam")]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 8, 38)
@@ -642,7 +766,7 @@ max_pan_radius = 60.0
 environment = ExtResource("q_env")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.469472, 0.543597, -0.695772, 0.0, 0.788011, 0.615662, 0.882948, -0.289036, 0.369949, 0, 10, 0)
+transform = Transform3D(0.469472, 0.543597, -0.695772, 0, 0.788011, 0.615662, 0.882948, -0.289036, 0.369949, 0, 10, 0)
 light_color = Color(1, 0.93, 0.8, 1)
 light_energy = 2.3
 light_volumetric_fog_energy = 1.4
@@ -651,81 +775,176 @@ shadow_opacity = 0.92
 shadow_blur = 1.5
 directional_shadow_max_distance = 75.0
 
-[editable path="LevelGeometry/Ladder"]
-
 [node name="RaidCampOrigin" type="Marker3D" parent="." groups=["scene_marks"]]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.0, 3.0, -6.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66, 3, -6)
 
 [node name="Lookout" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, 62.6, 5.2, -20.1)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 62.6, 5.2, -20.1)
 definition = ExtResource("q_watchman")
 persistent_id = &"goblin_quarry_lookout"
 
 [node name="GuardGate" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, 68.6, 3.0629, -15.0)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 68.6, 3.0629, -15)
 definition = ExtResource("q_watchman")
 persistent_id = &"goblin_quarry_guard_gate"
 
 [node name="GuardFire" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-0.866, 0.0, 0.5, 0.0, 1.0, 0.0, -0.5, 0.0, -0.866, 64.2, 3.0565, -8.6)
+transform = Transform3D(-0.866, 0, 0.5, 0, 1, 0, -0.5, 0, -0.866, 64.2, 3.0565, -8.6)
 definition = ExtResource("q_watchman")
 persistent_id = &"goblin_quarry_guard_fire"
 
 [node name="CamperFire" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-0.9397, 0.0, -0.342, 0.0, 1.0, 0.0, 0.342, 0.0, -0.9397, 67.4, 3.0564, -5.6)
+transform = Transform3D(-0.9397, 0, -0.342, 0, 1, 0, 0.342, 0, -0.9397, 67.4, 3.0564, -5.6)
 definition = ExtResource("7_town")
 persistent_id = &"goblin_quarry_camper_fire"
 
 [node name="CamperTent" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(-0.1736, 0.0, -0.9848, 0.0, 1.0, 0.0, 0.9848, 0.0, -0.1736, 72.2, 3.0364, -2.0)
+transform = Transform3D(-0.1736, 0, -0.9848, 0, 1, 0, 0.9848, 0, -0.1736, 72.2, 3.0364, -2)
 definition = ExtResource("7_town")
 persistent_id = &"goblin_quarry_camper_tent"
 
 [node name="RaidHobgoblin" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 67.5, -0.6497, -62.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 67.5, -0.6497, -62)
 definition = ExtResource("9_hob")
 persistent_id = &"goblin_quarry_raid_hobgoblin"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidRogueA" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 65.0, -0.7734, -60.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65, -0.7734, -60)
 definition = ExtResource("8_rogue")
 persistent_id = &"goblin_quarry_raid_rogue_a"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidRogueB" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 69.6, -0.707, -63.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 69.6, -0.707, -63.5)
 definition = ExtResource("8_rogue")
 persistent_id = &"goblin_quarry_raid_rogue_b"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidRogueC" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 65.5, -0.6722, -65.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 65.5, -0.6722, -65)
 definition = ExtResource("8_rogue")
 persistent_id = &"goblin_quarry_raid_rogue_c"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidRogueD" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 70.6, -0.5607, -59.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 70.6, -0.5607, -59)
 definition = ExtResource("8_rogue")
 persistent_id = &"goblin_quarry_raid_rogue_d"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidArcherWest" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 63.5, -0.8235, -67.0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 63.5, -0.8235, -67)
 definition = ExtResource("10_shaman")
 persistent_id = &"goblin_quarry_raid_archer_west"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="RaidArcherEast" parent="." instance=ExtResource("2_unit")]
-transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 72.0, -0.7539, -67.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 72, -0.7539, -67.5)
 definition = ExtResource("10_shaman")
 persistent_id = &"goblin_quarry_raid_archer_east"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="PitAmbush" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1, -6.07825, -49)
+script = ExtResource("42_uqyli")
+shot = NodePath("Cameras/SceneCamera")
+
+[node name="Jericho" type="Node3D" parent="PitAmbush"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 9)
+script = ExtResource("43_hhpvr")
+plays = 1
+definition = SubResource("Resource_ua5g1")
+
+[node name="CCMaleModel" parent="PitAmbush/Jericho" instance=ExtResource("43_rclhf")]
+transform = Transform3D(-1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, -1, 0, 0, 0)
+
+[node name="GeneralSkeleton" parent="PitAmbush/Jericho/CCMaleModel/Body" index="0"]
+bones/0/position = Vector3(2.54829e-06, 0, -0.0316891)
+bones/1/position = Vector3(0.0102847, 0.447526, -0.00134217)
+bones/1/rotation = Quaternion(0.165336, -0.00775461, 0.0712032, 0.983633)
+bones/3/rotation = Quaternion(0.183947, 0.858286, 0.464554, -0.117042)
+bones/4/rotation = Quaternion(0.0927505, 0.491866, -0.865387, -0.0238742)
+bones/5/rotation = Quaternion(-0.00400889, 0.611675, -0.789187, -0.0549674)
+bones/7/rotation = Quaternion(-1.25123e-08, 0.999971, 0.00762111, 6.58545e-09)
+bones/14/rotation = Quaternion(-1.52915e-06, 0.00108437, -1.67661e-06, 0.999999)
+bones/15/rotation = Quaternion(-0.00902305, 0.999735, 0.0133912, -0.0164084)
+bones/18/rotation = Quaternion(-0.0602706, 0.494912, 0.792378, 0.351521)
+bones/19/rotation = Quaternion(0.0066154, 0.343813, -0.938725, -0.0233294)
+bones/20/rotation = Quaternion(0.00902234, 0.999734, 0.0134307, 0.0164079)
+bones/21/rotation = Quaternion(0.0143545, 0.718632, -0.695144, -0.0117401)
+bones/22/rotation = Quaternion(-0.0436469, 0.870413, -0.284247, 0.3996)
+bones/30/rotation = Quaternion(-1.39317e-06, -0.00108765, 1.67411e-06, 0.999999)
+bones/33/rotation = Quaternion(0.111073, 0.0262533, -0.00817953, 0.993432)
+bones/34/rotation = Quaternion(0.204698, 0.0759145, -0.00717611, 0.975851)
+bones/35/rotation = Quaternion(0.204292, 0.0772492, -0.00445629, 0.975847)
+bones/36/rotation = Quaternion(-0.0279666, -0.0402409, 0.0170036, 0.998654)
+bones/38/rotation = Quaternion(-0.342304, -0.172484, -0.0698939, 0.920973)
+bones/44/rotation = Quaternion(0.499973, 0.500036, 0.50005, 0.499942)
+bones/49/rotation = Quaternion(0.489976, 0.505853, 0.509834, -0.49407)
+bones/50/rotation = Quaternion(-0.214057, 0.797688, -0.551011, 0.119416)
+bones/51/rotation = Quaternion(0.2807, -0.649005, 0.2807, 0.649005)
+bones/54/rotation = Quaternion(0.0111002, 0.0020631, -0.00140554, 0.999935)
+bones/55/rotation = Quaternion(0.049089, 0.825106, 0.0472226, 0.560856)
+bones/56/rotation = Quaternion(0.170276, 0.00627589, -0.0558982, 0.98379)
+bones/57/rotation = Quaternion(0.143591, 0.00500128, 0.0182266, 0.989457)
+bones/58/rotation = Quaternion(0.0698089, -1.3411e-07, -0.00842452, 0.997525)
+bones/59/rotation = Quaternion(0.174769, -5.96046e-08, -0.021091, 0.984384)
+bones/60/rotation = Quaternion(0.139272, -1.49012e-08, -0.0168073, 0.990112)
+bones/61/rotation = Quaternion(0.069809, -1.19209e-07, -0.00842458, 0.997525)
+bones/62/rotation = Quaternion(0.174632, -1.19209e-07, -0.0210744, 0.984408)
+bones/63/rotation = Quaternion(0.13941, -5.96046e-08, -0.0168239, 0.990092)
+bones/64/rotation = Quaternion(0.0698088, -1.78814e-07, -0.00842452, 0.997525)
+bones/65/rotation = Quaternion(0.174769, -5.96046e-08, -0.021091, 0.984384)
+bones/66/rotation = Quaternion(0.139272, -1.49012e-08, -0.0168073, 0.990112)
+bones/67/rotation = Quaternion(0.069809, -1.19209e-07, -0.00842458, 0.997525)
+bones/68/rotation = Quaternion(-0.123177, 0.753923, 0.215221, 0.608364)
+bones/69/rotation = Quaternion(0.175826, 0.0726976, -0.00767198, 0.981703)
+bones/70/rotation = Quaternion(0.0678107, 0.0287343, -0.0295521, 0.996846)
+bones/71/rotation = Quaternion(-0.000141509, -0.705931, -5.28193e-05, 0.708281)
+bones/72/rotation = Quaternion(1.21593e-06, 1.16231e-10, 1.52416e-07, 1)
+bones/75/rotation = Quaternion(-8.24334e-06, 0.707101, 0.707112, -2.48192e-06)
+bones/77/rotation = Quaternion(0.52705, -0.465199, -0.537552, -0.465667)
+bones/78/rotation = Quaternion(-0.445807, 0.720399, -0.425247, -0.318506)
+bones/79/rotation = Quaternion(0.105663, 0.699168, -0.105663, 0.699168)
+bones/80/rotation = Quaternion(0.0111041, -0.00206326, 0.00140613, 0.999935)
+bones/83/rotation = Quaternion(-0.242182, -0.853052, -0.177374, 0.426836)
+bones/85/rotation = Quaternion(2.98023e-08, -7.45058e-08, -1.49012e-08, 1)
+bones/88/rotation = Quaternion(2.90573e-06, -7.45058e-08, -8.9407e-08, 1)
+bones/90/rotation = Quaternion(-0.233471, -0.681805, -0.150648, 0.676712)
+bones/91/rotation = Quaternion(0.0751345, -0.0359489, -0.0192897, 0.996338)
+bones/92/rotation = Quaternion(-0.000994802, -0.00146899, 0.0213647, 0.99977)
+bones/94/rotation = Quaternion(2.98023e-08, -7.45058e-08, -1.49012e-08, 1)
+bones/97/rotation = Quaternion(2.98023e-08, -7.45058e-08, -1.49012e-08, 1)
+bones/99/rotation = Quaternion(-0.00014135, 0.705931, 5.29195e-05, 0.708281)
+bones/100/rotation = Quaternion(1.26786e-06, 4.78357e-14, -2.20715e-07, 1)
+
+[node name="Hero" type="Node3D" parent="PitAmbush"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1.2775, 6)
+script = ExtResource("43_hhpvr")
+definition = SubResource("Resource_k0i66")
+
+[node name="CCMaleModel" parent="PitAmbush/Hero" instance=ExtResource("43_rclhf")]
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, 0, 0, 0)
+
+[node name="Cameras" type="Node3D" parent="PitAmbush"]
+
+[node name="SceneCamera" type="Camera3D" parent="PitAmbush/Cameras"]
+transform = Transform3D(-0.73038, -0.25, 0.635646, -0.00623602, 0.933013, 0.359789, -0.683013, 0.258819, -0.683013, 4, 4, 6)
+current = true
+
+[node name="Timeline" type="AnimationPlayer" parent="PitAmbush"]
+libraries = {
+&"": SubResource("AnimationLibrary_oye05")
+}
+
+[editable path="LevelGeometry/Ladder"]
+[editable path="PitAmbush/Jericho/CCMaleModel"]
+[editable path="PitAmbush/Jericho/CCMaleModel/Body"]
