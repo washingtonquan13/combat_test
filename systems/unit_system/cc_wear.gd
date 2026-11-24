@@ -23,10 +23,14 @@ const SPRING_RADIUS := 0.04
 const SPRING_STIFFNESS := 4.0
 const SPRING_DRAG := 0.5
 const SPRING_GRAVITY := 0.5
-## Leg capsules: CC bone -> the CC bone it runs to, and its radius (m).
+## Leg capsules: CC bone -> the CC bone it runs to, and its radius (m): the
+## leg as worn under a skirt, not the bare leg. Measured on the robe's own
+## trousers (90% of verts within 0.113 of the thigh) and knee boots (the
+## cuff reaches 0.12 off the calf); thinner, the idle stance pokes the boot
+## through the hem.
 const LEG_CAPSULES := [
-	["CC_Base_L_Thigh", "CC_Base_L_Calf", 0.085], ["CC_Base_R_Thigh", "CC_Base_R_Calf", 0.085],
-	["CC_Base_L_Calf", "CC_Base_L_Foot", 0.06], ["CC_Base_R_Calf", "CC_Base_R_Foot", 0.06],
+	["CC_Base_L_Thigh", "CC_Base_L_Calf", 0.115], ["CC_Base_R_Thigh", "CC_Base_R_Calf", 0.115],
+	["CC_Base_L_Calf", "CC_Base_L_Foot", 0.11], ["CC_Base_R_Calf", "CC_Base_R_Foot", 0.11],
 ]
 
 
@@ -161,7 +165,6 @@ static func _spring_sim(bs: Skeleton3D, names: PackedStringArray, unrename: Dict
 	sim.name = "ClothSprings"
 	bs.add_child(sim)  # On the skeleton before naming bones, or the names do not resolve.
 	sim.set_setting_count(ends.size())
-	var hips: String = unrename.get("CC_Base_Hip", "CC_Base_Hip")
 	var i := 0
 	for chain: String in ends:
 		var end: String = chain + str(ends[chain])
@@ -177,10 +180,13 @@ static func _spring_sim(bs: Skeleton3D, names: PackedStringArray, unrename: Dict
 		sim.set_drag(i, SPRING_DRAG)
 		sim.set_gravity(i, SPRING_GRAVITY)
 		sim.set_enable_all_child_collisions(i, true)
-		# Swings relative to the hips, not the world: walking does not drag
-		# the hem behind the legs, only the hips' turns and sways swing it.
-		sim.set_center_from(i, SpringBoneSimulator3D.CENTER_FROM_BONE)
-		sim.set_center_bone_name(i, hips)
+		# Swings in the skeleton's space, not the world's: walking does not
+		# drag the hem behind the legs, only the body's sways swing it. Not a
+		# bone's space (the hips'): 4.4's colliders put the capsules off the
+		# legs under any centre but the skeleton's own (fixed in master,
+		# SpringBoneCollision3D.get_transform_from_skeleton).
+		sim.set_center_from(i, SpringBoneSimulator3D.CENTER_FROM_NODE)
+		sim.set_center_node(i, NodePath(".."))
 		i += 1
 	for cap: Array in LEG_CAPSULES:
 		var a := bs.find_bone(unrename.get(cap[0], cap[0]))
