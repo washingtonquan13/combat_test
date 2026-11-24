@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://c3q6se45f3i52"
+path="res://.godot/imported/ranger_garb_Image_1_8.jpg-8d93b6dece59590d541ab25a9b4a467b.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "a63e9dfdee3b9ab458063ad8f60270dc"
+}
+
+[deps]
+
+source_file="res://assets/wearables/ranger_garb/male/ranger_garb_Image_1_8.jpg"
+dest_files=["res://.godot/imported/ranger_garb_Image_1_8.jpg-8d93b6dece59590d541ab25a9b4a467b.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1

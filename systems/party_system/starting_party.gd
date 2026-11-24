@@ -28,10 +28,10 @@ const STARTING_COUNT := {"camp_supplies": 3}
 ## What the character starts wearing. Everything else goes in the bag.
 const WORN := {
 	EquipSlot.Slot.HELMET: "leather_helmet",
-	EquipSlot.Slot.CHEST_ARMOR: "leather_chestpiece",
-	EquipSlot.Slot.GLOVES: "leather_gloves",
-	EquipSlot.Slot.BELT: "leather_belt",
-	EquipSlot.Slot.BOOTS: "leather_boots",
+	# The whole outfit (shirt, jerkin, belt, bracers, trousers, boots) is one
+	# item, so the leather gloves, belt and boots start in the bag: worn as
+	# well, they would draw over it.
+	EquipSlot.Slot.CHEST_ARMOR: "ranger_garb",
 	EquipSlot.Slot.MELEE_MAIN_HAND: "iron_sword",
 	EquipSlot.Slot.MELEE_OFF_HAND: "wooden_shield",
 	EquipSlot.Slot.RANGED_MAIN_HAND: "longbow",

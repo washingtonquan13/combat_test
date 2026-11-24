@@ -12,8 +12,10 @@ extends Node
 ## What the body wears goes on with wear(): each Wearable's fit for this
 ## body_type (a .glb from tools/armor_fit/, fitted to this base in Blender),
 ## bound to the body's skeleton by CCWear. CC's own clothed exports stay
-## retired (2026-11-21) for what they cost the editor and the loads. No
-## covers mask: the skin under a garment still draws.
+## retired (2026-11-21) for what they cost the editor and the loads. The
+## skin under it is hidden by bone (Wearable.hides), not by a covers mask:
+## cc_skin's hidden_binds drops the body's skin, and underwear (CC's Boxers,
+## Bra, Underwear_Bottoms) mostly under hidden bones is not shown.
 
 ## The base's JSON, beside its FBX.
 @export_file("*.json") var body_json: String = ""
@@ -40,10 +42,73 @@ func wear(items: Array[Wearable]) -> void:
 			mesh.queue_free()
 	_worn.clear()
 	var character := get_parent() as Node3D
+	var hides: Array[StringName] = []
 	for item in items:
 		var scene: PackedScene = item.meshes.get(body_type)
 		if scene:
 			_worn.append_array(CCWear.attach(character, scene))
+			hides.append_array(item.hides)
+	_hide_under(character, hides)
+
+
+## Hides the skin under the bones named (and every bone below them): the
+## body's through its shader, any other skinned mesh of the body (underwear)
+## whole when most of its weight lies on them. Shows them all again when
+## nothing is named.
+func _hide_under(character: Node3D, bones: Array[StringName]) -> void:
+	var body := CCMaterials._body(character)
+	if body == null or body.skin == null:
+		return
+	var skeleton := body.get_node(body.skeleton) as Skeleton3D
+	var hidden := {}
+	for bone in bones:
+		var b := skeleton.find_bone(bone)
+		if b < 0:
+			push_warning("CCLook: no bone %s to hide the skin under." % bone)
+			continue
+		var stack: Array[int] = [b]
+		while not stack.is_empty():
+			var at: int = stack.pop_back()
+			hidden[at] = true
+			stack.append_array(skeleton.get_bone_children(at))
+	var mask := Vector4i()
+	for i in mini(body.skin.get_bind_count(), 128):
+		if hidden.has(_bind_bone(body.skin, i, skeleton)):
+			mask[i / 32] |= 1 << (i % 32)
+	body.set_instance_shader_parameter(&"hidden_binds", mask)
+	for mesh: MeshInstance3D in skeleton.find_children("*", "MeshInstance3D", false, false):
+		if mesh != body and mesh.skin != null and not _worn.has(mesh) and not mesh.has_meta(HAIR_META):
+			mesh.visible = hidden.is_empty() or _hidden_share(mesh, hidden, skeleton) < 0.5
+
+
+## The skeleton bone a skin's bind i drives.
+static func _bind_bone(skin: Skin, i: int, skeleton: Skeleton3D) -> int:
+	var name := skin.get_bind_name(i)
+	return skeleton.find_bone(name) if name != &"" else skin.get_bind_bone(i)
+
+
+## The share of a skinned mesh's weight that lies on hidden bones.
+static func _hidden_share(mesh: MeshInstance3D, hidden: Dictionary, skeleton: Skeleton3D) -> float:
+	var on := PackedByteArray()
+	on.resize(mesh.skin.get_bind_count())
+	var any := false
+	for i in on.size():
+		if hidden.has(_bind_bone(mesh.skin, i, skeleton)):
+			on[i] = 1
+			any = true
+	if not any:
+		return 0.0
+	var total := 0.0
+	var under := 0.0
+	for s in mesh.mesh.get_surface_count():
+		var arrays := mesh.mesh.surface_get_arrays(s)
+		var idx: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		var w: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+		for k in mini(idx.size(), w.size()):
+			total += w[k]
+			if idx[k] < on.size() and on[idx[k]] == 1:
+				under += w[k]
+	return under / total if total > 0.0 else 0.0
 
 
 func _ready() -> void:

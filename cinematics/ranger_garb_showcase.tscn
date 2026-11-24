@@ -1,0 +1,237 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cutscene.gd" id="1_jcukr"]
+[ext_resource type="Script" path="res://systems/cinematic_system/cutscene_role.gd" id="2_q83ra"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/cc_male_model.tscn" id="3_df0ey"]
+[ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="4_arsmx"]
+[ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="5_7h4x2"]
+[ext_resource type="Resource" path="res://data/locomotion/humanoid.tres" id="6_j3xoc"]
+[ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="7_81g6q"]
+[ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="8_ssvew"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/cc_female_model.tscn" id="9_h0x2o"]
+
+[sub_resource type="Animation" id="Animation_4o8m5"]
+length = 21.0
+tracks/0/type = "position_3d"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Cameras/Rise")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = PackedFloat32Array(0, -2, 0.3, 0.85, 1.7, 5, -2, 0.35, 1.6, 2)
+tracks/1/type = "rotation_3d"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Cameras/Rise")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = PackedFloat32Array(0, -2, -0.0431588, 0.0871432, 0.00377893, 0.995253, 5, -2, -0.0367251, 0.0864558, 0.00318921, 0.995573)
+tracks/2/type = "position_3d"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Cameras/Orbit")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = PackedFloat32Array(5, 1, 1.37658, 1.55, 1.96596, 5.5, 1, 1.50635, 1.52083, 1.91103, 6, 1, 1.81052, 1.49167, 1.67525, 6.5, 1, 2.18191, 1.4625, 1.22036, 7, 1, 2.47591, 1.43333, 0.536316, 7.5, 1, 2.54717, 1.40417, -0.315731, 8, 1, 2.30623, 1.375, -1.20055, 8.5, 1, 1.7643, 1.34583, -1.95492, 9, 1, 1.03242, 1.31667, -2.4587, 9.5, 1, 0.271973, 1.2875, -2.68627, 10, 1, -0.369906, 1.25833, -2.70819, 10.5, 1, -0.797504, 1.22917, -2.64923, 11, 1, -0.957656, 1.2, -2.63114)
+tracks/3/type = "rotation_3d"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Cameras/Orbit")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = PackedFloat32Array(5, 1, -0.049472, 0.300301, 0.0155985, 0.952433, 5.5, 1, -0.0475447, 0.327187, 0.0164855, 0.943619, 6, 1, -0.044725, 0.400049, 0.0195502, 0.915193, 6.5, 1, -0.0408355, 0.505325, 0.023949, 0.861629, 7, 1, -0.0357323, 0.62715, 0.0288209, 0.777544, 7.5, 1, -0.0294741, 0.748594, 0.0333531, 0.661532, 8, 1, -0.0223842, 0.854116, 0.036888, 0.51829, 8.5, 1, -0.0150095, 0.932557, 0.039034, 0.358591, 9, 1, -0.00800233, 0.979504, 0.0397269, 0.197305, 9.5, 1, -0.0019799, 0.997958, 0.0392109, 0.0503906, 10, 1, 0.00257906, 0.996976, 0.0379395, -0.0677728, 10.5, 1, 0.00536435, 0.988661, 0.0364297, -0.145583, 11, 1, 0.0061899, 0.984182, 0.0351046, -0.173538)
+tracks/4/type = "position_3d"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Cameras/Arrive")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = PackedFloat32Array(11, -2, -1.7, 1.45, 4.8, 14, -2, -1.2, 1.45, 4.1)
+tracks/5/type = "rotation_3d"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Cameras/Arrive")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = PackedFloat32Array(11, -2, -0.043676, -0.273337, -0.0124247, 0.960846, 14, -2, -0.0509537, -0.214231, -0.0111913, 0.975389)
+tracks/6/type = "position_3d"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Cameras/Pair")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = PackedFloat32Array(14, -2, 0.5, 1.5, 3.3, 18, -2, 0.5, 1.45, 2.8)
+tracks/7/type = "rotation_3d"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Cameras/Pair")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = PackedFloat32Array(14, -2, -0.0389734, 0, 0, 0.99924, 18, -2, -0.0369611, 0, 0, 0.999317)
+tracks/8/type = "position_3d"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("Cameras/Leave")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = PackedFloat32Array(18, -2, 0.5, 1.6, 3.2, 21, -2, 0.9, 3, 6)
+tracks/9/type = "rotation_3d"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath("Cameras/Leave")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = PackedFloat32Array(18, -2, -0.0798714, 0, 0, 0.996805, 21, -2, -0.169689, 0.0333487, 0.00574558, 0.984916)
+tracks/10/type = "value"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath(".:shot")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(0, 5, 11, 14, 18),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 1,
+"values": [NodePath("Cameras/Rise"), NodePath("Cameras/Orbit"), NodePath("Cameras/Arrive"), NodePath("Cameras/Pair"), NodePath("Cameras/Leave")]
+}
+tracks/11/type = "position_3d"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath("Townsperson")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = PackedFloat32Array(0, 1, 3.4, 0, 2.6, 11.3, 1, 3.4, 0, 2.6, 13.7988, 1, 1.05, 0, 0.25)
+tracks/12/type = "rotation_3d"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Townsperson")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = PackedFloat32Array(0, 1, 0, -0.92388, 0, 0.382683, 13.7988, 1, 0, -0.92388, 0, 0.382683, 14.5988, 1, 0, -0.173648, 0, 0.984808)
+tracks/13/type = "animation"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath("Townsperson/Model/Body/AnimationPlayer")
+tracks/13/interp = 1
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"clips": PackedStringArray("Locomotion/idle", "Locomotion/walk", "Locomotion/walk_stop_a", "Locomotion/idle"),
+"times": PackedFloat32Array(0, 11.3, 13.7988, 14.6988)
+}
+tracks/14/type = "animation"
+tracks/14/imported = false
+tracks/14/enabled = true
+tracks/14/path = NodePath("Hero/Model/Body/AnimationPlayer")
+tracks/14/interp = 1
+tracks/14/loop_wrap = true
+tracks/14/keys = {
+"clips": PackedStringArray("Locomotion/idle"),
+"times": PackedFloat32Array(0)
+}
+tracks/15/type = "method"
+tracks/15/imported = false
+tracks/15/enabled = true
+tracks/15/path = NodePath(".")
+tracks/15/interp = 1
+tracks/15/loop_wrap = true
+tracks/15/keys = {
+"times": PackedFloat32Array(14.6, 15.4),
+"transitions": PackedFloat32Array(1, 1),
+"values": [{
+"args": ["Townsperson", "So this is what the tailor kept from us. It suits you."],
+"method": &"say"
+}, {
+"args": ["Hero", "It suits us both. Try to keep yours out of the mud."],
+"method": &"say"
+}]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_8fnwf"]
+_data = {
+&"scene": SubResource("Animation_4o8m5")
+}
+
+[node name="RangerGarbShowcase" type="Node3D"]
+script = ExtResource("1_jcukr")
+shot = NodePath("Cameras/Rise")
+anchor = NodePath("Hero")
+
+[node name="Hero" type="Node3D" parent="."]
+script = ExtResource("2_q83ra")
+
+[node name="Model" type="Node3D" parent="Hero" node_paths=PackedStringArray("animation_player", "highlight_mesh", "face", "collision_shape") instance=ExtResource("3_df0ey")]
+script = ExtResource("4_arsmx")
+animation_player = NodePath("Body/AnimationPlayer")
+idle_animation = "Idle"
+walk_animation = "Jog_Fwd"
+hit_animation = "Hit_Chest"
+death_animation = "Death01"
+motions = ExtResource("5_7h4x2")
+locomotion = ExtResource("6_j3xoc")
+fly_idle_animation = "Flight/Hover"
+fly_move_animation = "Flight/Fly_Fwd"
+takeoff_animation = "Flight/Takeoff"
+land_animation = "Flight/Land"
+climb_animation = "Ladder/Climb_Up"
+climb_off_animation = "Ladder/Climb_Over_Top"
+climb_on_animation = "Ladder/Climb_On_Top"
+ragdoll = ExtResource("7_81g6q")
+highlight_mesh = NodePath("HighlightMesh")
+face = NodePath("FaceDriver")
+height = 1.8
+collision_shape = NodePath("CollisionTemplate")
+
+[node name="Townsperson" type="Node3D" parent="."]
+transform = Transform3D(-0.707107, 0, -0.707107, 0, 1, 0, 0.707107, 0, -0.707107, 3.4, 0, 2.6)
+script = ExtResource("2_q83ra")
+plays = 1
+definition = ExtResource("8_ssvew")
+
+[node name="Model" type="Node3D" parent="Townsperson" node_paths=PackedStringArray("animation_player", "highlight_mesh", "face", "collision_shape") instance=ExtResource("9_h0x2o")]
+script = ExtResource("4_arsmx")
+animation_player = NodePath("Body/AnimationPlayer")
+idle_animation = "Idle"
+walk_animation = "Jog_Fwd"
+hit_animation = "Hit_Chest"
+death_animation = "Death01"
+motions = ExtResource("5_7h4x2")
+locomotion = ExtResource("6_j3xoc")
+fly_idle_animation = "Flight/Hover"
+fly_move_animation = "Flight/Fly_Fwd"
+takeoff_animation = "Flight/Takeoff"
+land_animation = "Flight/Land"
+climb_animation = "Ladder/Climb_Up"
+climb_off_animation = "Ladder/Climb_Over_Top"
+climb_on_animation = "Ladder/Climb_On_Top"
+ragdoll = ExtResource("7_81g6q")
+highlight_mesh = NodePath("HighlightMesh")
+face = NodePath("FaceDriver")
+height = 1.7
+collision_shape = NodePath("CollisionTemplate")
+
+[node name="Cameras" type="Node3D" parent="."]
+
+[node name="Rise" type="Camera3D" parent="Cameras"]
+transform = Transform3D(0.984784, -0.015044, 0.173133, 0, 0.996246, 0.0865665, -0.173785, -0.0852493, 0.981087, 0.3, 0.85, 1.7)
+fov = 35.0
+
+[node name="Orbit" type="Camera3D" parent="Cameras"]
+transform = Transform3D(0.819152, -0.059426, 0.57049, 0, 0.994618, 0.103606, -0.573576, -0.0848691, 0.814744, 1.37658, 1.55, 1.96596)
+fov = 38.0
+
+[node name="Arrive" type="Camera3D" parent="Cameras"]
+transform = Transform3D(0.850265, 0.0477531, -0.524184, 0, 0.995876, 0.0907241, 0.526355, -0.0771396, 0.846759, -1.7, 1.45, 4.8)
+fov = 40.0
+
+[node name="Pair" type="Camera3D" parent="Cameras"]
+transform = Transform3D(1, 0, 0, 0, 0.996962, 0.0778877, 0, -0.0778877, 0.996962, 0.5, 1.5, 3.3)
+fov = 36.0
+
+[node name="Leave" type="Camera3D" parent="Cameras"]
+transform = Transform3D(1, 0, 0, 0, 0.987241, 0.159232, 0, -0.159232, 0.987241, 0.5, 1.6, 3.2)
+fov = 40.0
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_8fnwf")
+}

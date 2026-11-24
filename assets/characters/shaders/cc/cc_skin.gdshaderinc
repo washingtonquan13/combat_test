@@ -93,6 +93,26 @@ uniform float lid_shade = 0.4;
 uniform sampler2D rgba_mask : hint_default_black, filter_linear_mipmap;
 uniform vec4 rgba_roughness = vec4(0.0);
 uniform vec4 rgba_scatter = vec4(1.0);
+// The skin under what the character wears, as bits over the body skin's
+// binds (bind i is bit i % 32 of word i / 32): CCLook.wear() sets it from
+// the worn items' Wearable.hides. A vertex is hidden when most of its weight
+// lies on hidden binds, and its skin is not drawn, so it cannot poke through.
+// The binds come from CUSTOM0 (the vertex's four heaviest bind indices) and
+// CUSTOM1 (their weights), which CCMaterials puts on the body mesh: Forward+
+// skins on the GPU before vertex() runs, so BONE_INDICES and BONE_WEIGHTS
+// read as zero here.
+instance uniform ivec4 hidden_binds : instance_index(2) = ivec4(0);
+varying float v_hidden;
+
+void vertex() {
+	v_hidden = 0.0;
+	for (int i = 0; i < 4; i++) {
+		int b = int(CUSTOM0[i] + 0.5);
+		if (b < 128 && ((hidden_binds[b / 32] >> (b % 32)) & 1) != 0) {
+			v_hidden += CUSTOM1[i];
+		}
+	}
+}
 #endif
 
 // A tangent-space normal from a two-channel (or three-channel) map; the
@@ -102,6 +122,11 @@ vec2 unpack_xy(vec4 t) {
 }
 
 void fragment() {
+#ifndef CC_HEAD
+	if (v_hidden > 0.5) {
+		discard;
+	}
+#endif
 	vec2 uv = fract(UV);
 	vec3 albedo = texture(base_map, uv).rgb * skin_tint;
 	vec4 hdrp = texture(hdrp_map, uv);

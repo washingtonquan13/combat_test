@@ -8,10 +8,16 @@ extends Resource
 ##
 ## On a Character Creator body the fits are keyed &"cc_male" / &"cc_female"
 ## (CCLook.body_type): one .glb per piece per base, fitted in Blender by
-## tools/armor_fit/ and bound at runtime by CCWear. covers is unused there.
+## tools/armor_fit/ and bound at runtime by CCWear. covers is unused there:
+## hides says which skin the item hides instead.
 
 ## Body type -> the item fitted to it (CharacterLook.body_type). An item
 ## with no fit for a body is not shown on it.
 @export var meshes: Dictionary[StringName, PackedScene] = {}
 ## The skin the item hides, in the body's UV space: alpha is the cover.
 @export var covers: Texture2D
+## On a CC body: the bones, as the body's skeleton names them, whose skin
+## the item hides, each with every bone below it (CCLook.wear). Skin mostly
+## weighted to them is not drawn, nor underwear mostly under them, so
+## neither pokes through. &"CC_Base_Pelvis" is the hips, legs and feet.
+@export var hides: Array[StringName] = []

@@ -88,7 +88,9 @@ static func apply(root: Node, json_path: String) -> void:
 ## instead. The shapes move the skin a centimetre or two, so the base's are
 ## close; what is lost is the faint shading change of the expression itself. Runs
 ## once per mesh (shared by every instance) and needs a real renderer: the
-## headless one keeps no blend shape data. The rebuilt mesh has no LODs.
+## headless one keeps no blend shape data. The rebuilt mesh has no LODs,
+## and carries the bind channels cc_skin hides worn-over skin by
+## (_add_bind_channels).
 static var _fixed := {}
 
 static func fix_shape_tangents(root: Node) -> void:
@@ -118,13 +120,50 @@ static func _rebuild(src: ArrayMesh) -> ArrayMesh:
 		for a: Array in shapes:
 			a[Mesh.ARRAY_TANGENT] = tan
 			a[Mesh.ARRAY_NORMAL] = nrm
-		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, shapes, {},
-				src.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS)
+		var flags := src.surface_get_format(s) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS
+		if _add_bind_channels(arrays):
+			flags |= (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT) \
+					| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT)
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, shapes, {}, flags)
 		out.surface_set_material(s, src.surface_get_material(s))
 		out.surface_set_name(s, src.surface_get_name(s))
 	out.resource_name = src.resource_name
 	out.set_meta(SOURCE_META, _stable_id(src))
 	return out
+
+
+## Copies each vertex's four heaviest binds into CUSTOM0 (indices) and
+## CUSTOM1 (weights), for cc_skin's hidden_binds: a Forward+ vertex shader
+## on a skinned mesh reads BONE_INDICES and BONE_WEIGHTS as zero. False when
+## the surface is not skinned or already uses those channels.
+static func _add_bind_channels(arrays: Array) -> bool:
+	var bones = arrays[Mesh.ARRAY_BONES]
+	var weights = arrays[Mesh.ARRAY_WEIGHTS]
+	if bones == null or weights == null or arrays[Mesh.ARRAY_CUSTOM0] != null \
+			or arrays[Mesh.ARRAY_CUSTOM1] != null:
+		return false
+	var count: int = arrays[Mesh.ARRAY_VERTEX].size()
+	var per: int = bones.size() / count
+	var idx := PackedFloat32Array()
+	var wts := PackedFloat32Array()
+	idx.resize(count * 4)
+	wts.resize(count * 4)
+	var taken := PackedByteArray()
+	taken.resize(per)
+	for v in count:
+		# The four heaviest of the vertex's influences, whatever their order.
+		taken.fill(0)
+		for k in mini(4, per):
+			var best := -1
+			for j in per:
+				if not taken[j] and (best < 0 or weights[v * per + j] > weights[v * per + best]):
+					best = j
+			taken[best] = 1
+			idx[v * 4 + k] = bones[v * per + best]
+			wts[v * 4 + k] = weights[v * per + best]
+	arrays[Mesh.ARRAY_CUSTOM0] = idx
+	arrays[Mesh.ARRAY_CUSTOM1] = wts
+	return true
 
 
 ## Back to the imported materials.
