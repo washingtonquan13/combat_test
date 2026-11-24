@@ -2,7 +2,7 @@
 
 == hub
 npc: I don't get many friendly faces through here anymore.  #smile  #line:f3c988
-npc: Watch yourself. Even standing here talking to you, I keep expecting something to come out of the trees.  #wary  #line:cc00a1
+npc: Watch yourself. Even standing here talking to you, I keep expecting something to come out of the trees.  #wary  #close  #line:cc00a1
 npc: What did you want to know?  #neutral  #line:4a272e
 * [noflag townsperson_heard_raids] What's been happening around here?  #line:f17856
     set townsperson_heard_raids
@@ -20,7 +20,7 @@ npc: What did you want to know?  #neutral  #line:4a272e
 before: [present DwarfFighter] -> quest_intro_dwarf_reaction
 npc: You mean the raids.  #frown  #line:d3c313
 npc: Goblins, mostly. Small bands, quick and mean.  #line:123bd0
-npc: But there's bigger ones running with them now. Uglier, smarter, giving the orders.  #line:4fc078
+npc: But there's bigger ones running with them now. Uglier, smarter, giving the orders.  #close  #line:4fc078
 npc: It's gotten worse these past few months.  #line:f508e8
 * What exactly have they done?  #line:977488
     give healing_potion
@@ -41,7 +41,7 @@ DwarfFighter: Whatever's got her this rattled, we should hear her out.  #frown  
 == quest_details
 npc: Three nights back they hit the Hollis farm.  #frown  #line:799f7a
 npc: Burned the grain store, took what livestock they could herd off.  #line:c72b93
-npc: Put an arrow through Old Hollis's leg when he came out swinging a torch at them.  #line:19a770
+npc: Put an arrow through Old Hollis's leg when he came out swinging a torch at them.  #close  #line:19a770
 npc: Before that it was the mill. Before that, some fool who wandered too close to the tree line at dusk never came home at all.  #wary  #line:f5dc44
 npc: They don't come every night. Just enough that nobody sleeps easy anymore.  #line:05a561
 * Do you know where they're camped?  #line:c5f7f4
@@ -55,7 +55,7 @@ npc: They don't come every night. Just enough that nobody sleeps easy anymore.  
 
 
 == quest_insight
-npc: ...There's one more thing.  #wary  #line:b2d814
+npc: ...There's one more thing.  #wary  #close  #line:b2d814
 npc: The night they hit the mill, I saw one of them stop at the well and just stare at it. Like it was looking for something.  #line:332a06
 npc: The others didn't seem to notice, but the big one did. It got angry, herded it along.  #line:1d2593
 npc: I haven't told anyone that part. Didn't want people thinking I'd lost my nerve completely.  #frown  #line:0280c7
@@ -66,12 +66,12 @@ npc: I haven't told anyone that part. Didn't want people thinking I'd lost my ne
 npc: Somewhere out past the old quarry, if I had to guess.  #neutral  #line:246b8a
 npc: That's the direction they always come from, and where the tracks lead back to.  #line:f73fa1
 npc: Nobody from town's been foolish enough to go look.  #line:00fdf1
-npc: If you're thinking about it... just be careful. Please.  #frown  #line:b0c54a
+npc: If you're thinking about it... just be careful. Please.  #frown  #close  #line:b0c54a
 -> potion_gift
 
 
 == quest_pushed_back
-npc: I've told you what I know. Don't push me on this.  #angry  #line:4fc3d6
+npc: I've told you what I know. Don't push me on this.  #angry  #close  #line:4fc3d6
 -> potion_gift
 
 
@@ -91,7 +91,7 @@ npc: Half the storefronts on the square have been shuttered since the raids star
 == people
 npc: Stubborn, mostly. That's what's kept this place standing as long as it has.  #line:cc6b3b
 npc: We look out for each other, share what food there is, take turns on the watch at night.  #line:8296c2
-npc: There's an old woman, Maren, who's buried two sons to the raids and still bakes bread for anyone who knocks.  #line:920273
+npc: There's an old woman, Maren, who's buried two sons to the raids and still bakes bread for anyone who knocks.  #close  #line:920273
 npc: That's the kind of people we are. Doesn't mean we're not scared. Just means we haven't left yet.  #line:1d1bed
 -> hub
 
@@ -101,7 +101,7 @@ npc: Tiring, if I'm honest.  #line:dc11ca
 npc: I used to work the mill during the day and sleep easy at night.  #line:03d8a5
 npc: Now I still work the mill, but I take a turn on the watch wall twice a week, and I don't sleep easy any night.  #line:c7a139
 npc: You get used to flinching at every sound past dark.  #line:f9b64e
-npc: I keep telling myself it won't always be like this. Some days I believe it.  #line:231d89
+npc: I keep telling myself it won't always be like this. Some days I believe it.  #close  #line:231d89
 -> hub
 
 
@@ -109,7 +109,7 @@ npc: I keep telling myself it won't always be like this. Some days I believe it.
 npc: They're gone. All of them.  #line:baae8b
 npc: No torches on the treeline last night, first time since this started.  #line:986237
 npc: I keep waiting to hear something moving out there, and there's nothing.  #line:bb922a
-npc: I don't have the words for what you did for this town.  #line:e45c0d
+npc: I don't have the words for what you did for this town.  #close  #line:e45c0d
 * [noflag goblin_raid.begun] Were those all of them?  #line:7d1e94
     set goblin_raid.begun
     -> raid_warning
@@ -126,7 +126,7 @@ npc: I don't have the words for what you did for this town.  #line:e45c0d
 npc: ...No. That's what's been eating at me.  #line:a84f2b
 npc: The quarry crew saw more of them on the road at dawn. A big one, and bows. Heading for the rise.  #line:3c61e7
 npc: That's where the crew sleeps, behind that palisade up past the pit. Goblins don't forget a thing like what you did.  #line:e92d50
-npc: If they hit anyone back, it'll be the camp. And it'll be tonight.  #line:5b07ac
+npc: If they hit anyone back, it'll be the camp. And it'll be tonight.  #close  #line:5b07ac
 * Then we go now.  #line:c4f81d
 * Keep your doors barred. We'll handle it.  #line:16e3a9
 

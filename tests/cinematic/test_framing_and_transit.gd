@@ -195,15 +195,20 @@ func _the_rules_that_outlived_the_rig(a: Unit, b: Unit, bystander: Unit) -> void
 
 	_camera.release()
 	_conversation.record("npc", "Two.")
-	check("a second line from the same speaker cuts in closer",
-		_camera.is_framing(),
-		"the speaker's second line in a row left the camera where it was")
-
-	_camera.release()
-	_conversation.record("npc", "Three.")
-	check("further lines from the same speaker hold the shot",
+	check("an untagged line from the same speaker holds the shot",
 		not _camera.is_framing(),
 		"the camera re-cut on a line from the person it was already framing")
+
+	_conversation.record("npc", "Three.", {"tags": PackedStringArray(["close"])})
+	check("a #close line from the same speaker cuts in",
+		_camera.is_framing(),
+		"the writer's #close tag left the camera where it was")
+
+	_camera.release()
+	_conversation.record("npc", "Four.", {"tags": PackedStringArray(["close"])})
+	check("#close on a line already in close-up holds",
+		not _camera.is_framing(),
+		"the camera re-cut to the shot it was already on")
 
 	_conversation.record("", "(you feel uneasy)")
 	check("an echo line with no speaker never re-cuts",
