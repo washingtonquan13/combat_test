@@ -2,7 +2,7 @@ extends "res://tools/item_layer_demo.gd"
 ## Recorded walkthrough of the 11-01 combat rules — NOT a test. Damage
 ## types against DR, aimed Vitals/Skull, Deceptive Attack, Bloodied and
 ## Exhausted, worn-gear encumbrance, and Downed through to the game over
-## screen. The target is a same-faction dummy in a leather chestpiece,
+## screen. The target is a same-faction dummy in the Ranger's Garb,
 ## so no fight starts. Record it the same way as item_layer_demo.
 
 const Vitals: Ability = preload("res://data/abilities/target_vitals.tres")
@@ -22,7 +22,7 @@ func _run() -> void:
 			_hero.unequip_item(key)
 	_hero.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(IronSword))
 	_dummy = _make_dummy(-1.2)
-	_dummy.equip_item(EquipSlot.Slot.CHEST_ARMOR, ItemInstance.new(load("res://data/items/leather_chestpiece.tres")))
+	_dummy.equip_item(EquipSlot.Slot.CHEST_ARMOR, ItemInstance.new(load("res://data/items/ranger_garb.tres")))
 	SelectionManager.select(_hero)
 	await _wait(1.0)
 
@@ -44,7 +44,7 @@ func _run() -> void:
 
 func _damage_types() -> void:
 	var dr: int = floori(_dummy.get_stat(StatIds.DR))
-	_say("Damage types: the dummy wears a leather chestpiece, DR %d" % dr)
+	_say("Damage types: the dummy wears the Ranger's Garb, DR %d" % dr)
 	await _wait(2.5)
 	var cr: int = DamageResolver.injury(10, _dummy, DamageResolver.WoundType.CRUSHING)
 	var cut: int = DamageResolver.injury(10, _dummy, DamageResolver.WoundType.CUTTING)
@@ -140,7 +140,7 @@ func _encumbrance() -> void:
 	await _wait(3.0)
 	_hero.unequip_item(EquipSlot.Slot.MELEE_MAIN_HAND)
 	var heavy: Array = [
-		[EquipSlot.Slot.CHEST_ARMOR, "leather_chestpiece"], [EquipSlot.Slot.BOOTS, "leather_boots"],
+		[EquipSlot.Slot.CHEST_ARMOR, "ranger_garb"],
 		[EquipSlot.Slot.HELMET, "leather_helmet"], [EquipSlot.Slot.MELEE_MAIN_HAND, "greatsword"],
 		[EquipSlot.Slot.RANGED_OFF_HAND, "tower_shield"], [EquipSlot.Slot.RANGED_MAIN_HAND, "rifle"]]
 	for pair in heavy:

@@ -16,7 +16,7 @@ func _run() -> void:
 	bag.clear()
 	var sword := ItemInstance.new(IronSword)
 	sword.rarity = ItemInstance.Rarity.MAGIC
-	var chest := ItemInstance.new(load("res://data/items/leather_chestpiece.tres"))
+	var chest := ItemInstance.new(load("res://data/items/ranger_garb.tres"))
 	chest.rarity = ItemInstance.Rarity.RARE
 	chest.sockets = 1
 	var awls := ItemInstance.new(load("res://data/items/socket_awl.tres"), 2)
@@ -61,7 +61,7 @@ func _run() -> void:
 		and _widget(inventory, awls) == null)
 	await _wait(1.5)
 
-	_say("Wear the rare chest (DR 2, one socket)")
+	_say("Wear the rare chest (DR 1, one socket)")
 	var slot := _slot(EquipSlot.Slot.CHEST_ARMOR)
 	await _drag(await _widget_center(inventory, chest), _center(slot))
 	await _wait(1.0)

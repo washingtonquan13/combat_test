@@ -12,6 +12,5 @@
   "skin": "young_caucasian_male",
   "eyes": "brown",
   "eyebrows": "eyebrow001",
-  "wearables": ["male_casualsuit01", "shoes01"],
   "parts": {"brow_ridge": ["bone", 0.6], "cheekbones": ["bone", 0.6], "cheek_hollows": ["bone", 0.4], "jaw": ["bone", 0.6], "chin": ["bone", 0.6]}
 }

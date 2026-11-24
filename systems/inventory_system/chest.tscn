@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3 uid="uid://dwu2y8j3sei5i"]
+[gd_scene load_steps=30 format=3 uid="uid://dwu2y8j3sei5i"]
 
 [ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
 [ext_resource type="Resource" path="res://data/interactions/loot.tres" id="2_loot"]
@@ -9,19 +9,11 @@
 [ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="8_1uvcd"]
 [ext_resource type="Resource" path="res://data/items/healing_potion.tres" id="9_potion"]
 [ext_resource type="Texture2D" uid="uid://b7oi6ye8v7p0" path="res://assets/test_item_icons/test_shield.png" id="10_blaql"]
-[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="12_v3ymt"]
-[ext_resource type="Texture2D" uid="uid://dinqj6wkwp5tw" path="res://assets/test_item_icons/test_boots.png" id="14_oruln"]
 [ext_resource type="Resource" path="res://data/items/mana_potion.tres" id="15_manapotion"]
-[ext_resource type="Texture2D" uid="uid://cuq7x56612mx2" path="res://assets/test_item_icons/test_gloves.png" id="16_nf456"]
 [ext_resource type="Resource" uid="uid://cing3w35sxrnh" path="res://data/items/iron_sword.tres" id="16_sword"]
 [ext_resource type="Resource" uid="uid://cafritp41dkl" path="res://data/items/wooden_shield.tres" id="17_shield"]
 [ext_resource type="Texture2D" uid="uid://1rjqfvy3hsiu" path="res://assets/test_item_icons/test_helmet.png" id="18_bb5mh"]
-[ext_resource type="Resource" uid="uid://bd7kfsr27y1h2" path="res://data/items/leather_chestpiece.tres" id="18_chest"]
-[ext_resource type="Resource" uid="uid://berbrd1fq2o80" path="res://data/items/leather_boots.tres" id="19_boots"]
-[ext_resource type="Texture2D" uid="uid://b22mv7hnxmeyi" path="res://assets/test_item_icons/test_belt.png" id="20_5tffd"]
-[ext_resource type="Resource" uid="uid://bb34qidy0wm14" path="res://data/items/leather_gloves.tres" id="20_gloves"]
 [ext_resource type="Resource" uid="uid://fo6f8ulop317" path="res://data/items/leather_helmet.tres" id="21_helmet"]
-[ext_resource type="Resource" uid="uid://c63mejhpeqvgo" path="res://data/items/leather_belt.tres" id="22_belt"]
 [ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="22_dxdcv"]
 [ext_resource type="Texture2D" uid="uid://bor7ucx1k3nh1" path="res://assets/test_item_icons/test_mana_potion.png" id="24_hh7vn"]
 [ext_resource type="Resource" path="res://data/items/crossbow.tres" id="30_crossbow"]
@@ -90,41 +82,7 @@ icon = ExtResource("10_blaql")
 width = 2
 height = 3
 
-[node name="TestChestpiece" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="3" instance=ExtResource("6_item")]
-layout_mode = 0
-offset_left = 128.0
-offset_right = 192.0
-offset_bottom = 96.0
-tooltip_text = "Item (2×3)  Stack: 1"
-definition = ExtResource("18_chest")
-icon = ExtResource("12_v3ymt")
-width = 2
-height = 3
-
-[node name="TestBoots" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="4" instance=ExtResource("6_item")]
-layout_mode = 0
-offset_top = 96.0
-offset_right = 64.0
-offset_bottom = 160.0
-tooltip_text = "Item (2×2)  Stack: 1"
-definition = ExtResource("19_boots")
-icon = ExtResource("14_oruln")
-width = 2
-height = 2
-
-[node name="TestGloves" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="5" instance=ExtResource("6_item")]
-layout_mode = 0
-offset_left = 64.0
-offset_top = 96.0
-offset_right = 128.0
-offset_bottom = 160.0
-tooltip_text = "Item (2×2)  Stack: 1"
-definition = ExtResource("20_gloves")
-icon = ExtResource("16_nf456")
-width = 2
-height = 2
-
-[node name="TestHelmet" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="6" instance=ExtResource("6_item")]
+[node name="TestHelmet" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="3" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 128.0
 offset_top = 96.0
@@ -136,17 +94,7 @@ icon = ExtResource("18_bb5mh")
 width = 2
 height = 2
 
-[node name="TestBelt" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="7" instance=ExtResource("6_item")]
-layout_mode = 0
-offset_top = 160.0
-offset_right = 64.0
-offset_bottom = 192.0
-tooltip_text = "Item (2×1)  Stack: 1"
-definition = ExtResource("22_belt")
-icon = ExtResource("20_5tffd")
-width = 2
-
-[node name="TestPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="8" instance=ExtResource("6_item")]
+[node name="TestPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="4" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 64.0
 offset_top = 160.0
@@ -157,7 +105,7 @@ definition = ExtResource("9_potion")
 icon = ExtResource("22_dxdcv")
 current_stack_count = 3
 
-[node name="TestManaPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="9" instance=ExtResource("6_item")]
+[node name="TestManaPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="5" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 96.0
 offset_top = 160.0
@@ -166,70 +114,70 @@ offset_bottom = 192.0
 definition = ExtResource("15_manapotion")
 icon = ExtResource("24_hh7vn")
 
-[node name="TestCrossbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="10" instance=ExtResource("6_item")]
+[node name="TestCrossbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="6" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 192.0
 offset_top = 128.0
 definition = ExtResource("30_crossbow")
 
-[node name="TestGreatsword" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="11" instance=ExtResource("6_item")]
+[node name="TestGreatsword" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="7" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 192.0
 offset_top = 0.0
 definition = ExtResource("30_greatsword")
 
-[node name="TestLongbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="12" instance=ExtResource("6_item")]
+[node name="TestLongbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="8" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 320.0
 offset_top = 0.0
 definition = ExtResource("30_longbow")
 
-[node name="TestPistol" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="13" instance=ExtResource("6_item")]
+[node name="TestPistol" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="9" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 256.0
 offset_top = 128.0
 definition = ExtResource("30_pistol")
 
-[node name="TestRifle" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="14" instance=ExtResource("6_item")]
+[node name="TestRifle" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="10" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 256.0
 offset_top = 0.0
 definition = ExtResource("30_rifle")
 
-[node name="TestThrowingAxe" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="15" instance=ExtResource("6_item")]
+[node name="TestThrowingAxe" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="11" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 352.0
 offset_top = 0.0
 definition = ExtResource("30_throwing_axe")
 
-[node name="TestBuckler" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="16" instance=ExtResource("6_item")]
+[node name="TestBuckler" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="12" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 320.0
 offset_top = 128.0
 definition = ExtResource("30_buckler")
 
-[node name="TestSocketAwl" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="17" instance=ExtResource("6_item")]
+[node name="TestSocketAwl" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="13" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 128.0
 offset_top = 160.0
 definition = ExtResource("30_socket_awl")
 current_stack_count = 5
 
-[node name="TestHawkRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="18" instance=ExtResource("6_item")]
+[node name="TestHawkRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="14" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 160.0
 offset_top = 160.0
 definition = ExtResource("30_hawk_rune")
 current_stack_count = 3
 
-[node name="TestIronRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="19" instance=ExtResource("6_item")]
+[node name="TestIronRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="15" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 0.0
 offset_top = 192.0
 definition = ExtResource("30_iron_rune")
 current_stack_count = 3
 
-[node name="TestVigorRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="20" instance=ExtResource("6_item")]
+[node name="TestVigorRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="16" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 32.0
 offset_top = 192.0

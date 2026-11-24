@@ -1,9 +1,6 @@
 # Armour fitting
 
-How we fit a rigid armour piece (a generated or downloaded mesh made in no particular pose, for no particular body) to a Character Creator base so that it sits on the body and moves with it in game. Two sets are fitted to both CC bases so far:
-
-- **The Meshy leather set** (cuirass, belt with skirt, bracers, greaves), 2026-11-21/22. The output is in `assets/wearables/leather_set/{male,female}/`, one GLB per piece.
-- **The Meshy padded set** (sleeveless quilted jack, quilted skirt, upper-arm sleeves, forearm wraps, shin wraps), 2026-11-22. The output is in `assets/wearables/padded_set/{male,female}/padded_armor.glb`, one GLB holding every piece, worn by the single `padded_armor` chest item.
+How we fit a rigid armour piece (a generated or downloaded mesh made in no particular pose, for no particular body) to a Character Creator base so that it sits on the body and moves with it in game. Two sets were fitted to both CC bases with it, a Meshy leather set (cuirass, belt with skirt, bracers, greaves) and a padded set (quilted jack, skirt, sleeves, forearm and shin wraps), 2026-11-21/22; both were retired 2026-11-24 with their items (in git history before that date).
 
 The short version: **align roughly, conform the inside to the skin, copy the body's weights, mirror, export one GLB per piece per body, and rebind at runtime.**
 
@@ -140,22 +137,11 @@ Then look at `shoot.py`'s posed render next to the bare posed render. The pieces
   - The two exports can disagree on mesh space. `CCWear` fits the scale + rotation + offset (Umeyama) that lays the garment's bone origins on the body's, then builds each new bind as `body_bind[bone] × M`.
   - A bone the body mesh doesn't bind is reached through the Waist bind.
   - Each piece becomes a MeshInstance3D beside the Body, on its render layers and light group.
-- The leather items map like this:
-
-  | Item | Piece |
-  |---|---|
-  | `leather_chestpiece` | cuirass |
-  | `leather_belt` | belt and skirt |
-  | `leather_gloves` | bracers (there is no bracer item) |
-  | `leather_boots` | greaves (its MakeHuman shoes stay for the fallback body) |
-  | `padded_armor` (chest slot) | the whole padded set |
-
-  Wear padded armour without the leather belt, gloves and boots: those pieces would sit on top of its skirt and wraps.
 - `CCLook.wear` takes the old pieces out of the tree before freeing them, so the re-worn pieces keep their `Armor_*` names.
 
 - To check it in game, a throwaway probe scene can do the following (the 11-22 check did exactly this):
-  1. Boot MainRoot and start a new game. The hero already wears the leather set from `StartingParty.WORN`.
-  2. Equip the set on the townsperson with `unit.equip_item(slot, ItemInstance.new(load(item)))`.
+  1. Boot MainRoot and start a new game.
+  2. Equip the item on the hero and the townsperson with `unit.equip_item(slot, ItemInstance.new(load(item)))`.
   3. Shoot both units front and back.
 
   Two gotchas apply:

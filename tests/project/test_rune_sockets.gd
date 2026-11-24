@@ -9,17 +9,17 @@ func wants_world() -> bool:
 
 
 func run() -> void:
-	var boots := ItemInstance.new(load("res://data/items/leather_boots.tres"))
-	var chest := ItemInstance.new(load("res://data/items/leather_chestpiece.tres"))
-	var belt := ItemInstance.new(load("res://data/items/leather_belt.tres"))
+	var helmet := ItemInstance.new(load("res://data/items/leather_helmet.tres"))
+	var chest := ItemInstance.new(load("res://data/items/ranger_garb.tres"))
+	var belt := ItemInstance.new(load("res://data/items/work_belt.tres"))
 	var greatsword := ItemInstance.new(load("res://data/items/greatsword.tres"))
-	check("2x2 boots hold 2, chest 3, belt 0, two-hander 3",
-		[boots.max_sockets(), chest.max_sockets(), belt.max_sockets(), greatsword.max_sockets()] == [2, 3, 0, 3])
+	check("a 2x2 helmet holds 2, chest 3, belt 0, two-hander 3",
+		[helmet.max_sockets(), chest.max_sockets(), belt.max_sockets(), greatsword.max_sockets()] == [2, 3, 0, 3])
 
 	var awl: SocketTool = load("res://data/items/socket_awl.tres")
-	while awl.can_apply_to(boots):
-		awl.apply_to(boots)
-	check("the awl stops at the limit", boots.sockets == 2)
+	while awl.can_apply_to(helmet):
+		awl.apply_to(helmet)
+	check("the awl stops at the limit", helmet.sockets == 2)
 
 	var iron: RuneItem = load("res://data/items/iron_rune.tres")
 	var sword_def: GearItem = load("res://data/items/iron_sword.tres")
@@ -40,9 +40,9 @@ func run() -> void:
 	var dr: float = hero.get_stat(StatIds.DR)
 	chest.sockets = 2
 	hero.equip_item(EquipSlot.Slot.CHEST_ARMOR, chest)
-	check("the chest gives its own DR 2", hero.get_stat(StatIds.DR) == dr + 2)
+	check("the chest gives its own DR 1", hero.get_stat(StatIds.DR) == dr + 1)
 	iron.apply_to(chest)
-	check("a rune socketed while worn adds +1 DR at once", hero.get_stat(StatIds.DR) == dr + 3)
+	check("a rune socketed while worn adds +1 DR at once", hero.get_stat(StatIds.DR) == dr + 2)
 	hero.unequip_item(EquipSlot.Slot.CHEST_ARMOR)
 	check("taking it off takes all of it", hero.get_stat(StatIds.DR) == dr)
 
@@ -50,4 +50,4 @@ func run() -> void:
 	var loaded := ItemInstance.from_dict(JSON.parse_string(JSON.stringify(saved)))
 	check("sockets and runes survive a save", loaded.sockets == 2 and loaded.runes == [iron],
 		"saved %s" % saved)
-	check("an old save's bare id still loads", ItemInstance.from_dict("leather_boots").definition.id == &"leather_boots")
+	check("an old save's bare id still loads", ItemInstance.from_dict("ranger_garb").definition.id == &"ranger_garb")
