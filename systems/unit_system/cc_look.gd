@@ -29,7 +29,7 @@ extends Node
 const HAIR_META := &"cc_hair"
 
 ## What wear() put on.
-var _worn: Array[MeshInstance3D] = []
+var _worn: Array[Node3D] = []
 
 
 ## Dresses the body in items, in place of what it wore. An item with no fit

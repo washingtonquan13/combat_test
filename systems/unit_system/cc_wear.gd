@@ -13,11 +13,28 @@ class_name CCWear
 ## FBX path -> {profile name: CC name}, read from its .import.
 static var _maps := {}
 
+## Cloth bones a garment brings: chains Spring_<chain>_<joint>, each hanging
+## from a body bone (D:/ai_motion/garment_tpl/scripts/cloth_bones.py rigs a
+## skirt with them). attach() adds them to the body's skeleton and swings
+## them with a SpringBoneSimulator3D, pushed off the legs by capsules.
+const SPRING_PREFIX := "Spring_"
+## Joint radius (m): how far a chain keeps off the leg capsules.
+const SPRING_RADIUS := 0.04
+const SPRING_STIFFNESS := 4.0
+const SPRING_DRAG := 0.5
+const SPRING_GRAVITY := 0.5
+## Leg capsules: CC bone -> the CC bone it runs to, and its radius (m).
+const LEG_CAPSULES := [
+	["CC_Base_L_Thigh", "CC_Base_L_Calf", 0.085], ["CC_Base_R_Thigh", "CC_Base_R_Calf", 0.085],
+	["CC_Base_L_Calf", "CC_Base_L_Foot", 0.06], ["CC_Base_R_Calf", "CC_Base_R_Foot", 0.06],
+]
+
 
 ## garment's meshes bound to `character`'s skeleton, beside its body mesh,
-## drawn on the body's render layers. Empty if the character has no CC body.
-static func attach(character: Node3D, garment: PackedScene) -> Array[MeshInstance3D]:
-	var out: Array[MeshInstance3D] = []
+## drawn on the body's render layers, and the spring simulator swinging its
+## cloth bones if it has any. Empty if the character has no CC body.
+static func attach(character: Node3D, garment: PackedScene) -> Array[Node3D]:
+	var out: Array[Node3D] = []
 	var body := CCMaterials._body(character)
 	if body == null or body.skin == null:
 		return out
@@ -34,6 +51,7 @@ static func attach(character: Node3D, garment: PackedScene) -> Array[MeshInstanc
 			bn = bs.get_bone_name(body.skin.get_bind_bone(b))
 		body_bind[rename.get(bn, bn)] = body.skin.get_bind_pose(b)
 	var src := garment.instantiate()
+	var springs := PackedStringArray()
 	for g: MeshInstance3D in src.find_children("*", "MeshInstance3D", true, false):
 		if g.skin == null:
 			continue
@@ -50,6 +68,9 @@ static func attach(character: Node3D, garment: PackedScene) -> Array[MeshInstanc
 			push_warning("CCWear: %s shares too few bones with the body." % g.name)
 			continue
 		var m := similarity(from, to)
+		for name in _add_springs(bs, g, m, body_bind, unrename):
+			if not springs.has(name):
+				springs.append(name)
 		var skin := Skin.new()
 		for b in g.skin.get_bind_count():
 			var name := String(g.skin.get_bind_name(b))
@@ -62,9 +83,8 @@ static func attach(character: Node3D, garment: PackedScene) -> Array[MeshInstanc
 			if bb < 0 or not body_bind.has("CC_Base_Waist"):
 				skin.add_named_bind(bs.get_bone_name(0), g.skin.get_bind_pose(b))
 				continue
-			var spine := bs.get_bone_global_rest(bs.find_bone(unrename.get("CC_Base_Waist", "CC_Base_Waist"))) \
-					* (body_bind["CC_Base_Waist"] as Transform3D)
-			skin.add_named_bind(bs.get_bone_name(bb), bs.get_bone_global_rest(bb).affine_inverse() * spine * m)
+			skin.add_named_bind(bs.get_bone_name(bb),
+					global_rest(bs, bb).affine_inverse() * _mesh_to_skeleton(bs, body_bind, unrename) * m)
 		var mi := MeshInstance3D.new()
 		mi.name = g.name
 		mi.mesh = g.mesh
@@ -76,7 +96,120 @@ static func attach(character: Node3D, garment: PackedScene) -> Array[MeshInstanc
 		mi.skeleton = mi.get_path_to(bs)
 		out.append(mi)
 	src.free()
+	if not springs.is_empty():
+		out.append(_spring_sim(bs, springs, unrename))
 	return out
+
+
+## Body mesh space -> skeleton space, through the waist (a bone every body
+## binds). Identity if the body has no waist bind.
+static func _mesh_to_skeleton(bs: Skeleton3D, body_bind: Dictionary, unrename: Dictionary) -> Transform3D:
+	var waist := bs.find_bone(unrename.get("CC_Base_Waist", "CC_Base_Waist"))
+	if waist < 0 or not body_bind.has("CC_Base_Waist"):
+		return Transform3D.IDENTITY
+	return global_rest(bs, waist) * (body_bind["CC_Base_Waist"] as Transform3D)
+
+
+## Adds the garment mesh g's cloth bones the skeleton lacks, at the rest its
+## binds give them (carried by m into body mesh space), under their parents
+## in the garment's armature. A bone's Y runs down its chain, as in Blender.
+## Returns the names of every cloth bone g binds.
+static func _add_springs(bs: Skeleton3D, g: MeshInstance3D, m: Transform3D,
+		body_bind: Dictionary, unrename: Dictionary) -> PackedStringArray:
+	var names := PackedStringArray()
+	var bind := {}
+	for b in g.skin.get_bind_count():
+		var name := String(g.skin.get_bind_name(b))
+		if name.begins_with(SPRING_PREFIX):
+			names.append(name)
+			bind[name] = g.skin.get_bind_pose(b)
+	if names.is_empty():
+		return names
+	var gs := g.get_node_or_null(g.skeleton) as Skeleton3D
+	if gs == null:
+		push_warning("CCWear: %s has cloth bones but no skeleton." % g.name)
+		return PackedStringArray()
+	var to_skel := _mesh_to_skeleton(bs, body_bind, unrename)
+	# The garment skeleton lists parents before children.
+	for gb in gs.get_bone_count():
+		var name := gs.get_bone_name(gb)
+		if not bind.has(name) or bs.find_bone(name) >= 0:
+			continue
+		var pname := gs.get_bone_name(gs.get_bone_parent(gb)) if gs.get_bone_parent(gb) >= 0 else ""
+		var parent := bs.find_bone(unrename.get(pname, pname))
+		if parent < 0:
+			push_warning("CCWear: no parent %s for cloth bone %s." % [pname, name])
+			continue
+		var at := to_skel * m * (bind[name] as Transform3D).affine_inverse()
+		var rest := Transform3D(at.basis.orthonormalized(), at.origin)
+		var bone := bs.add_bone(name)
+		bs.set_bone_parent(bone, parent)
+		bs.set_bone_rest(bone, global_rest(bs, parent).affine_inverse() * rest)
+		bs.reset_bone_pose(bone)
+	return names
+
+
+## A spring simulator on bs for the cloth bone chains named, the leg
+## capsules its children.
+static func _spring_sim(bs: Skeleton3D, names: PackedStringArray, unrename: Dictionary) -> SpringBoneSimulator3D:
+	var ends := {}
+	for name in names:
+		var parts := name.trim_prefix(SPRING_PREFIX).split("_")
+		var chain := SPRING_PREFIX + parts[0] + "_"
+		ends[chain] = maxi(ends.get(chain, -1), parts[1].to_int())
+	var sim := SpringBoneSimulator3D.new()
+	sim.name = "ClothSprings"
+	bs.add_child(sim)  # On the skeleton before naming bones, or the names do not resolve.
+	sim.set_setting_count(ends.size())
+	var hips: String = unrename.get("CC_Base_Hip", "CC_Base_Hip")
+	var i := 0
+	for chain: String in ends:
+		var end: String = chain + str(ends[chain])
+		var e := bs.find_bone(end)
+		sim.set_root_bone_name(i, chain + "0")
+		sim.set_end_bone_name(i, end)
+		# The last joint's own length: its chain's joints are evenly spaced.
+		sim.set_extend_end_bone(i, true)
+		sim.set_end_bone_direction(i, SpringBoneSimulator3D.BONE_DIRECTION_PLUS_Y)
+		sim.set_end_bone_length(i, bs.get_bone_rest(e).origin.length())
+		sim.set_radius(i, SPRING_RADIUS)
+		sim.set_stiffness(i, SPRING_STIFFNESS)
+		sim.set_drag(i, SPRING_DRAG)
+		sim.set_gravity(i, SPRING_GRAVITY)
+		sim.set_enable_all_child_collisions(i, true)
+		# Swings relative to the hips, not the world: walking does not drag
+		# the hem behind the legs, only the hips' turns and sways swing it.
+		sim.set_center_from(i, SpringBoneSimulator3D.CENTER_FROM_BONE)
+		sim.set_center_bone_name(i, hips)
+		i += 1
+	for cap: Array in LEG_CAPSULES:
+		var a := bs.find_bone(unrename.get(cap[0], cap[0]))
+		var b := bs.find_bone(unrename.get(cap[1], cap[1]))
+		if a < 0 or b < 0:
+			continue
+		# Along the bone, in its own frame: from its head to the next bone's.
+		var run := global_rest(bs, a).affine_inverse() * global_rest(bs, b).origin
+		var c := SpringBoneCollisionCapsule3D.new()
+		c.name = "Capsule_" + bs.get_bone_name(a)
+		sim.add_child(c)
+		c.set_bone_name(bs.get_bone_name(a))
+		c.set_position_offset(run * 0.5)
+		c.set_rotation_offset(Quaternion(Vector3.UP, run.normalized()))
+		c.set_radius(cap[2])
+		c.set_height(run.length() + 2.0 * cap[2])
+	return sim
+
+
+## A bone's rest in skeleton space, composed from the local rests up its
+## parents. Skeleton3D.get_bone_global_rest() is stale for bones added this
+## frame (it read identity for the cloth bones), and wrong for their parents'
+## frames until the skeleton updates.
+static func global_rest(bs: Skeleton3D, bone: int) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	while bone >= 0:
+		t = bs.get_bone_rest(bone) * t
+		bone = bs.get_bone_parent(bone)
+	return t
 
 
 ## The import BoneMap of the FBX the character's body was instanced from:
