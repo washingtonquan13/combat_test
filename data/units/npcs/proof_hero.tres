@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://data/characters/wanderer.tres" id="7_look"]
 [ext_resource type="Resource" path="res://data/items/work_belt.tres" id="8_belt"]
 [ext_resource type="Resource" path="res://data/items/work_pants.tres" id="9_pants"]
+[ext_resource type="Resource" path="res://data/items/ranger_garb.tres" id="10_garb"]
 
 [resource]
 script = ExtResource("1_def")
@@ -17,6 +18,7 @@ unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
 look = ExtResource("7_look")
 equipment = Dictionary[int, ExtResource("4_itemdef")]({
+3: ExtResource("10_garb"),
 9: ExtResource("8_belt"),
 10: ExtResource("9_pants")
 })
