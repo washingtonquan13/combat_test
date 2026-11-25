@@ -1,4 +1,4 @@
-// The Scared Townperson of Millhaven: the goblin raid quest, before and after.
+// The Scared Townperson of Millhaven: the bandit raid quest, before and after.
 
 == hub
 npc: I don't get many friendly faces through here anymore.  #smile  #line:f3c988
@@ -19,8 +19,8 @@ npc: What did you want to know?  #neutral  #line:4a272e
 == quest_intro
 before: [present DwarfFighter] -> quest_intro_dwarf_reaction
 npc: You mean the raids.  #frown  #line:d3c313
-npc: Goblins, mostly. Small bands, quick and mean.  #line:123bd0
-npc: But there's bigger ones running with them now. Uglier, smarter, giving the orders.  #close  #line:4fc078
+npc: Bandits. Deserters and debtors off the trade road, mostly. Quick and mean.  #line:123bd0
+npc: But someone's pulled them together now. A captain, they call him. Hard man, giving the orders.  #close  #line:4fc078
 npc: It's gotten worse these past few months.  #line:f508e8
 * What exactly have they done?  #line:977488
     give healing_potion
@@ -56,8 +56,8 @@ npc: They don't come every night. Just enough that nobody sleeps easy anymore.  
 
 == quest_insight
 npc: ...There's one more thing.  #wary  #close  #line:b2d814
-npc: The night they hit the mill, I saw one of them stop at the well and just stare at it. Like it was looking for something.  #line:332a06
-npc: The others didn't seem to notice, but the big one did. It got angry, herded it along.  #line:1d2593
+npc: The night they hit the mill, I saw one of them stop at the well and just stare down it. Like he was looking for something.  #line:332a06
+npc: The others didn't seem to notice, but the captain did. He got angry, shoved him along.  #line:1d2593
 npc: I haven't told anyone that part. Didn't want people thinking I'd lost my nerve completely.  #frown  #line:0280c7
 -> quest_details
 
@@ -124,8 +124,8 @@ npc: I don't have the words for what you did for this town.  #close  #line:e45c0
 
 == raid_warning
 npc: ...No. That's what's been eating at me.  #line:a84f2b
-npc: The quarry crew saw more of them on the road at dawn. A big one, and bows. Heading for the rise.  #line:3c61e7
-npc: That's where the crew sleeps, behind that palisade up past the pit. Goblins don't forget a thing like what you did.  #line:e92d50
+npc: The quarry crew saw more of them on the road at dawn. Another crew, a big man with a greatsword at the front, and bows. Heading for the rise.  #line:3c61e7
+npc: That's where the crew sleeps, behind that palisade up past the pit. Men like that don't forget a thing like what you did.  #line:e92d50
 npc: If they hit anyone back, it'll be the camp. And it'll be tonight.  #close  #line:5b07ac
 * Then we go now.  #line:c4f81d
 * Keep your doors barred. We'll handle it.  #line:16e3a9

@@ -6,12 +6,12 @@
 [sub_resource type="Resource" id="Resource_stage_heard"]
 script = ExtResource("2_stage")
 flag_name = "townsperson_heard_raids"
-journal_text = "A frightened woman on the edge of town told me goblin raiders — something bigger and smarter leading them now — have been hitting farms and travelers nearby. She thinks they're camped somewhere past the old quarry. I should find them and put a stop to the raids."
+journal_text = "A frightened woman on the edge of town told me a bandit gang, organised now under a hard-handed captain, has been hitting farms and travelers nearby. She thinks they're camped somewhere past the old quarry. I should find them and put a stop to the raids."
 
 [sub_resource type="Resource" id="Resource_stage_resolved"]
 script = ExtResource("2_stage")
 flag_name = "townsperson_raids_resolved"
-journal_text = "The goblin raiders are dead. The attacks on the town have stopped."
+journal_text = "The bandits and their captain are dead. The attacks on the town have stopped."
 
 [resource]
 script = ExtResource("1_quest")

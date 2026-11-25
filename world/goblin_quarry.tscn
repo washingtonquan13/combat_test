@@ -1,13 +1,14 @@
-[gd_scene load_steps=115 format=3 uid="uid://qu482ob1ymw4"]
+[gd_scene load_steps=116 format=3 uid="uid://qu482ob1ymw4"]
 
 [ext_resource type="Script" uid="uid://cnj62bswphp00" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_unit"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_cam"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://world/ladder.tscn" id="4_ladder"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="7_town"]
-[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/units/demons/goblin_rogue.tres" id="8_rogue"]
-[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/units/demons/hobgoblin.tres" id="9_hob"]
-[ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/units/demons/goblin_shaman.tres" id="10_shaman"]
+[ext_resource type="Resource" path="res://data/units/npcs/bandit_cutthroat.tres" id="8_rogue"]
+[ext_resource type="Resource" path="res://data/units/npcs/bandit_captain.tres" id="9_hob"]
+[ext_resource type="Resource" path="res://data/units/npcs/bandit_lieutenant.tres" id="9_raid_lt"]
+[ext_resource type="Resource" path="res://data/units/npcs/bandit_archer.tres" id="10_shaman"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="11_portrait"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="12_ability"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="13_melee"]
@@ -824,7 +825,7 @@ persistent_id = &"goblin_quarry_camper_tent"
 
 [node name="RaidHobgoblin" parent="." instance=ExtResource("2_unit")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 67.5, -0.6497, -62)
-definition = ExtResource("9_hob")
+definition = ExtResource("9_raid_lt")
 persistent_id = &"goblin_quarry_raid_hobgoblin"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)

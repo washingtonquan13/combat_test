@@ -383,8 +383,8 @@ duration = 7.0
 [node name="HobgoblinThreat" type="Node" parent="Beats"]
 script = ExtResource("6_line")
 role = &"hobgoblin"
-speaker_name = "Hobgoblin"
-text = "Fresh meat, walking right into our quarry. Nobody leaves this pit."
+speaker_name = "Bandit Captain"
+text = "Look what wandered into our quarry. Nobody leaves this pit."
 wait_for_advance = true
 auto_seconds = 0.0
 
@@ -416,7 +416,7 @@ auto_seconds = 0.0
 [node name="HobgoblinBark" type="Node" parent="Beats"]
 script = ExtResource("6_line")
 role = &"hobgoblin"
-speaker_name = "Hobgoblin"
+speaker_name = "Bandit Captain"
 text = "Then you die with them. Get them!"
 wait_for_advance = false
 auto_seconds = 1.5

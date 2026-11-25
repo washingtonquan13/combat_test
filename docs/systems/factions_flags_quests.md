@@ -25,6 +25,7 @@ FactionRelations answers "is faction A hostile to B" with a saved base table plu
 - **Calls in:** `FactionRelations.get_relation` :91 (AI, detection, Unit hostility), `set_relation` :102 (no callers), `escalate` :116-120 (unit_combat.gd:464, trigger_combat_effect.gd:28). `FlagManager.set_flag` :65 (dialogue_choice.gd:65, cinematic_cues.gd:74, passive_skill_prerequisite.gd:51, area_state.gd:39/53, world/goblin_quarry.gd:84-92 and 174-180); music cues also read flags through `FlagManager.has_flag` (music_manager.gd:339), `get_flag` :69, `has_flag` :73, `clear_flag` :77 and `get_flag_names_with_prefix` :85 (only area_state.gd:72-73). `QuestDatabase.find/get_all/refresh` :32-49 (party_overview.gd:394).
 - **Signals out:** FactionRelations signals (faction_relations.gd:37-39). FlagManager: `flag_changed(flag_name)` (flag_manager.gd:26), raised by `set_flag`/`clear_flag` and not by `load_state`; listeners are `music_manager.gd:121` (music cues read flags) and `goblin_quarry.gd:165`. Quests: none.
 - **Signals in:** FactionRelations ← `CombatManager.combat_ended` (faction_relations.gd:58).
+- **Quest content (Scared Townsperson):** the raiders are human bandits led by a captain (data/units/npcs/bandit_*.tres, fight-only); quest text in data/quests/scared_townsperson_raids.tres and data/dialogue/townsperson.dlg. Flags and node names still say goblin, see CINE-18 (cinematics.md).
 
 ## Depends on
 - SaveManager.register `&"factions"` (faction_relations.gd:78), `&"flags"` (flag_manager.gd:45).

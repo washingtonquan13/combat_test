@@ -1327,7 +1327,7 @@ animation_name = "Scene/Shout"
 script = ExtResource("8_line")
 role = &"lookout"
 speaker_name = "Lookout"
-text = "Goblins on the road! To the gate, to the gate!"
+text = "Bandits on the road! To the gate, to the gate!"
 wait_for_advance = false
 auto_seconds = 2.8
 
@@ -1583,8 +1583,8 @@ target = &"leader"
 [node name="HobgoblinBark" type="Node" parent="Beats"]
 script = ExtResource("8_line")
 role = &"hobgoblin"
-speaker_name = "Hobgoblin"
-text = "More meat for the pot. Cut them down!"
+speaker_name = "Bandit Lieutenant"
+text = "No witnesses. Cut them down!"
 wait_for_advance = false
 auto_seconds = 2.6
 

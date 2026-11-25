@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://btnqexsmk20xa" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
+[ext_resource type="Texture2D" uid="uid://c10vrr2spytr7" path="res://assets/portraits/test_portrait.jpg" id="4_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="5_ability"]
+[ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="6_attack_ranged"]
+[ext_resource type="Script" uid="uid://1cuiym8es4oi" path="res://systems/inventory_system/item_definition.gd" id="7_itemdef"]
+[ext_resource type="Resource" uid="uid://gmr1ju7bc3d6" path="res://data/items/longbow.tres" id="8_bow"]
+[ext_resource type="Resource" uid="uid://c41bul2lsch8o" path="res://data/ai_archetypes/support.tres" id="9_arch"]
+
+[resource]
+script = ExtResource("1_def")
+id = "bandit_archer"
+display_name = "Bandit Archer"
+stats = Dictionary[StringName, int]({})
+faction = &"enemy"
+portrait_texture = ExtResource("4_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("3_model")
+abilities = Array[ExtResource("5_ability")]([ExtResource("6_attack_ranged")])
+equipment = Dictionary[int, ExtResource("7_itemdef")]({
+14: ExtResource("8_bow")
+})
+ai_archetype = ExtResource("9_arch")
+ai_smartness = 2
+level = 1
+max_drops = 2
+drop_chance = 0.5
+move_speed = 4.0
+negotiable = false
