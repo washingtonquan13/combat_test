@@ -76,13 +76,6 @@ var _locomotion_set: LocomotionSet = null
 ## this gap, so the next turn doesn't start mid-recovery.
 @export var turn_gap: float = 0.35
 
-## How long a blow that connects freezes the attacker and the struck body
-## (see _hitstop), and the longer freeze of a critical hit. 0 is none.
-@export var hitstop: float = 0.1
-@export var hitstop_critical: float = 0.15
-## How far the camera is knocked along the blow as it lands, metres.
-@export var hitstop_kick: float = 0.06
-
 @export_group("Blending")
 ## The crossfade into a stance clip (an armed enter, hold or exit) and into
 ## the cast that launches from it. Those are the clips that start while
@@ -149,12 +142,6 @@ const MAX_HOLD := 6.0
 ## play-through recognizes itself as stale at fire time, instead of
 ## force-advancing whatever sequence happens to be active by then.
 var _sequence_token: int = 0
-## The speed a frozen body plays at, and the token that tells a freeze's
-## timer a newer freeze replaced it.
-const HITSTOP_SPEED := 0.05
-var _freeze_token: int = 0
-## The take each sequence with alternates played last (see _take_of).
-var _last_take: Dictionary[AnimationSequence, AnimationSequence] = {}
 ## Set when advance_external() is called before the active sequence has
 ## actually reached its EXTERNAL phase yet, and consumed the instant
 ## _advance_to_next_phase() lands on one — see advance_external()'s own
@@ -524,7 +511,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 		if action:
 			action.release()
 		return
-	var sequence: AnimationSequence = _take_of(_sequence_for(ability.motion))
+	var sequence: AnimationSequence = _sequence_for(ability.motion)
 	_look_at(_target)
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(playback.current_animation) in _armed_stance_clips
@@ -543,41 +530,7 @@ func _on_model_moment(moment_name: StringName) -> void:
 			if _cast_action:
 				_cast_action.release_next()
 		&"impact":
-			# The blow lands inside notify_impact(), so the action knows by
-			# the time it returns whether it hit.
-			var action: AbilityAction = unit.current_action
 			unit.notify_impact()
-			if action and action.hit and action.target is Unit and not _cutscene_claimed:
-				_hitstop(action)
-
-
-## A blow that connects freezes both bodies for a moment on the frame it
-## lands (the clip's impact key), then lets them go: the weight of the hit.
-## Only a clip's own impact key gets here, so only a body striking a body; a
-## shot's impact comes from its flight (ImpactSignalStep).
-func _hitstop(action: AbilityAction) -> void:
-	var seconds: float = hitstop_critical if action.is_critical else hitstop
-	if seconds <= 0.0:
-		return
-	freeze_for(seconds)
-	var struck: UnitAnimator = (action.target as Unit).animator()
-	if struck:
-		struck.freeze_for(seconds)
-	CameraImpulse.kick(get_viewport(), action.target.global_position,
-			action.attacker.global_position.direction_to(action.target.global_position),
-		hitstop_kick * (1.6 if action.is_critical else 1.0))
-
-
-## Holds this body all but still for `seconds`, whatever it is playing.
-func freeze_for(seconds: float) -> void:
-	if not animation_player:
-		return
-	_freeze_token += 1
-	var token := _freeze_token
-	animation_player.speed_scale = HITSTOP_SPEED
-	get_tree().create_timer(seconds).timeout.connect(func() -> void:
-		if token == _freeze_token and is_instance_valid(animation_player):
-			animation_player.speed_scale = 1.0)
 
 
 ## Turns the head to what the cast is aimed at: a unit's face, or the point
@@ -1138,19 +1091,6 @@ func _sequence_for(motion: StringName) -> AnimationSequence:
 		return null
 	var place: String = ".air" if _aloft else ".wall" if unit.held_surface_normal() != Vector3.ZERO else ""
 	return _motions.sequence_for(StringName(motion + place))
-
-
-## `sequence` or one of its alternates: any but the one this body played last
-## of them, so the same attack twice running shows two different takes.
-func _take_of(sequence: AnimationSequence) -> AnimationSequence:
-	if sequence == null or sequence.alternates.is_empty():
-		return sequence
-	var takes: Array[AnimationSequence] = [sequence]
-	takes.append_array(sequence.alternates)
-	takes.erase(_last_take.get(sequence))
-	var take: AnimationSequence = takes.pick_random()
-	_last_take[sequence] = take
-	return take
 
 
 ## This body's clip for `motion`, or "" when it has none.

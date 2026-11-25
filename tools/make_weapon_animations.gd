@@ -2,8 +2,6 @@ extends SceneTree
 
 # Rewrites the whole library, including the clips hand-solved in tools/humanoid/.
 # Rerun tools/humanoid/carry_clips.gd afterwards to put those back.
-# Then tools/locomotion/land_mixamo_sword.gd, which lands the sword's Swing
-# and Swing_B over the Swing made here.
 
 # Generates assets/weapon_animations.tres: one clip per kind of attack row,
 # keyed onto the UAL mannequin's GeneralSkeleton.

@@ -33,11 +33,6 @@ extends Resource
 
 @export var phases: Array[AnimationPhase] = []
 
-## Other takes of the same motion. UnitAnimator plays this sequence or one of
-## these each time, never the same one twice running, so a repeated attack
-## does not repeat its clip. An alternate's own alternates are not read.
-@export var alternates: Array[AnimationSequence] = []
-
 
 func describe() -> String:
 	var parts: PackedStringArray = []
