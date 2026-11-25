@@ -821,7 +821,7 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 			record.custom_slots.append(null)
 
 	# Absent from a save written before weapon sets: set I, the default.
-	record.active_weapon_set = clampi(int(entry.get("active_weapon_set", AttackRow.Kind.MELEE)), 0, 1) as AttackRow.Kind
+	record.active_weapon_set = clampi(int(entry.get("active_weapon_set", 0)), 0, EquipSlot.WEAPON_SETS.size() - 1)
 
 	for skill_entry in entry.get("skills", []):
 		var skill: Skill = SkillDatabase.find(skill_entry.get("skill_name", ""))

@@ -20,9 +20,42 @@ extends MarginContainer
 enum Slot {
 	HELMET, AMULET, CLOAK, CHEST_ARMOR, UNDERSHIRT, BRACERS,
 	RING_1, RING_2, GLOVES, BELT, LEGS, BOOTS,
-	MELEE_MAIN_HAND, MELEE_OFF_HAND, RANGED_MAIN_HAND, RANGED_OFF_HAND,
+	SET_1_MAIN_HAND, SET_1_OFF_HAND, SET_2_MAIN_HAND, SET_2_OFF_HAND,
 }
 @export var slot: Slot = Slot.HELMET
+
+## The weapon sets, [main hand, off hand] each, in the order F cycles
+## them. A set has no kind: it attacks with whatever its hands hold, so a
+## sword and pistol is as good a set as a bow alone. Saves store a set by
+## its index here and a hand by its Slot value.
+const WEAPON_SETS: Array = [
+	[Slot.SET_1_MAIN_HAND, Slot.SET_1_OFF_HAND],
+	[Slot.SET_2_MAIN_HAND, Slot.SET_2_OFF_HAND],
+]
+const HAND_SLOTS: Array[Slot] = [
+	Slot.SET_1_MAIN_HAND, Slot.SET_1_OFF_HAND,
+	Slot.SET_2_MAIN_HAND, Slot.SET_2_OFF_HAND,
+]
+
+
+## The main or off hand of weapon set `weapon_set`.
+static func hand_slot(weapon_set: int, off_hand: bool) -> Slot:
+	return WEAPON_SETS[weapon_set][1 if off_hand else 0]
+
+
+## Which weapon set a hand belongs to; -1 for a slot that isn't a hand.
+static func set_of(hand: int) -> int:
+	for i in WEAPON_SETS.size():
+		if hand in WEAPON_SETS[i]:
+			return i
+	return -1
+
+
+static func is_off_hand(hand: int) -> bool:
+	for pair: Array in WEAPON_SETS:
+		if pair[1] == hand:
+			return true
+	return false
 
 ## The faint outline an empty slot shows, so it reads as "helmet" or
 ## "off hand" before anything is in it. Set per slot in party_overview.tscn.

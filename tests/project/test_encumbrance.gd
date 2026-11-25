@@ -20,12 +20,12 @@ func run() -> void:
 		hero.get_stat(StatIds.MOVE) == maxf(1.0, floorf(move * 0.6)) and hero.get_stat(StatIds.DODGE) == dodge - 2,
 		"move %s dodge %s" % [hero.get_stat(StatIds.MOVE), hero.get_stat(StatIds.DODGE)])
 
-	hero.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(load("res://data/items/greatsword.tres")))
+	hero.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND, ItemInstance.new(load("res://data/items/greatsword.tres")))
 	var tower := ItemInstance.new(load("res://data/items/tower_shield.tres"))
 	check("15 of 32 lb worn, a 25 lb tower shield won't go on",
-		hero.worn_weight() == 15.0 and not hero.weight_allows(EquipSlot.Slot.RANGED_OFF_HAND, tower))
+		hero.worn_weight() == 15.0 and not hero.weight_allows(EquipSlot.Slot.SET_2_OFF_HAND, tower))
 
-	hero.unequip_item(EquipSlot.Slot.MELEE_MAIN_HAND)
+	hero.unequip_item(EquipSlot.Slot.SET_1_MAIN_HAND)
 	hero.unequip_item(EquipSlot.Slot.HELMET)
 	hero.unequip_item(EquipSlot.Slot.CHEST_ARMOR)
 	check("taking it all off restores Move and Dodge",

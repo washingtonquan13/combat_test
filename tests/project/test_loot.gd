@@ -26,7 +26,7 @@ func run() -> void:
 	sword.rare_name = "Grim Fang"
 	sword.identified = false
 	var hand := EquipSlot.new()
-	hand.slot_type = GearItem.SlotType.MELEE_MAIN_HAND
+	hand.slot_type = GearItem.SlotType.HAND
 	var damage: int = sword.attacks()[0].damage_bonus
 	check("unidentified: no damage bonus, and no slot takes it", sword.attacks()[0].damage_bonus == damage
 		and sword.modifiers().is_empty() and not hand.accepts(sword))

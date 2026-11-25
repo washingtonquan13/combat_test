@@ -8,8 +8,8 @@ extends "res://tools/item_layer_demo.gd"
 
 const Greatsword: ItemDefinition = preload("res://data/items/greatsword.tres")
 const WoodenShield: ItemDefinition = preload("res://data/items/wooden_shield.tres")
-const MAIN := EquipSlot.Slot.MELEE_MAIN_HAND
-const OFF := EquipSlot.Slot.MELEE_OFF_HAND
+const MAIN := EquipSlot.Slot.SET_1_MAIN_HAND
+const OFF := EquipSlot.Slot.SET_1_OFF_HAND
 
 
 func _run() -> void:

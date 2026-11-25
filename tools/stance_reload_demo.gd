@@ -111,6 +111,6 @@ func _check_stance(stance: String, when: String = "") -> void:
 
 
 func _bare_handed() -> void:
-	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.RANGED_OFF_HAND]:
+	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.SET_2_OFF_HAND]:
 		if _hero.get_equipped_item(key):
 			_hero.unequip_item(key)

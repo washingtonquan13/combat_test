@@ -35,10 +35,10 @@ func get_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 	return _equipped.get(slot_key)
 
 
-## Each hand slot's partner, main -> off.
+## Each hand slot's partner, main -> off, one pair per weapon set.
 const OFF_HAND_OF: Dictionary = {
-	EquipSlot.Slot.MELEE_MAIN_HAND: EquipSlot.Slot.MELEE_OFF_HAND,
-	EquipSlot.Slot.RANGED_MAIN_HAND: EquipSlot.Slot.RANGED_OFF_HAND,
+	EquipSlot.Slot.SET_1_MAIN_HAND: EquipSlot.Slot.SET_1_OFF_HAND,
+	EquipSlot.Slot.SET_2_MAIN_HAND: EquipSlot.Slot.SET_2_OFF_HAND,
 }
 
 
@@ -76,6 +76,7 @@ func equip(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 	_register(slot_key)
 	_watchers[slot_key] = _refresh.bind(slot_key)
 	item.modifiers_changed.connect(_watchers[slot_key])
+	_resync_shields()
 	_update_encumbrance()
 
 
@@ -89,6 +90,7 @@ func unequip(slot_key: EquipSlot.Slot) -> ItemInstance:
 		_watchers.erase(slot_key)
 		_unregister(slot_key)
 	_equipped.erase(slot_key)
+	_resync_shields()
 	_update_encumbrance()
 	return item
 
@@ -101,7 +103,9 @@ var _watchers: Dictionary = {}  # EquipSlot.Slot -> the Callable on modifiers_ch
 
 func _register(slot_key: EquipSlot.Slot) -> void:
 	var item: ItemInstance = _equipped[slot_key]
-	var granted: Array[StatModifierBehavior] = item.stat_modifiers()
+	var granted: Array[StatModifierBehavior] = []
+	if not _is_shield(item) or slot_key == _counted_shield():
+		granted = item.stat_modifiers()
 	for modifier in granted:
 		_owner.register_stat_modifier(modifier, item.display_name())
 	_registered[slot_key] = granted
@@ -117,7 +121,40 @@ func _unregister(slot_key: EquipSlot.Slot) -> void:
 func _refresh(slot_key: EquipSlot.Slot) -> void:
 	_unregister(slot_key)
 	_register(slot_key)
+	_resync_shields()
 	_owner.equipment_changed.emit(_owner)
+
+
+## One shield counts, whichever set holds it: a shield in each set's off
+## hand is one on the arm and one on the back, so only the higher DB
+## (the first on a tie) grants its modifiers.
+func _counted_shield() -> int:
+	var best: int = -1
+	var best_db: int = -1
+	for slot in EquipSlot.HAND_SLOTS:
+		var item: ItemInstance = _equipped.get(slot)
+		if _is_shield(item):
+			var db: int = 0
+			for modifier in item.stat_modifiers():
+				if modifier.stat_name == StatIds.DB:
+					db += modifier.amount
+			if db > best_db:
+				best = slot
+				best_db = db
+	return best
+
+
+static func _is_shield(item: ItemInstance) -> bool:
+	return item != null and item.gear_data != null and item.gear_data.is_shield
+
+
+## Re-registers every held shield, so the one that counts follows a
+## shield being added, removed or re-runed.
+func _resync_shields() -> void:
+	for slot in EquipSlot.HAND_SLOTS:
+		if _is_shield(_equipped.get(slot)):
+			_unregister(slot)
+			_register(slot)
 
 
 ## GURPS encumbrance (B17): the weight of worn and wielded gear against

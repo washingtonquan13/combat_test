@@ -8,9 +8,9 @@ extends "res://tools/item_layer_demo.gd"
 ## and ammo are all real, the turn economy is out of the picture. Record
 ## it the same way as item_layer_demo.
 
-const MAIN := EquipSlot.Slot.MELEE_MAIN_HAND
-const OFF := EquipSlot.Slot.MELEE_OFF_HAND
-const RANGED := EquipSlot.Slot.RANGED_MAIN_HAND
+const MAIN := EquipSlot.Slot.SET_1_MAIN_HAND
+const OFF := EquipSlot.Slot.SET_1_OFF_HAND
+const RANGED := EquipSlot.Slot.SET_2_MAIN_HAND
 
 var _hero: Unit
 
@@ -19,7 +19,7 @@ func _run() -> void:
 	await _wait(1.0)
 	await _boot_into_arena()
 	_hero = PartyManager.leader
-	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.RANGED_OFF_HAND]:
+	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.SET_2_OFF_HAND]:
 		if _hero.get_equipped_item(key):
 			_hero.unequip_item(key)
 	_hero.set_base_stat(StatIds.DX, 14)

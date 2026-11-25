@@ -75,7 +75,7 @@ var _hits: int = 1
 ## Template Ability -> {[AttackRow, off_hand, weapon set] -> its bound
 ## copy}. See _bound_to.
 var _bound: Dictionary = {}
-## Bound copy -> the weapon set (AttackRow.Kind, or -1 for none) of the
+## Bound copy -> the weapon set (EquipSlot.WEAPON_SETS index, or -1 for none) of the
 ## hand slot its row came from. See weapon_set_of.
 var _bound_set: Dictionary = {}
 ## WeaponData.reload_motion -> the Reload that plays it; see _reload.
@@ -210,11 +210,11 @@ func default_ability() -> Ability:
 	return all[0] if not all.is_empty() else null
 
 
-## The weapon set (AttackRow.Kind) an ability from combat_abilities()
-## belongs to, or -1 when it belongs to none: a spell, a natural attack, a
-## punch. Decided by the HAND SLOT a row came from, not the row's kind:
-## a throwing axe held in the melee hand throws from set I. Reload belongs
-## to the set holding the magazine weapon it plays for.
+## The weapon set (an index into EquipSlot.WEAPON_SETS) an ability from
+## combat_abilities() belongs to, or -1 when it belongs to none: a spell, a
+## natural attack, a punch. Decided by the HAND SLOT a row came from, not
+## the row's kind: a pistol in set I fires from set I. Reload belongs to
+## the set holding the magazine weapon it plays for.
 func weapon_set_of(ability: Ability) -> int:
 	if ability == null:
 		return -1
@@ -226,10 +226,10 @@ func weapon_set_of(ability: Ability) -> int:
 
 
 ## The set of the hand whose gun a Reload reloads: the one whose reload
-## clip it plays, else the first magazine weapon in RELOAD_ORDER.
+## clip it plays, else the first magazine weapon in _reload_order().
 func _reload_set(ability: Ability) -> int:
 	var fallback: int = -1
-	for slot in RELOAD_ORDER:
+	for slot in _reload_order():
 		var item: ItemInstance = _owner.get_equipped_item(slot)
 		if item == null or item.magazine() <= 0:
 			continue
@@ -242,10 +242,10 @@ func _reload_set(ability: Ability) -> int:
 	return fallback
 
 
-## Every row this unit can attack with of one kind in its main hand:
-## the held weapon's, then its body's natural attacks. A melee unit with
-## neither punches. Ranged with neither has none. The off hand's are
-## off_hand_rows().
+## Every row this unit can attack with of one kind in its main hands:
+## the held weapons', active set first, then its body's natural attacks.
+## A unit with no melee row anywhere punches; ranged with none has none.
+## The off hands' are off_hand_rows().
 func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	var rows: Array[AttackRow] = _held_rows(kind, false)
 	for row in _owner.natural_attacks:
@@ -256,47 +256,66 @@ func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return rows
 
 
-## The off-hand weapon's rows of one kind, each its own attack at
+## The off-hand weapons' rows of one kind, each its own attack at
 ## OFF_HAND_PENALTY — except a row marked off_hand_ok (a shield's bash).
 func off_hand_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return _held_rows(kind, true)
 
 
-## A melee hand's ranged rows count too: that is a thrown weapon (a
-## throwing axe's Throw), fired from the hand that swings it and never
-## used up.
+## Every row of one kind in the main or off hands of every set: a sword
+## and pistol set swings and shoots, a throwing axe swings and throws.
 func _held_rows(kind: AttackRow.Kind, off_hand: bool) -> Array[AttackRow]:
 	var rows: Array[AttackRow] = []
-	for entry in _held_entries(kind, off_hand):
+	for entry in _held_entries(kind, off_hand, true):
 		rows.append(entry[0])
 	return rows
 
 
-## _held_rows, each as [row, weapon set of the slot it came from].
-func _held_entries(kind: AttackRow.Kind, off_hand: bool) -> Array:
+## _held_rows, each as [row, weapon set of the slot it came from]. In set
+## order, so the hotbar's attacks keep their places across a swap; with
+## active_first the drawn set's lead instead (attack_rows, row_for).
+func _held_entries(kind: AttackRow.Kind, off_hand: bool, active_first: bool = false) -> Array:
 	var entries: Array = []
-	var slots: Array = [_hand_slot(kind, off_hand)]
-	if kind == AttackRow.Kind.RANGED:
-		slots.append(_hand_slot(AttackRow.Kind.MELEE, off_hand))
-	for slot in slots:
-		var item: ItemInstance = _owner.get_equipped_item(slot)
+	var sets: Array[int] = _sets_active_first() if active_first else _all_sets()
+	for weapon_set in sets:
+		var item: ItemInstance = _owner.get_equipped_item(EquipSlot.hand_slot(weapon_set, off_hand))
 		if item:
 			for row in item.rows_of(kind):
-				entries.append([row, _set_of_slot(slot)])
+				entries.append([row, weapon_set])
 	return entries
 
 
-## Set I (MELEE) for a melee hand, set II (RANGED) for a ranged one.
+## Every weapon set's index, the active one first.
+func _sets_active_first() -> Array[int]:
+	var order: Array[int] = [_owner.active_weapon_set]
+	for i in _all_sets():
+		if i != _owner.active_weapon_set:
+			order.append(i)
+	return order
+
+
+static func _all_sets() -> Array[int]:
+	var all: Array[int] = []
+	for i in EquipSlot.WEAPON_SETS.size():
+		all.append(i)
+	return all
+
+
 static func _set_of_slot(slot: EquipSlot.Slot) -> int:
-	if slot == EquipSlot.Slot.MELEE_MAIN_HAND or slot == EquipSlot.Slot.MELEE_OFF_HAND:
-		return AttackRow.Kind.MELEE
-	return AttackRow.Kind.RANGED
+	return EquipSlot.set_of(slot)
 
 
 ## The held copy whose weapon has row — whose magazine an attack with
-## row fires from. Null for a natural attack or a punch.
-func item_holding(row: AttackRow) -> ItemInstance:
-	for slot in HAND_SLOTS:
+## row fires from. Null for a natural attack or a punch. Copies of one
+## item share their rows, so with ability the hand it was bound from is
+## asked first: a pistol in each set fires the one its attack belongs to.
+func item_holding(row: AttackRow, ability: Ability = null) -> ItemInstance:
+	var slots: Array[EquipSlot.Slot] = []
+	var gear: GearDamageEffect = _gear_effect(ability) if ability else null
+	if gear and _bound_set.has(ability):
+		slots.append(EquipSlot.hand_slot(_bound_set[ability], gear.off_hand))
+	slots.append_array(HAND_SLOTS)
+	for slot in slots:
 		var item: ItemInstance = _owner.get_equipped_item(slot)
 		if item and item.attacks().has(row):
 			return item
@@ -306,7 +325,7 @@ func item_holding(row: AttackRow) -> ItemInstance:
 ## Rounds left for ability's weapon, or -1 when it has no magazine.
 func shots_left(ability: Ability) -> int:
 	var effect: GearDamageEffect = _gear_effect(ability)
-	var item: ItemInstance = item_holding(effect.row_for(_owner)) if effect else null
+	var item: ItemInstance = item_holding(effect.row_for(_owner), ability) if effect else null
 	return item.shots_left() if item else -1
 
 
@@ -329,16 +348,7 @@ func _holds_magazine_weapon() -> bool:
 	return false
 
 
-const HAND_SLOTS: Array[EquipSlot.Slot] = [
-	EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND,
-	EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND,
-]
-
-
-static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
-	if kind == AttackRow.Kind.MELEE:
-		return EquipSlot.Slot.MELEE_OFF_HAND if off_hand else EquipSlot.Slot.MELEE_MAIN_HAND
-	return EquipSlot.Slot.RANGED_OFF_HAND if off_hand else EquipSlot.Slot.RANGED_MAIN_HAND
+const HAND_SLOTS: Array[EquipSlot.Slot] = EquipSlot.HAND_SLOTS
 
 
 ## unit.abilities with each generic weapon attack (an ability carrying an
@@ -347,12 +357,12 @@ static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
 ## a beast's Claws and Bite. What the hotbar shows and the AI picks
 ## from. unit.abilities itself, and saves, keep the generic one.
 ##
-## Holding a weapon is enough: a unit with a bow in its ranged hands but
-## no ranged template among its abilities (most PCs) still gets the bow's
+## Holding a weapon is enough: a unit with a bow in either set but no
+## ranged template among its abilities (most PCs) still gets the bow's
 ## attacks, from the shared template of that kind. Both sets are live at
-## once, so switching between melee and ranged costs nothing: the hotbar
-## shows the inactive set's attacks too, and using one swaps to its set
-## (see use_ability and weapon_set_of).
+## once, so switching between them costs nothing: the hotbar shows the
+## inactive set's attacks too, and using one swaps to its set (see
+## use_ability and weapon_set_of).
 func combat_abilities() -> Array[Ability]:
 	var result: Array[Ability] = []
 	var abilities: Array[Ability] = _owner.abilities.duplicate()
@@ -399,7 +409,7 @@ func _reload() -> Ability:
 	if not _holds_magazine_weapon():
 		return null
 	var plain: Ability = load(RELOAD)
-	for slot in RELOAD_ORDER:
+	for slot in _reload_order():
 		var item: ItemInstance = _owner.get_equipped_item(slot)
 		var gear := item.definition as GearItem if item else null
 		var weapon: WeaponData = gear.weapon_data if gear else null
@@ -417,11 +427,14 @@ func _reload() -> Ability:
 ## Offered while a held weapon has a magazine. Loaded lazily like
 ## DEFAULT_TEMPLATES.
 const RELOAD := "res://data/abilities/reload.tres"
-## Which hand's gun Reload plays for first: a ranged hand's.
-const RELOAD_ORDER: Array[EquipSlot.Slot] = [
-	EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND,
-	EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND,
-]
+## Which hand's gun Reload plays for first: the drawn set's, main hand
+## first.
+func _reload_order() -> Array[EquipSlot.Slot]:
+	var order: Array[EquipSlot.Slot] = []
+	for weapon_set in _sets_active_first():
+		order.append(EquipSlot.hand_slot(weapon_set, false))
+		order.append(EquipSlot.hand_slot(weapon_set, true))
+	return order
 
 
 ## The generic attack a held weapon of each kind falls back to. Loaded
@@ -653,7 +666,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# happens swaps nothing.
 	var weapon_set: int = weapon_set_of(ability)
 	if weapon_set != -1:
-		_owner.set_active_weapon_set(weapon_set as AttackRow.Kind)
+		_owner.set_active_weapon_set(weapon_set)
 
 	if _owner.in_combat() and ability.uses_attack_action:
 		_owner.has_attacked = true
@@ -759,7 +772,7 @@ func _decide(action: AbilityAction) -> void:
 	var gear: GearDamageEffect = _gear_effect(ability)
 	var row: AttackRow = gear.row_for(_owner) if gear else null
 	var shots: int = row.rof if row else 1
-	var item: ItemInstance = item_holding(row) if row else null
+	var item: ItemInstance = item_holding(row, ability) if row else null
 	if item:
 		shots = item.fire(shots)
 	action.shots = maxi(shots, 1)
@@ -1138,8 +1151,10 @@ func dodge_parts() -> Array[Dictionary]:
 	return _owner.stat_breakdown(StatIds.DODGE) + _db_parts()
 
 
+## A shield in either set counts, as its DB does (registered on equip,
+## whichever set is drawn).
 func holds_shield() -> bool:
-	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
+	for slot in HAND_SLOTS:
 		var item: ItemInstance = _owner.get_equipped_item(slot)
 		if item and item.gear_data and item.gear_data.is_shield:
 			return true
@@ -1172,10 +1187,13 @@ static func _sum(parts: Array[Dictionary]) -> int:
 	return total
 
 
+## A weapon that can strike in melee, in either set: a bow or gun alone
+## parries bare-handed.
 static func _holds_melee_weapon(unit: Unit) -> bool:
-	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
+	for slot in HAND_SLOTS:
 		var item: ItemInstance = unit.get_equipped_item(slot)
-		if item and item.gear_data and item.gear_data.weapon_data:
+		if item and item.gear_data and item.gear_data.weapon_data \
+				and not item.rows_of(AttackRow.Kind.MELEE).is_empty():
 			return true
 	return false
 

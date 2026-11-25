@@ -64,10 +64,13 @@ func set_text(text: String) -> void:
 
 func _kind_of(item: ItemInstance) -> String:
 	if item.gear_data:
-		var kind: String = GearItem.SlotType.keys()[item.gear_data.slot_type].capitalize()
-		if item.gear_data.weapon_data and item.gear_data.weapon_data.two_handed:
-			kind += ", two-handed"
-		return kind
+		match item.gear_data.slot_type:
+			GearItem.SlotType.HAND:
+				var two_handed: bool = item.gear_data.weapon_data and item.gear_data.weapon_data.two_handed
+				return "Two-handed" if two_handed else "One-handed"
+			GearItem.SlotType.OFF_HAND:
+				return "Off hand"
+		return GearItem.SlotType.keys()[item.gear_data.slot_type].capitalize()
 	if item.definition is RuneItem:
 		return "Rune — drag onto an item with a free socket"
 	if item.definition is SocketTool:

@@ -1452,11 +1452,20 @@ func _apply_definition_equipment() -> void:
 		var item_def: ItemDefinition = definition.equipment[slot_key]
 		if item_def != null and get_equipped_item(slot_key) == null:
 			equip_item(slot_key, ItemInstance.new(item_def))
-	# An archer with nothing for melee starts with its bow as the active set,
-	# so it is the bow that comes out when the fight starts.
-	if get_equipped_item(EquipSlot.Slot.MELEE_MAIN_HAND) == null \
-			and get_equipped_item(EquipSlot.Slot.RANGED_MAIN_HAND) != null:
-		set_active_weapon_set(AttackRow.Kind.RANGED, false)
+	# A unit whose first set is empty-handed starts on the first set that
+	# holds something, so a weapon comes out when the fight starts.
+	if not _set_holds_anything(0):
+		for weapon_set in range(1, EquipSlot.WEAPON_SETS.size()):
+			if _set_holds_anything(weapon_set):
+				set_active_weapon_set(weapon_set, false)
+				break
+
+
+func _set_holds_anything(weapon_set: int) -> bool:
+	for hand: EquipSlot.Slot in EquipSlot.WEAPON_SETS[weapon_set]:
+		if get_equipped_item(hand) != null:
+			return true
+	return false
 
 
 func _apply_definition_skills() -> void:
@@ -2081,12 +2090,12 @@ func unequip_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 # ends in loadout_changed, which is the one signal the hotbar and the
 # held/sheathed weapon models listen to.
 
-## BG3-style weapon sets. MELEE is set I (MELEE_MAIN_HAND/MELEE_OFF_HAND),
-## RANGED is set II (RANGED_MAIN_HAND/RANGED_OFF_HAND). Both sets' attacks
-## stay in combat_abilities(); this says which one is in hand, which
-## default_ability() attacks with, and which one using the other's attack
-## swaps away from. Write through set_active_weapon_set.
-var active_weapon_set: AttackRow.Kind = AttackRow.Kind.MELEE
+## BG3-style weapon sets: an index into EquipSlot.WEAPON_SETS (0 is set I,
+## 1 set II). A set has no kind; it attacks with whatever its two hands
+## hold. Both sets' attacks stay in combat_abilities(); this says which one
+## is in hand, which default_ability() attacks with, and which one using
+## the other's attack swaps away from. Write through set_active_weapon_set.
+var active_weapon_set: int = 0
 ## True: both sets on the back and hip, nothing in hand. Units start
 ## sheathed; joining a fight draws, leaving one sheathes (see encounter's
 ## setter), and swapping sets or using a weapon attack draws. Write
@@ -2095,21 +2104,21 @@ var weapons_sheathed: bool = true
 var _loadout_queued: bool = false
 
 
-## Makes kind the set in hand. Free — no action, no move. draw: also take
-## the weapons out, which choosing a set means everywhere except restoring
-## a saved one.
-func set_active_weapon_set(kind: AttackRow.Kind, draw: bool = true) -> void:
-	if kind != active_weapon_set:
-		active_weapon_set = kind
+## Makes weapon_set the set in hand. Free — no action, no move. draw: also
+## take the weapons out, which choosing a set means everywhere except
+## restoring a saved one.
+func set_active_weapon_set(weapon_set: int, draw: bool = true) -> void:
+	weapon_set = clampi(weapon_set, 0, EquipSlot.WEAPON_SETS.size() - 1)
+	if weapon_set != active_weapon_set:
+		active_weapon_set = weapon_set
 		_queue_loadout_changed()
 	if draw:
 		set_weapons_sheathed(false)
 
 
-## The other set, drawn. Free, like set_active_weapon_set.
+## The next set, drawn. Free, like set_active_weapon_set.
 func swap_weapon_set() -> void:
-	var other: AttackRow.Kind = AttackRow.Kind.RANGED if active_weapon_set == AttackRow.Kind.MELEE else AttackRow.Kind.MELEE
-	set_active_weapon_set(other)
+	set_active_weapon_set((active_weapon_set + 1) % EquipSlot.WEAPON_SETS.size())
 
 
 func set_weapons_sheathed(value: bool) -> void:
@@ -2463,7 +2472,7 @@ func _apply_pending_state() -> void:
 	# Restored sheathed: a state from before weapon sets has no key, and
 	# drawing is the encounter's to decide, not the save's.
 	if state.has("active_weapon_set"):
-		set_active_weapon_set(clampi(int(state["active_weapon_set"]), 0, 1) as AttackRow.Kind, false)
+		set_active_weapon_set(int(state["active_weapon_set"]), false)
 	if is_node_ready():
 		_update_low_pool_statuses()
 	_budget_flying = is_flying()

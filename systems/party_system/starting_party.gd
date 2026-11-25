@@ -31,9 +31,9 @@ const WORN := {
 	# The whole outfit (shirt, jerkin, belt, bracers, trousers, boots) is one
 	# item: belt and trousers worn as well would draw over it.
 	EquipSlot.Slot.CHEST_ARMOR: "ranger_garb",
-	EquipSlot.Slot.MELEE_MAIN_HAND: "iron_sword",
-	EquipSlot.Slot.MELEE_OFF_HAND: "wooden_shield",
-	EquipSlot.Slot.RANGED_MAIN_HAND: "longbow",
+	EquipSlot.Slot.SET_1_MAIN_HAND: "iron_sword",
+	EquipSlot.Slot.SET_1_OFF_HAND: "wooden_shield",
+	EquipSlot.Slot.SET_2_MAIN_HAND: "longbow",
 }
 
 

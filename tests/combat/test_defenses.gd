@@ -25,12 +25,16 @@ func run() -> void:
 		defender.best_defense(attacker, melee()).target == 9)
 
 	var shield := ItemInstance.new(load("res://data/items/wooden_shield.tres"))
-	defender.equip_item(EquipSlot.Slot.MELEE_OFF_HAND, shield)
+	defender.equip_item(EquipSlot.Slot.SET_1_OFF_HAND, shield)
 	check("a shield's DB raises Dodge too", defender._combat.dodge_target() == 10)
 	check("a shield blocks a ranged hit",
 		defender.best_defense(attacker, ranged()) == {"kind": &"block", "target": 11})
 	defender.spend_defense(&"block")
 	check("only once per turn",
 		defender.best_defense(attacker, ranged()) == {"kind": &"dodge", "target": 10})
-	defender.unequip_item(EquipSlot.Slot.MELEE_OFF_HAND)
+	defender.equip_item(EquipSlot.Slot.SET_2_OFF_HAND, ItemInstance.new(load("res://data/items/buckler.tres")))
+	check("a shield in each set counts once, the better", defender.get_stat(StatIds.DB) == 2.0, "DB %s" % defender.get_stat(StatIds.DB))
+	defender.unequip_item(EquipSlot.Slot.SET_1_OFF_HAND)
+	check("and the other takes over when it goes", defender.get_stat(StatIds.DB) == 1.0)
+	defender.unequip_item(EquipSlot.Slot.SET_2_OFF_HAND)
 	free_spawned()

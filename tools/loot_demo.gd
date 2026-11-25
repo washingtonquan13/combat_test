@@ -5,7 +5,7 @@ extends "res://tools/item_layer_demo.gd"
 ## ragdoll Corpse holding its drops, and test_arena's loot chest rolling on first open. Record it
 ## the same way as item_layer_demo.
 
-const MAIN := EquipSlot.Slot.MELEE_MAIN_HAND
+const MAIN := EquipSlot.Slot.SET_1_MAIN_HAND
 const TooltipScene: PackedScene = preload("res://systems/inventory_system/item_tooltip.tscn")
 
 var _hero: Unit

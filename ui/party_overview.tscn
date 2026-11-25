@@ -347,7 +347,7 @@ theme_override_constants/separation = 6
 [node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Melee"
+text = "Set I"
 horizontal_alignment = 1
 
 [node name="Slots" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet"]
@@ -377,7 +377,7 @@ theme_override_constants/separation = 6
 [node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 15
-text = "Ranged"
+text = "Set II"
 horizontal_alignment = 1
 
 [node name="Slots" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet"]
@@ -389,7 +389,7 @@ empty_icon = ExtResource("slot_ranged_main")
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
-slot_type = 13
+slot_type = 11
 slot = 14
 
 [node name="RangedOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
@@ -397,7 +397,7 @@ empty_icon = ExtResource("slot_ranged_off")
 unique_name_in_owner = true
 custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
-slot_type = 14
+slot_type = 12
 slot = 15
 
 [node name="EncumbranceBar" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer" instance=ExtResource("4_encumbrance")]

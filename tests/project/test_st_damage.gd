@@ -58,7 +58,7 @@ func run() -> void:
 	var fighter: Unit = spawn_unit(&"player", 12, 10, 10, [melee()], Vector3(4, 0, 0))
 	var names: Callable = func(u: Unit): return u.combat_abilities().map(func(a): return a.ability_name)
 	check("an empty hand offers a punch", names.call(fighter) == ["Punch"], "got %s" % [names.call(fighter)])
-	fighter.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(sword))
+	fighter.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND, ItemInstance.new(sword))
 	check("a sword offers swing and thrust", names.call(fighter) == ["Swing", "Thrust"], "got %s" % [names.call(fighter)])
 	check("the same row is the same ability each time", fighter.combat_abilities()[1] == fighter.combat_abilities()[1])
 	var thrust: Ability = fighter.combat_abilities()[1]
@@ -68,14 +68,14 @@ func run() -> void:
 
 	# Hands: a second sword is its own attacks at -4; a two-handed one
 	# needs the off hand empty, keeps it so, and wants ST 12.
-	var off_hand := EquipSlot.Slot.MELEE_OFF_HAND
+	var off_hand := EquipSlot.Slot.SET_1_OFF_HAND
 	fighter.equip_item(off_hand, ItemInstance.new(sword))
 	var all: Array[Ability] = fighter.combat_abilities()
 	check("an off-hand sword adds its own swing and thrust", names.call(fighter) == ["Swing", "Thrust", "Swing (off hand)", "Thrust (off hand)"],
 		"got %s" % [names.call(fighter)])
 	check("the off hand is -4 to hit", fighter.to_hit_target(beast, all[2]) == fighter.to_hit_target(beast, all[0]) - 4)
 	var greatsword := ItemInstance.new(load("res://data/items/greatsword.tres"))
-	var main := EquipSlot.Slot.MELEE_MAIN_HAND
+	var main := EquipSlot.Slot.SET_1_MAIN_HAND
 	check("a two-handed weapon won't go in with the off hand full", not fighter.hands_allow(main, greatsword))
 	fighter.unequip_item(off_hand)
 	fighter.unequip_item(main)
@@ -103,7 +103,7 @@ func run() -> void:
 	# hits with its own ST; past ½D the roll is halved.
 	fighter.unequip_item(off_hand)
 	fighter.equip_item(main, ItemInstance.new(sword))
-	var ranged_main := EquipSlot.Slot.RANGED_MAIN_HAND
+	var ranged_main := EquipSlot.Slot.SET_2_MAIN_HAND
 	fighter.equip_item(ranged_main, ItemInstance.new(load("res://data/items/longbow.tres")))
 	check("sword and bow on a melee-only unit offer both sets", names.call(fighter) == ["Swing", "Thrust", "Shoot"],
 		"got %s" % [names.call(fighter)])
@@ -135,7 +135,7 @@ func run() -> void:
 	SelectionManager.deselect_all()
 	fighter.unequip_item(main)
 	fighter.equip_item(main, ItemInstance.new(load("res://data/items/throwing_axe.tres")))
-	check("a throwing axe swings and throws", names.call(fighter) == ["Swing", "Shoot", "Throw"], "got %s" % [names.call(fighter)])
+	check("a throwing axe swings and throws", names.call(fighter) == ["Swing", "Throw", "Shoot"], "got %s" % [names.call(fighter)])
 
 	# Firearms: a magazine runs dry and Reload fills it; RoF buys to-hit.
 	fighter.unequip_item(ranged_main)
@@ -149,6 +149,15 @@ func run() -> void:
 	check("an empty pistol is out of ammo", gun.out_of_ammo(fighter) and pistol.fire(3) == 0)
 	check("Reload fills it", fighter.reload_all() == 1 and fighter.shots_left(gun) == 9)
 	check("RoF 3 is +0, 10 is +2", UnitCombat._rof_bonus(3) == 0 and UnitCombat._rof_bonus(10) == 2)
+	# A pistol in each set: each attack reads its own magazine.
+	fighter.unequip_item(main)
+	var first_pistol := ItemInstance.new(load("res://data/items/pistol.tres"))
+	fighter.equip_item(main, first_pistol)
+	first_pistol.fire(9)
+	var second_shot: Array = fighter.combat_abilities().filter(
+		func(a): return a.ability_name == "Shoot" and fighter.weapon_set_of(a) == 1)
+	check("set II's pistol fires from its own magazine",
+		second_shot.size() == 1 and fighter.shots_left(second_shot[0]) == 9)
 	free_spawned()
 
 

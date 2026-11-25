@@ -30,8 +30,8 @@ func _run() -> void:
 	creation._on_confirm_pressed()
 	await WorldManager.world_focused
 	_hero = PartyManager.leader
-	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND,
-			EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND]:
+	for slot in [EquipSlot.Slot.SET_1_MAIN_HAND, EquipSlot.Slot.SET_1_OFF_HAND,
+			EquipSlot.Slot.SET_2_MAIN_HAND, EquipSlot.Slot.SET_2_OFF_HAND]:
 		_hero.unequip_item(slot)
 	_hero.equip_item(EquipSlot.Slot.CHEST_ARMOR, ItemInstance.new(Robe))
 	await _wait(0.5)

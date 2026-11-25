@@ -17,13 +17,13 @@ func _run() -> void:
 	await _wait(1.5)
 
 	_say("Equip the iron sword: one hotbar attack per row")
-	hero.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(IronSword))
+	hero.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND, ItemInstance.new(IronSword))
 	await _wait(2.5)
 	_check("hotbar attacks are Swing and Thrust", _names(hero) == ["Swing", "Thrust"])
 	await _wait(2.0)
 
 	_say("Unequip it: back to a punch")
-	hero.unequip_item(EquipSlot.Slot.MELEE_MAIN_HAND)
+	hero.unequip_item(EquipSlot.Slot.SET_1_MAIN_HAND)
 	await _wait(2.0)
 	_check("hotbar attack is Punch again", _names(hero) == ["Punch"])
 	await _wait(1.5)

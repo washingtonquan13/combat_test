@@ -18,10 +18,7 @@ extends Node
 signal stance_changed(stance: StringName)
 
 ## Every hand slot, in the order homes are handed out.
-const SLOTS: Array[EquipSlot.Slot] = [
-	EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND,
-	EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND,
-]
+const SLOTS: Array[EquipSlot.Slot] = EquipSlot.HAND_SLOTS
 ## Where along a carried item's length, from its handle end, sits on the
 ## socket's origin: the middle on the back, about the guard on a hip -
 ## the hilt rides above the belt, the blade hangs below.
@@ -33,8 +30,9 @@ const SURFACE_GAP: float = 0.01
 
 @export var unit: Unit
 
-## The kind of the active set - mirrors Unit.active_weapon_set.
-var drawn: AttackRow.Kind = AttackRow.Kind.MELEE
+## The active set's index in EquipSlot.WEAPON_SETS - mirrors
+## Unit.active_weapon_set.
+var drawn: int = 0
 ## Hand slot -> the model instance standing in for what's in it.
 var _held: Dictionary = {}
 ## Hand slot -> the model instance carried on the body for it.
@@ -69,12 +67,16 @@ func carried_model(slot: EquipSlot.Slot) -> Node3D:
 
 
 ## The stance motion of what's in the hands (WeaponData.stance_motion):
-## the off hand's if it names one, else the main hand's. Only what is
+## a shield's if the off hand holds one, else the main hand's, else the
+## off hand's (every other stance is authored for the main hand, so a
+## sword with a pistol beside it stands as the sword). Only what is
 ## actually held counts - sheathed, or a body without grips, stands as it
 ## always does. The animator turns the key into this body's clip.
 func stance() -> StringName:
-	for off_hand in [true, false]:
-		var slot: EquipSlot.Slot = _hand_slot(drawn, off_hand)
+	var off_item: ItemInstance = unit.get_equipped_item(EquipSlot.hand_slot(drawn, true))
+	var shield_first: bool = off_item != null and off_item.gear_data != null and off_item.gear_data.is_shield
+	for off_hand in ([true, false] if shield_first else [false, true]):
+		var slot: EquipSlot.Slot = EquipSlot.hand_slot(drawn, off_hand)
 		var weapon: WeaponData = _weapon_in(slot)
 		if weapon and weapon.stance_motion != &"" and held_model(slot):
 			return weapon.stance_motion
@@ -101,7 +103,7 @@ func refresh() -> void:
 			var weapon: WeaponData = _weapon_in(slot)
 			if weapon == null or weapon.model_scene == null:
 				continue
-			if not unit.weapons_sheathed and _kind_of(slot) == drawn:
+			if not unit.weapons_sheathed and EquipSlot.set_of(slot) == drawn:
 				_hold(body, slot, weapon)
 			elif homes.has(slot):
 				_carry(homes[slot], slot, weapon)
@@ -252,23 +254,11 @@ func _all_alive() -> bool:
 	return true
 
 
-static func _kind_of(slot: EquipSlot.Slot) -> AttackRow.Kind:
-	if slot == EquipSlot.Slot.MELEE_MAIN_HAND or slot == EquipSlot.Slot.MELEE_OFF_HAND:
-		return AttackRow.Kind.MELEE
-	return AttackRow.Kind.RANGED
-
-
+## Hand-slot helpers come from EquipSlot, never UnitCombat: this script
+## loads with unit.tscn, and naming UnitCombat here compiles it mid-load,
+## before the status resources its constants preload.
 static func _is_off_hand(slot: EquipSlot.Slot) -> bool:
-	return slot == EquipSlot.Slot.MELEE_OFF_HAND or slot == EquipSlot.Slot.RANGED_OFF_HAND
-
-
-## UnitCombat._hand_slot's mapping. Not called through UnitCombat: this
-## script loads with unit.tscn, and naming UnitCombat here compiles it
-## mid-load, before the status resources its constants preload.
-static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
-	if kind == AttackRow.Kind.MELEE:
-		return EquipSlot.Slot.MELEE_OFF_HAND if off_hand else EquipSlot.Slot.MELEE_MAIN_HAND
-	return EquipSlot.Slot.RANGED_OFF_HAND if off_hand else EquipSlot.Slot.RANGED_MAIN_HAND
+	return EquipSlot.is_off_hand(slot)
 
 
 func _gear_in(slot: EquipSlot.Slot) -> GearItem:

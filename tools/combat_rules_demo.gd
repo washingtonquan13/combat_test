@@ -17,10 +17,10 @@ func _run() -> void:
 	await _wait(1.0)
 	await _boot_into_arena()
 	_hero = PartyManager.leader
-	for key in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND, EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND]:
+	for key in [EquipSlot.Slot.SET_1_MAIN_HAND, EquipSlot.Slot.SET_1_OFF_HAND, EquipSlot.Slot.SET_2_MAIN_HAND, EquipSlot.Slot.SET_2_OFF_HAND]:
 		if _hero.get_equipped_item(key):
 			_hero.unequip_item(key)
-	_hero.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(IronSword))
+	_hero.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND, ItemInstance.new(IronSword))
 	_dummy = _make_dummy(-1.2)
 	_dummy.equip_item(EquipSlot.Slot.CHEST_ARMOR, ItemInstance.new(load("res://data/items/ranger_garb.tres")))
 	SelectionManager.select(_hero)
@@ -138,11 +138,11 @@ func _encumbrance() -> void:
 	var dodge: float = _hero.get_stat(StatIds.DODGE)
 	_say("Encumbrance: worn weight against Basic Lift %s lb (ST x ST / 5)" % _hero.basic_lift())
 	await _wait(3.0)
-	_hero.unequip_item(EquipSlot.Slot.MELEE_MAIN_HAND)
+	_hero.unequip_item(EquipSlot.Slot.SET_1_MAIN_HAND)
 	var heavy: Array = [
 		[EquipSlot.Slot.CHEST_ARMOR, "ranger_garb"],
-		[EquipSlot.Slot.HELMET, "leather_helmet"], [EquipSlot.Slot.MELEE_MAIN_HAND, "greatsword"],
-		[EquipSlot.Slot.RANGED_OFF_HAND, "tower_shield"], [EquipSlot.Slot.RANGED_MAIN_HAND, "rifle"]]
+		[EquipSlot.Slot.HELMET, "leather_helmet"], [EquipSlot.Slot.SET_1_MAIN_HAND, "greatsword"],
+		[EquipSlot.Slot.SET_2_OFF_HAND, "tower_shield"], [EquipSlot.Slot.SET_2_MAIN_HAND, "rifle"]]
 	for pair in heavy:
 		var item := ItemInstance.new(load("res://data/items/%s.tres" % pair[1]))
 		if not _hero.weight_allows(pair[0], item):
@@ -163,7 +163,7 @@ func _encumbrance() -> void:
 			_hero.unequip_item(pair[0])
 	_check("taking it off restores Move and Dodge",
 		_hero.get_stat(StatIds.MOVE) == move and _hero.get_stat(StatIds.DODGE) == dodge)
-	_hero.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(IronSword))
+	_hero.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND, ItemInstance.new(IronSword))
 	await _wait(1.5)
 	overview.close()
 	await _wait(0.5)

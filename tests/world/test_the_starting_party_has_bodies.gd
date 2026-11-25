@@ -111,7 +111,7 @@ func _the_companions_kept_who_they_are(party: Array[Unit]) -> void:
 	var names: Array = wizard.abilities.map(func(a: Ability) -> String: return a.resource_path.get_file())
 	check("and knows every spell, the fireball included",
 		names.has("explosive_fireball.tres") and names.has("wall_of_fire.tres"), str(names))
-	var sword: ItemInstance = wizard.get_equipped_item(EquipSlot.Slot.MELEE_MAIN_HAND)
+	var sword: ItemInstance = wizard.get_equipped_item(EquipSlot.Slot.SET_1_MAIN_HAND)
 	check("and wears the loadout",
 		sword != null and sword.definition.resource_path.ends_with("iron_sword.tres"))
 	check("and the rest of the gear is in the bag",

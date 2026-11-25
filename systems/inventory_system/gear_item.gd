@@ -18,7 +18,10 @@ extends ItemDefinition
 enum SlotType {
 	HELMET, AMULET, CLOAK, CHEST_ARMOR, UNDERSHIRT, BRACERS,
 	RING, GLOVES, BELT, LEGS, BOOTS,
-	MELEE_MAIN_HAND, MELEE_OFF_HAND, RANGED_MAIN_HAND, RANGED_OFF_HAND,
+	## Held: any weapon. A two-handed one fits only a main hand.
+	HAND,
+	## Off hand only: a shield.
+	OFF_HAND,
 }
 
 @export var slot_type: SlotType = SlotType.HELMET
@@ -34,7 +37,7 @@ enum SlotType {
 ## source. Empty for an item with no mechanical stat effect.
 @export var stat_modifiers: Array[StatModifierBehavior] = []
 
-## Held in either melee hand, lets the holder Block (UnitCombat). Its
+## Held in an off hand of either weapon set, lets the holder Block (UnitCombat). Its
 ## Defense Bonus is an ordinary DB entry in stat_modifiers.
 @export var is_shield: bool = false
 
@@ -46,19 +49,14 @@ enum SlotType {
 @export var wearable: Wearable = null
 
 
-## Each hand slot's partner, main -> off.
-const OFF_HAND_OF: Dictionary = {
-	SlotType.MELEE_MAIN_HAND: SlotType.MELEE_OFF_HAND,
-	SlotType.RANGED_MAIN_HAND: SlotType.RANGED_OFF_HAND,
-}
-
-
 ## Whether this kind of item goes in a slot of type target: its own
-## slot type, and for a one-handed weapon the off hand too.
+## slot type, and for a one-handed held item the off hand too. Which set
+## a weapon is in is the player's choice, never the item's.
 func fits(target: SlotType) -> bool:
 	if target == slot_type:
 		return true
-	return weapon_data != null and not weapon_data.two_handed and OFF_HAND_OF.get(slot_type) == target
+	return target == SlotType.OFF_HAND and slot_type == SlotType.HAND \
+			and not (weapon_data != null and weapon_data.two_handed)
 
 
 ## Most sockets a copy of this kind can have, before the grid-size cap
@@ -73,6 +71,5 @@ func socket_limit() -> int:
 const SOCKET_LIMITS: Dictionary = {
 	SlotType.HELMET: 2, SlotType.CLOAK: 1, SlotType.CHEST_ARMOR: 3,
 	SlotType.BRACERS: 1, SlotType.GLOVES: 2, SlotType.LEGS: 2, SlotType.BOOTS: 2,
-	SlotType.MELEE_MAIN_HAND: 2, SlotType.MELEE_OFF_HAND: 2,
-	SlotType.RANGED_MAIN_HAND: 2, SlotType.RANGED_OFF_HAND: 2,
+	SlotType.HAND: 2, SlotType.OFF_HAND: 2,
 }

@@ -118,7 +118,7 @@ func _lands_before_falling() -> void:
 	var over_a_crowd: Unit = spawn_demon("avian", Vector3(0.0, 8.0, 0.0), true, 1)
 	for i in 3:
 		var armed: Unit = spawn_brute(2.0 + i * 1.5)
-		armed.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND,
+		armed.equip_item(EquipSlot.Slot.SET_1_MAIN_HAND,
 			ItemInstance.new(load("res://data/items/iron_sword.tres")))
 	var crowded: AiPlan = AiScorer.best_plan(over_a_crowd)
 	check("low on FP over a crowd, it does not land straight into it",

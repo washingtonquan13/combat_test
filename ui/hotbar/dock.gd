@@ -291,12 +291,10 @@ func _add_slot(parent: Control, unit: Unit, ability: Ability, look: DockSlot.Loo
 
 
 func _refresh_weapon_set(unit: Unit) -> void:
-	var melee: bool = unit.active_weapon_set == AttackRow.Kind.MELEE
-	_set_numeral.text = "I" if melee else "II"
-	var main_item: ItemInstance = unit.get_equipped_item(
-		EquipSlot.Slot.MELEE_MAIN_HAND if melee else EquipSlot.Slot.RANGED_MAIN_HAND)
-	var off_item: ItemInstance = unit.get_equipped_item(
-		EquipSlot.Slot.MELEE_OFF_HAND if melee else EquipSlot.Slot.RANGED_OFF_HAND)
+	var weapon_set: int = unit.active_weapon_set
+	_set_numeral.text = ["I", "II", "III", "IV"][weapon_set]
+	var main_item: ItemInstance = unit.get_equipped_item(EquipSlot.hand_slot(weapon_set, false))
+	var off_item: ItemInstance = unit.get_equipped_item(EquipSlot.hand_slot(weapon_set, true))
 	_set_icon_main.texture = main_item.definition.icon if main_item and main_item.definition else null
 	_set_icon_off.texture = off_item.definition.icon if off_item and off_item.definition else null
 	_set_icon_off.visible = _set_icon_off.texture != null

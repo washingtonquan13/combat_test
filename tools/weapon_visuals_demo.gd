@@ -22,7 +22,7 @@ func _run() -> void:
 	await _wait(1.0)
 	await _boot_into_arena()
 	_hero = PartyManager.leader
-	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.RANGED_OFF_HAND]:
+	for key in [MAIN, OFF, RANGED, EquipSlot.Slot.SET_2_OFF_HAND]:
 		if _hero.get_equipped_item(key):
 			_hero.unequip_item(key)
 	_hero.set_base_stat(StatIds.DX, 16)
