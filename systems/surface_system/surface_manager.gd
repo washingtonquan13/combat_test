@@ -433,6 +433,14 @@ func _burst_cells(space: PhysicsDirectSpaceState3D, centre: Vector3, radius: flo
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
+	# The floor is looked for through breakable props: a blast lights the
+	# ground under a barrel, not its lid, which would float once the barrel
+	# is gone. Sight still stops at them, so a crate shadows what's behind.
+	var floor_exclude: Array[RID] = exclude.duplicate()
+	for node in get_tree().get_nodes_in_group(&"breakables"):
+		var body := (node as Breakable).prop() as CollisionObject3D if node is Breakable else null
+		if body:
+			floor_exclude.append(body.get_rid())
 	# Lifted a little, so a burst on the ground sees the floor round it
 	# rather than grazing it.
 	var eye: Vector3 = centre + Vector3.UP * 0.3
@@ -444,7 +452,7 @@ func _burst_cells(space: PhysicsDirectSpaceState3D, centre: Vector3, radius: flo
 			var column: Vector3 = SurfaceGrid.centre_of(key, centre.y)
 			if Vector2(column.x - centre.x, column.z - centre.z).length() > radius:
 				continue
-			var down := PhysicsRayQueryParameters3D.create(column + Vector3.UP * 0.5, column + Vector3.DOWN * radius, 1, exclude)
+			var down := PhysicsRayQueryParameters3D.create(column + Vector3.UP * 0.5, column + Vector3.DOWN * radius, 1, floor_exclude)
 			var hit: Dictionary = space.intersect_ray(down)
 			if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
 				continue
@@ -1166,6 +1174,10 @@ func _age(clouds: CloudGrid, ground: SurfaceGrid) -> void:
 func _burn_breakables(ground: SurfaceGrid) -> void:
 	if ground.is_empty():
 		return
+	# Who stands in what is read before anything burns: a barrel going off
+	# here lays fresh fire, which must not catch the rest this same round
+	# (what it catches goes off on PropExplosion's chain delay).
+	var standing: Array = []
 	for node in get_tree().get_nodes_in_group(&"breakables"):
 		var prop := node as Breakable
 		if prop == null or not prop.is_alive():
@@ -1173,13 +1185,24 @@ func _burn_breakables(ground: SurfaceGrid) -> void:
 		if _grid_for(WorldManager.context_for(prop)) != ground:
 			continue
 		var cell: SurfaceCell = ground.cell_under(prop.ground_point())
-		if cell == null or cell.surface == null:
+		if cell != null and cell.surface != null:
+			standing.append([prop, cell.surface])
+	for pair in standing:
+		var prop: Breakable = pair[0]
+		var surface: Surface = pair[1]
+		if not is_instance_valid(prop) or not prop.is_alive():
 			continue
-		for status in cell.surface.status_effects:
+		# Burning ground: an oil barrel in it goes off (Breakable.ignite).
+		var fire: bool = surface.element == Surface.Element.FIRE
+		if fire:
+			prop.heat()
+		for status in surface.status_effects:
 			for behavior in status.behaviors:
 				if behavior is DamageOverTimeBehavior and prop.is_alive():
 					var dot := behavior as DamageOverTimeBehavior
 					prop.injure(dot.roll_damage(), dot.wound_type, dot.armor_divisor, dot.ignores_damage_reduction)
+		if fire:
+			prop.ignite()
 
 
 ## Every cube runs out on its own clock, like ground cells.

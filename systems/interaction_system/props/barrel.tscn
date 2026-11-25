@@ -1,0 +1,67 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://systems/interaction_system/movable_prop.gd" id="1_movable"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_option"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="3_loot"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="4_examine"]
+[ext_resource type="Script" path="res://systems/combat_system/breakable.gd" id="5_breakable"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="6_stash"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wood"]
+albedo_color = Color(0.46, 0.3, 0.17, 1)
+roughness = 0.9
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
+material = SubResource("StandardMaterial3D_wood")
+top_radius = 0.27
+bottom_radius = 0.27
+height = 0.85
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_hoop"]
+albedo_color = Color(0.22, 0.22, 0.24, 1)
+metallic = 0.6
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_hoop"]
+material = SubResource("StandardMaterial3D_hoop")
+top_radius = 0.285
+bottom_radius = 0.285
+height = 0.05
+radial_segments = 16
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_barrel"]
+height = 0.85
+radius = 0.28
+
+[node name="Barrel" type="StaticBody3D"]
+script = ExtResource("1_movable")
+weight_lb = 40.0
+interactions = Array[ExtResource("2_option")]([ExtResource("3_loot"), ExtResource("4_examine")])
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+mesh = SubResource("CylinderMesh_barrel")
+
+[node name="HoopTop" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.68, 0)
+mesh = SubResource("CylinderMesh_hoop")
+
+[node name="HoopBottom" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.17, 0)
+mesh = SubResource("CylinderMesh_hoop")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+shape = SubResource("CylinderShape3D_barrel")
+
+[node name="Breakable" type="Node3D" parent="."]
+script = ExtResource("5_breakable")
+display_name = "Barrel"
+dr = 2
+vulnerable_to = Array[int]([7])
+debris_color = Color(0.46, 0.3, 0.17, 1)
+
+[node name="StashComponent" parent="." instance=ExtResource("6_stash")]
+display_name = "Barrel"
+loot_rolls = 2

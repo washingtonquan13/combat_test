@@ -1,0 +1,36 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/interaction_system/movable_prop.gd" id="1_movable"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_option"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="3_loot"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="4_examine"]
+[ext_resource type="Script" path="res://systems/combat_system/breakable.gd" id="5_breakable"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="6_stash"]
+[ext_resource type="ArrayMesh" path="res://assets/level/medieval_kit/pieces/Prop_Crate.mesh" id="7_mesh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_crate"]
+size = Vector3(0.81, 0.79, 0.81)
+
+[node name="Crate" type="StaticBody3D"]
+script = ExtResource("1_movable")
+weight_lb = 30.0
+interactions = Array[ExtResource("2_option")]([ExtResource("3_loot"), ExtResource("4_examine")])
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, 0, 0, 0)
+mesh = ExtResource("7_mesh")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.395, 0)
+shape = SubResource("BoxShape3D_crate")
+
+[node name="Breakable" type="Node3D" parent="."]
+script = ExtResource("5_breakable")
+display_name = "Crate"
+dr = 2
+vulnerable_to = Array[int]([7])
+debris_color = Color(0.5, 0.36, 0.22, 1)
+
+[node name="StashComponent" parent="." instance=ExtResource("6_stash")]
+display_name = "Crate"
+loot_rolls = 2

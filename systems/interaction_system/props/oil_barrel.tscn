@@ -1,0 +1,60 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://systems/interaction_system/movable_prop.gd" id="1_movable"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_option"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="3_examine"]
+[ext_resource type="Script" path="res://systems/combat_system/breakable.gd" id="4_breakable"]
+[ext_resource type="Resource" path="res://data/surfaces/grease.tres" id="5_oil"]
+[ext_resource type="Resource" path="res://data/explosions/oil_barrel.tres" id="6_explosion"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_tar"]
+albedo_color = Color(0.13, 0.12, 0.12, 1)
+roughness = 0.55
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_barrel"]
+material = SubResource("StandardMaterial3D_tar")
+top_radius = 0.27
+bottom_radius = 0.27
+height = 0.85
+radial_segments = 16
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_band"]
+albedo_color = Color(0.7, 0.12, 0.08, 1)
+roughness = 0.6
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_band"]
+material = SubResource("StandardMaterial3D_band")
+top_radius = 0.28
+bottom_radius = 0.28
+height = 0.14
+radial_segments = 16
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_barrel"]
+height = 0.85
+radius = 0.28
+
+[node name="OilBarrel" type="StaticBody3D"]
+script = ExtResource("1_movable")
+weight_lb = 40.0
+interactions = Array[ExtResource("2_option")]([ExtResource("3_examine")])
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+mesh = SubResource("CylinderMesh_barrel")
+
+[node name="Band" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0)
+mesh = SubResource("CylinderMesh_band")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.425, 0)
+shape = SubResource("CylinderShape3D_barrel")
+
+[node name="Breakable" type="Node3D" parent="."]
+script = ExtResource("4_breakable")
+display_name = "Oil Barrel"
+dr = 2
+debris_color = Color(0.13, 0.12, 0.12, 1)
+spill = ExtResource("5_oil")
+spill_radius = 2.0
+explosion = ExtResource("6_explosion")

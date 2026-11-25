@@ -20,7 +20,12 @@ extends Node3D
 ## Breaking (0 HP or less): it is recorded as removed from the area
 ## (AreaState, as a dead unit is), leaves debris, drops what its
 ## StashComponent held as a LootPile, re-bakes the navigation grid where
-## it stood, and is freed. Damage short of that is not saved.
+## it stood, and is freed. Damage short of that is saved only on a
+## MovableProp (MovableProp.save_state writes `hp`).
+## One with a `spill` lays it where it stood (an oil barrel's oil). One
+## with an `explosion` that fire reaches goes off instead (heat/ignite,
+## PropExplosion): a fire hit, a blast, or burning ground sets it off
+## whatever its HP, and a blast sets off the next one a beat later.
 ##
 ## What hurts it: single-target attacks (UnitCombat.use_ability), area
 ## spells (AbilityTargeting.breakables_caught), and ground surfaces each
@@ -50,11 +55,20 @@ signal broken
 @export var vulnerable_to: Array[DamageResolver.WoundType] = []
 ## Debris colour; the prop's first mesh's if left clear.
 @export var debris_color: Color = Color(0, 0, 0, 0)
+## What it spills on the ground where it stood when it breaks cold (an
+## oil barrel's oil), and how far.
+@export var spill: Surface
+@export var spill_radius: float = 2.0
+## What it does when fire breaks it, or reaches it at all (see ignite):
+## an oil barrel's blast. Breaking it any other way spills instead.
+@export var explosion: PropExplosion
 
 var hp: int = 0
 
 var _profile: InjuryProfile
 var _broken: bool = false
+## Fire has reached it: the next break is a blast, not a spill.
+var _heated: bool = false
 var _last_box: AABB
 
 
@@ -159,6 +173,22 @@ func injure(raw: int, wound_type: DamageResolver.WoundType, armor_divisor: float
 	return amount
 
 
+## Fire is touching it (a fire hit, a blast, burning ground). Called
+## before that fire's damage lands, so a break from it is a blast.
+func heat() -> void:
+	_heated = true
+
+
+## Fire has reached it and it is still standing: one with an explosion
+## goes off now, whatever HP it has left (BG3's barrel). Others are
+## untouched; the fire's own damage is all they take.
+func ignite() -> void:
+	if explosion == null or not is_alive():
+		return
+	_heated = true
+	break_apart()
+
+
 ## The world box round the prop's collision shapes - what the grid baked,
 ## what a blast reaches and a reach is measured to.
 func box() -> AABB:
@@ -213,10 +243,20 @@ func break_apart() -> void:
 	_broken = true
 	var root: Node = _world_root()
 	var parent: Node = p.get_parent() if p else null
-	if p and "persistent_id" in p and p.persistent_id != &"" and WorldManager.current_area():
-		AreaState.mark_removed(WorldManager.current_area().id, p.persistent_id)
+	# The area it stands in, not the one in focus: a chained barrel can go
+	# off after the view has moved elsewhere.
+	var area: AreaDefinition = WorldManager.area_of(p) if p else null
+	if area == null:
+		area = WorldManager.current_area()
+	if p and "persistent_id" in p and p.persistent_id != &"" and area:
+		AreaState.mark_removed(area.id, p.persistent_id)
 	SystemLog.print("%s breaks." % display_name)
 	broken.emit()
+	# While the prop is still in the tree: both need its world and ground.
+	if _heated and explosion:
+		explosion.detonate(self, was.get_center())
+	elif spill and p:
+		SurfaceManager.spawn(spill, ground_point(), spill_radius, p)
 	if parent:
 		_spawn_debris(parent, was)
 		_drop_contents(parent, was)

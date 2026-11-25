@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="PropExplosion" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/prop_explosion.gd" id="1_explosion"]
+[ext_resource type="Resource" path="res://data/surfaces/fire.tres" id="2_fire"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/fireball/fireball_explosion.tscn" id="3_vfx"]
+[ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://systems/audio_system/sfx_layer.gd" id="4_layer"]
+[ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://systems/audio_system/sfx_cue.gd" id="5_cue"]
+[ext_resource type="AudioStream" uid="uid://btymytoka47j5" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_IMPACT_01.wav" id="6_boom"]
+
+[sub_resource type="Resource" id="Resource_boom_layer"]
+script = ExtResource("4_layer")
+stream = ExtResource("6_boom")
+delay = 0.0
+volume_db = 3.0
+pitch_scale = 0.8
+
+[sub_resource type="Resource" id="Resource_boom"]
+script = ExtResource("5_cue")
+layers = Array[ExtResource("4_layer")]([SubResource("Resource_boom_layer")])
+
+[resource]
+script = ExtResource("1_explosion")
+dice_count = 3
+dice_sides = 6
+dice_bonus = 0
+wound_type = 7
+radius = 3.0
+leaves = ExtResource("2_fire")
+leaves_radius = 2.0
+vfx = ExtResource("3_vfx")
+sound = SubResource("Resource_boom")

@@ -17,6 +17,7 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
 | Option lists on units / props | unit.gd:350 `interactions`, :844-849; interactable_prop.gd:16-33 | Content |
 
 - A prop with a `Breakable` child gets Attack added to its `interactions` at `_ready` (a fresh array; the scene's own is untouched). Picking it calls `use_ability(default_ability(), breakable)`. Like attacking a unit, it does **not** walk to the target: `InteractionApproach` walks only when `option.reach > 0`, and attack.tres has reach 0. ClickRouter's `click_breakable` uses the armed single-target attack on the prop under the mouse at once. Only an ability that `Breakable.hurt_by` allows counts: not for allies, and with a damage effect. `UnitCombat.use_ability` refuses any other as `invalid_target`, so a heal or a shove on a crate never spends the action.
+- A MovableProp saves its own parts: WorldManager calls only the persistent node's `save_state` when it has one (a child's is used only when the node has none), so `MovableProp.save_state` also writes its StashComponent's contents (`stash`) and its Breakable's `hp`, and `load_state` restores them. Without that, a crate's loot re-rolled on every reload.
 
 ## Derived / cached state
 - Intent is recomputed each frame (`intent()` ground_click_target.gd:129-139) from CameraDirector.has_control, pushed intents and AbilityManager.armed_ability; only `_last` is cached for change detection. Cleared on world_focused (:161-162).

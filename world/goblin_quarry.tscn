@@ -51,6 +51,9 @@
 [ext_resource type="Script" uid="uid://ccbykg6gbxf18" path="res://world/walk_in_building.gd" id="q_walkin"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_roof.res" id="q_walkin_roof"]
 [ext_resource type="Resource" path="res://data/units/npcs/quarry_watchman.tres" id="q_watchman"]
+[ext_resource type="PackedScene" path="res://systems/interaction_system/props/crate.tscn" id="q_crate_prop"]
+[ext_resource type="PackedScene" path="res://systems/interaction_system/props/barrel.tscn" id="q_barrel_prop"]
+[ext_resource type="PackedScene" path="res://systems/interaction_system/props/oil_barrel.tscn" id="q_oil_prop"]
 
 [sub_resource type="BoxShape3D" id="walkin_0"]
 size = Vector3(2.66, 1.45, 2.26)
@@ -730,6 +733,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.8, -5.51, -25.2)
 [node name="MovableBox" parent="." instance=ExtResource("23_box")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.35, 32)
 persistent_id = &"quarry_box"
+
+[node name="QuarryCrate" parent="." instance=ExtResource("q_crate_prop")]
+transform = Transform3D(0.94, 0, 0.34, 0, 1, 0, -0.34, 0, 0.94, 3.6, 0, 32.2)
+persistent_id = &"quarry_crate"
+
+[node name="QuarryBarrel" parent="." instance=ExtResource("q_barrel_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6, 0, 33.2)
+persistent_id = &"quarry_barrel"
+
+[node name="QuarryOilBarrel" parent="." instance=ExtResource("q_oil_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.4, 0, 34)
+persistent_id = &"quarry_oil_barrel"
+
+[node name="QuarryOilBarrel2" parent="." instance=ExtResource("q_oil_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 35.6)
+persistent_id = &"quarry_oil_barrel_2"
 
 [node name="OverworldExit" parent="." instance=ExtResource("24_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 43)

@@ -175,7 +175,17 @@ func save_state() -> Dictionary:
 	if in_flight:
 		var parent := get_parent() as Node3D
 		t = parent.global_transform.affine_inverse() * _landing if parent else _landing
-	return {"transform": t}
+	var state := {"transform": t}
+	# WorldManager saves only the node's own save_state when it has one, so
+	# the parts a prop is built from are saved here: what a crate holds,
+	# and how damaged it is (a broken one is removed, not saved).
+	var stash := StashComponent.find_on(self)
+	if stash:
+		state["stash"] = stash.save_state()
+	var breakable := Breakable.of(self)
+	if breakable:
+		state["hp"] = breakable.hp
+	return state
 
 
 ## Runs before the world enters the tree (WorldManager reconciles it
@@ -183,6 +193,12 @@ func save_state() -> Dictionary:
 func load_state(state: Dictionary) -> void:
 	if state.get("transform") is Transform3D:
 		transform = state["transform"]
+	var stash := StashComponent.find_on(self)
+	if stash and state.get("stash") is Dictionary:
+		stash.load_state(state["stash"])
+	var breakable := Breakable.of(self)
+	if breakable and state.get("hp") is int and state["hp"] > 0:
+		breakable.hp = state["hp"]
 
 
 ## Where a flight from `from` to `to` is at t (0..1): a parabola over the

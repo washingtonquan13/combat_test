@@ -139,9 +139,9 @@ Each fight is an `Encounter` Node. It owns its turn order, round counter, phase 
 | C-15 | Autoload order is solved by `call_deferred` registration in four places, with the same comment text copied each time. | combat_manager.gd:496-501; flag_manager.gd:41-42; faction_relations.gd:60 | SaveManager and WorldManager must exist before their clients push their registration. | Order the autoloads so dependencies come first, or have SaveManager/WorldManager pull (`get_nodes_in_group("persist")`) instead of clients pushing. | R5 | S | INTENTIONAL; document why: autoload order is dodged with `call_deferred`, and each place has a comment saying so (no commit named in the report) |
 | CINE-3 | same as C-11 (combat.md): the same two call sites repeat "play, release camera, start fight" | goblin_quarry.gd:134-145, 255-271 | | | R4 | | see cinematics.md |
 
-## Breakable props (breakable.gd, loot_pile.gd)
+## Breakable props (breakable.gd, loot_pile.gd, prop_explosion.gd)
 A `Breakable` is a child Node3D of a prop, such as a crate or a barrel. It makes the prop something you can hit and break, following BG3's rules with GURPS numbers. It is **not a Unit**: it has no turn, no stats and no defense, and the AI ignores it.
-- **What it owns:** `hp`, which is not saved. Damage short of breaking is lost on reload.
+- **What it owns:** `hp`. On a MovableProp it is saved with the prop (`MovableProp.save_state` writes `hp` and the StashComponent's contents beside the transform), so a damaged crate stays damaged. On any other prop it is not saved.
 - **Numbers:**
   - HP is 4 × the cube root of the weight in lb (B558). The weight comes from `weight_lb` or the MovableProp's weight.
   - `dr` comes from the material.
@@ -158,11 +158,17 @@ A `Breakable` is a child Node3D of a prop, such as a crate or a barrel. It makes
   - It spawns debris: rigid bodies on Corpse.BODY_LAYER that freeze after 3 s and that the grid never sees.
   - Its StashComponent becomes a `LootPile`. The pile is spawned, so it is not saved and is lost on reload.
   - The prop leaves the tree, then `NavigationGrid.invalidate_region` re-bakes its box, then the prop is freed.
+- **Spill and explosion (oil barrels):**
+  - `spill` (a Surface, `spill_radius`) is laid where the prop stood when it breaks cold: a smashed oil barrel leaves grease.
+  - `explosion` (a `PropExplosion`) makes it go off instead when fire breaks it. Fire is a FIRE-element ability that hits it (`UnitCombat._fire_reaches`: the target, or what an area or cone catches) or FIRE ground under it (`SurfaceManager._burn_breakables`). Either calls `heat()` before the damage and `ignite()` after it, so a barrel the fire did not finish still goes off.
+  - `PropExplosion.detonate` burns every living unit in `radius` (dice through DR as an area hit, no to-hit, no defense, starts no fight), burns other props, and lays `leaves` (fire). An explosive prop it catches is not hurt: it goes off `CHAIN_DELAY` (0.35 s) later (`ignite` then heats it, so one whose world left the tree meanwhile is not left primed), so a row of barrels goes up one after another. The fire is laid on the ground, never on prop tops (`_burst_cells` looks for the floor through breakable props' bodies; its sight ray still stops at them, so a crate shadows the ground behind it). A blast's damage has no line-of-sight check, though its fire does. Two barrels caught by one fire spell, or standing in one burning patch, go off in the same frame. `_burn_breakables` reads who stands in what before burning anything, so fire a barrel lays there catches nothing until the next round. Known gap: that fire is aged in the same tick (`_age_grid` runs after), so it lasts a round less than a cast's. A broken prop's removal is recorded against the area it stands in (`WorldManager.area_of`), not the focused one.
+  - Props: `systems/interaction_system/props/` crate, barrel (both hold loot, `loot_rolls` 2, weak to burning) and oil_barrel (`data/explosions/oil_barrel.tres`, 3d6 burning, 3 m). Placed in goblin_quarry by the MovableBox.
 - **Signals out:** `damaged(amount)` and `broken`.
 - **Found by:** the "breakables" group, or `Breakable.of(node)`.
 
 ## Tests
-- tests/interaction/test_props_break.gd (Breakable: HP from weight, attack lands, blast catches, DR, break leaves debris)
+- tests/interaction/test_props_break.gd (Breakable: HP from weight, attack lands, blast catches, DR, break leaves debris, a crate saves its loot and damage)
+- tests/interaction/test_oil_barrel.gd (cold break spills grease; ignite burns a unit and a crate, leaves fire, sets off the next barrel a beat later)
 - tests/combat/test_encounters.gd (multi-encounter, world scoping; also :224 detection join)
 - tests/combat/test_downed.gd
 - tests/combat/test_commanding.gd

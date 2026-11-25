@@ -1269,6 +1269,12 @@ func _apply_effects(action: AbilityAction, hit: int = -1) -> Dictionary:
 	var effect_results: Array = []
 	var total_damage: int = 0
 	var effects: Array = action.ability.effects
+	# Not a ternary: its `[]` would be an untyped Array, refused here.
+	var burning: Array[Breakable] = []
+	if hit <= 0:
+		burning = _fire_reaches(action)
+	for prop in burning:
+		prop.heat()
 	for i in effects.size():
 		var plan: Dictionary = action.plans[i]
 		if hit >= 0 and effects[i] is GearDamageEffect:
@@ -1282,7 +1288,29 @@ func _apply_effects(action: AbilityAction, hit: int = -1) -> Dictionary:
 			total_damage += effect_result["damage"]
 	if hit <= 0:
 		_touch_ground(action)
+	for prop in burning:
+		if is_instance_valid(prop):
+			prop.ignite()
 	return {"effects": effect_results, "damage": total_damage}
+
+
+## The props a fire attack that landed reaches: the one it struck, or
+## those its area caught. Heated before its damage, so one it breaks goes
+## off; one left standing with an explosion is set off after (Breakable).
+func _fire_reaches(action: AbilityAction) -> Array[Breakable]:
+	var found: Array[Breakable] = []
+	# Read at impact: the caster may have left the tree during the flight.
+	if action.ability.element != Surface.Element.FIRE or not _owner.is_inside_tree():
+		return found
+	var target = action.target
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return found
+	if target is Breakable:
+		if target.is_alive():
+			found.append(target)
+	elif not target is Unit and action.ability.targeting:
+		found = action.ability.targeting.breakables_caught(_owner, target)
+	return found
 
 
 ## An attack of an element (Ability.element) that landed: what's on the

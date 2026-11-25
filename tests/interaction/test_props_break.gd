@@ -4,6 +4,7 @@ extends AiTestCase
 ## 0 HP it leaves the tree and the navigation grid where it stood.
 
 const BOX: PackedScene = preload("res://systems/interaction_system/movable_box.tscn")
+const CRATE: PackedScene = preload("res://systems/interaction_system/props/crate.tscn")
 
 
 func run() -> void:
@@ -43,4 +44,17 @@ func run() -> void:
 	check("a broken box can no longer be targeted", not prop.is_alive() if is_instance_valid(prop) else true)
 	check("a broken box still knows where it stood", not is_instance_valid(prop) or prop.ground_point().is_equal_approx(stood),
 		str(prop.ground_point()) if is_instance_valid(prop) else "freed")
+
+	# A crate saves what it holds and how damaged it is (MovableProp.save_state).
+	var crate: MovableProp = CRATE.instantiate()
+	_root.add_child(crate)
+	StashComponent.find_on(crate).roll_loot()
+	Breakable.of(crate).take_damage(3)
+	var saved: Dictionary = crate.save_state()
+	var reloaded: MovableProp = CRATE.instantiate()
+	reloaded.load_state(saved)
+	check("a reloaded crate keeps its loot and its damage", saved.has("stash") and saved.get("hp", 0) > 0
+		and reloaded.save_state() == saved, str(saved))
+	reloaded.free()
+	crate.queue_free()
 	free_spawned()
