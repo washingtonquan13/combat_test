@@ -31,6 +31,12 @@ extends Node
 ##     speaker and never re-cuts. A response the player's character says
 ##     aloud is a line, not an aside: it is held as a turn while they say
 ##     it (see _hold_spoken).
+##   - every distance is set for a person and scaled by how high the
+##     subject's head is (_size_of), so a pixie's close shot is her face,
+##     not a speck; anyone person-sized gets the shots as tuned. Over the
+##     shoulder of a listener whose head is TOWERING times higher becomes
+##     the close single (_resolved): from a giant's head the small one is
+##     a figure by his wrist.
 enum Shot { SHOULDER, CLOSE }
 var _speaker: Unit = null
 ## Who the speaker is talking to, or null when nobody else is in the
@@ -105,6 +111,22 @@ const CLOSE_PAN: float = 5.0
 ## Aims below the head so the face sits in the upper half of the frame,
 ## clear of the line and the choices under it.
 const AIM_DROP: float = 0.04
+## The head height every distance above is measured for. A shot is scaled
+## by how high its subject's head is against this (within SIZE_RANGE), so a
+## pixie's close shot fills the frame with her face the way a person's does,
+## instead of finding a tiny head 1.3 m away. Measured on the body, not
+## Unit.height, which is the clearance navigation keeps and reads 2.0 for
+## most people and 0.6 for a dragon whose head is well above that.
+const PERSON_HEAD: float = 1.65
+const SIZE_RANGE: Vector2 = Vector2(0.15, 4.0)
+## Anyone whose size falls in here is a person and gets the shots as they
+## were tuned: a short woman and a tall man are not reframed for it.
+const PERSON_BAND: Vector2 = Vector2(0.8, 1.25)
+## Over the shoulder of a listener this many times taller than the speaker,
+## the camera at the listener's head looks down past their own arm, and the
+## speaker is a figure by their wrist. That shot becomes the close single.
+## The other way round, from behind the small one looking up, works as is.
+const TOWERING: float = 1.6
 ## How far out of focus the listener's shoulder and the scenery go.
 const FOCUS_BLUR: float = 0.09
 
@@ -246,25 +268,56 @@ func _someone_other_than(speaker: Unit, cast: Dictionary) -> Unit:
 ## have nobody to talk to.
 func _shot(kind: Shot) -> CameraFraming:
 	if not is_instance_valid(_listener):
-		return _framing
+		var plain := _framing.duplicate() as CameraFraming
+		plain.distance *= _size_of(_speaker)
+		return plain
 	var shot := CameraFraming.new()
-	shot.look_offset = Vector3(0.0, -AIM_DROP, 0.0)
+	shot.look_offset = Vector3(0.0, -AIM_DROP * _size_of(_speaker), 0.0)
 	shot.focus_blur = FOCUS_BLUR
 	shot.fov_degrees = LENS_FOV
 	if kind == Shot.SHOULDER:
 		shot.subject_role = &"listener"
 		shot.look_role = &"speaker"
-		shot.distance = SHOULDER_DISTANCE
+		shot.distance = SHOULDER_DISTANCE * _size_of(_listener)
 		shot.elevation_degrees = SHOULDER_ELEVATION
 		_keep_side(shot, 180.0, SHOULDER_AZIMUTH)
 		_lead(shot, SHOULDER_PAN)
 	else:
 		shot.subject_role = &"speaker"
-		shot.distance = CLOSE_DISTANCE
+		shot.distance = CLOSE_DISTANCE * _size_of(_speaker)
 		shot.elevation_degrees = CLOSE_ELEVATION
 		_keep_side(shot, 0.0, CLOSE_AZIMUTH)
 		_lead(shot, CLOSE_PAN)
 	return shot
+
+
+## The shot that is filmed when `kind` is asked for on the current pair:
+## over the shoulder of a listener TOWERING times the speaker's head height
+## is the close single, whether the line asked for it or not.
+func _resolved(kind: Shot) -> Shot:
+	if kind == Shot.SHOULDER and is_instance_valid(_listener) and is_instance_valid(_speaker) \
+			and _head_height(_listener) > _head_height(_speaker) * TOWERING:
+		return Shot.CLOSE
+	return kind
+
+
+## How big `unit` is against the person the shots were set for: 1.0 for
+## anyone in PERSON_BAND.
+static func _size_of(unit: Unit) -> float:
+	if not is_instance_valid(unit):
+		return 1.0
+	var size: float = clampf(_head_height(unit) / PERSON_HEAD, SIZE_RANGE.x, SIZE_RANGE.y)
+	return 1.0 if size >= PERSON_BAND.x and size <= PERSON_BAND.y else size
+
+
+## How high the head of the body on screen (a stand-in's, if it has one)
+## is above its feet.
+static func _head_height(unit: Unit) -> float:
+	var body: CharacterModel = StandIn.body_of(unit)
+	if body == null:
+		return PERSON_HEAD
+	return body.anchor_position(CharacterModel.Anchor.HEAD).y \
+			- body.anchor_position(CharacterModel.Anchor.GROUND).y
 
 
 ## Swings `shot` off `centre` by `swing` degrees, to whichever hand keeps
@@ -331,9 +384,9 @@ func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 	if opening:
 		_speaker = speaking
 		_listener = _someone_other_than(speaking, cast)
-		_shot_kind = asked as Shot if asked >= 0 else Shot.SHOULDER
-	elif asked >= 0 and asked != _shot_kind:
-		_shot_kind = asked as Shot
+		_shot_kind = _resolved(asked as Shot if asked >= 0 else Shot.SHOULDER)
+	elif asked >= 0 and _resolved(asked as Shot) != _shot_kind:
+		_shot_kind = _resolved(asked as Shot)
 	else:
 		return
 
@@ -369,7 +422,7 @@ func _on_choices_offered() -> void:
 	var spoke: Unit = _speaker
 	_speaker = player
 	_listener = spoke if is_instance_valid(spoke) else _someone_other_than(player, _conversation.cast)
-	_shot_kind = Shot.SHOULDER
+	_shot_kind = _resolved(Shot.SHOULDER)
 	_cut()
 
 

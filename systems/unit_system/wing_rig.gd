@@ -17,6 +17,10 @@ extends Node3D
 @export var mount_bones: Array[StringName] = [&"UpperChest", &"Chest", &"Spine"]
 ## Where the wings' origin sits on the back, in skeleton space at rest.
 @export var mount_point: Vector3 = Vector3(0.0, 1.36, -0.175)
+## How big the wings are against the body they were made for (the fairy
+## mannequin's). Scaled about mount_point, so the root stays on the back.
+## Applied when the wings mount on one of mount_bones, as is the placing.
+@export var span: float = 1.0
 ## Replaces the imported mesh's material on every surface.
 @export var membrane: Material
 
@@ -70,7 +74,7 @@ func mount() -> bool:
 	skeleton.add_child(attachment)
 	attachment.bone_name = skeleton.get_bone_name(bone)
 	reparent(attachment, false)
-	transform = skeleton.get_bone_global_rest(bone).affine_inverse() * Transform3D(Basis.IDENTITY, mount_point)
+	transform = skeleton.get_bone_global_rest(bone).affine_inverse() * Transform3D(Basis.from_scale(Vector3.ONE * span), mount_point)
 	return true
 
 

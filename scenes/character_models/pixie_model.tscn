@@ -6,3 +6,4 @@
 [node name="PixieModel" instance=ExtResource("1_body")]
 
 [node name="Wings" parent="." instance=ExtResource("2_wings")]
+span = 1.5
