@@ -630,6 +630,11 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if ability.targeting and ability.targeting.requires_ally_target() and not ability.targeting.any_unit 			and target is Unit and _owner.is_hostile_to(target):
 		result["invalid_target"] = true
 		return result
+	# A prop only takes what can hurt it (Breakable.hurt_by): a heal or a
+	# shove on a crate would spend the action and do nothing.
+	if target is Breakable and not Breakable.hurt_by(ability):
+		result["invalid_target"] = true
+		return result
 
 	result["in_range"] = ability.is_in_range(_owner, target)
 	result["already_acted"] = ability.attack_action_spent_by(_owner)
@@ -688,6 +693,8 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# logic needed in MoveCasterEffect itself).
 	if target is LineTarget:
 		_owner.snap_face_point(target.centre())
+	elif target is Breakable:
+		_owner.snap_face_point(target.aim_point())
 	elif target is Vector3 or target is Unit:
 		_owner.snap_face_point(target if target is Vector3 else target.global_position)
 
@@ -704,6 +711,11 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	var waits: bool = ability.timing and ability.timing.waits_for_impact
 	var tree := _owner.get_tree()
+	# Named now, for the log: the target can be freed while a shot flies
+	# (a crate the first round broke), and a freed object can't be asked
+	# what it is.
+	var who: String = _log_target_desc(target)
+	var at_unit: bool = target is Unit
 
 	if not action.hit:
 		# A miss is shown too: the shot flies, and the defender answers
@@ -713,12 +725,12 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			await action.wait_for_impact(tree, ability.timing.impact_timeout)
 		var to_hit: Dictionary = result.get("to_hit", {})
 		if not to_hit.get("success", true):
-			SystemLog.print(_miss_log_line(target, ability))
+			SystemLog.print(_miss_log_line(who, ability))
 			if to_hit.critical_failure:
 				_owner.apply_status(CRIT_FAIL_PENALTY)
 		else:
-			SystemLog.print(_defense_log_line(target, ability, result.defense.kind))
-			if is_instance_valid(target) and target.is_alive():
+			SystemLog.print(_defense_log_line(who, ability, result.defense.kind))
+			if is_instance_valid(target) and target is Unit and target.is_alive():
 				target.defended.emit(target, result.defense.kind)
 		if waits:
 			_owner.end_busy()
@@ -737,7 +749,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		# The wait is the one stretch where the world moves on without
 		# this attack: a unit target freed or killed meanwhile takes
 		# nothing more. A LineTarget is an object too, but never a unit.
-		if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or (target is Unit and not target.is_alive())):
+		if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or ((target is Unit or target is Breakable) and not target.is_alive())):
 			if n == 0:
 				result["target_lost"] = true
 			break
@@ -755,9 +767,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	result["damage"] = effect_data.damage
 
 	if effect_data.damage > 0:
-		SystemLog.print(_hit_log_line(target, ability))
+		SystemLog.print(_hit_log_line(who, at_unit, ability))
 	else:
-		SystemLog.print(_use_log_line(target, ability))
+		SystemLog.print(_use_log_line(who, ability))
 
 	_finish(action)
 	return result
@@ -862,6 +874,17 @@ func to_hit_target(target, ability: Ability) -> int:
 			number += range_penalty(_owner.edge_distance_to(target))
 		if ranged:
 			# A wall it shoots through (Wall of Water) deflects the shot.
+			number += SurfaceManager.ranged_penalty_between(_owner, LineOfSight.shot_from(_owner), LineOfSight.shot_to(target, _owner))
+	elif target is Breakable:
+		# An object has no SM or statuses of its own; a shot at it still
+		# takes the range and anything it is fired through. (No GURPS bonus
+		# for its standing still: it has no defense, which is the bonus.)
+		var gear: GearDamageEffect = _gear_effect(ability)
+		var ranged: bool = ability.targeting is RangedEnemyTargeting
+		if gear and gear.row_for(_owner).kind == AttackRow.Kind.RANGED:
+			ranged = true
+			number += range_penalty(target.gap_from(_owner))
+		if ranged:
 			number += SurfaceManager.ranged_penalty_between(_owner, LineOfSight.shot_from(_owner), LineOfSight.shot_to(target, _owner))
 	return number
 
@@ -1309,6 +1332,9 @@ func _maybe_trigger_combat(target) -> void:
 	# reason for an attack over here not to start its own.
 	if _owner.in_combat():
 		return
+	# A prop broken mid-swing is freed by now; `is` on it would error.
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return
 	if not target is Unit or not target.is_alive():
 		return
 	if not _owner.is_hostile_to(target):
@@ -1329,33 +1355,35 @@ func _maybe_trigger_combat(target) -> void:
 ## colored name, a Vector3 (ground/area targeting) gets a generic label,
 ## since there's no "name" to show for a point in space.
 func _log_target_desc(target) -> String:
+	if target is Breakable:
+		return "the %s" % target.display_name.to_lower()
 	return LogFormat.unit_name(target) if target is Unit else "the target area"
 
 
-func _miss_log_line(target, ability: Ability) -> String:
-	return "%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
+func _miss_log_line(who: String, ability: Ability) -> String:
+	return "%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), who, ability.ability_name]
 
 
 const _DEFENSE_VERBS: Dictionary = {&"dodge": "dodges", &"parry": "parries", &"block": "blocks"}
 
 
-func _defense_log_line(target, ability: Ability, kind: StringName) -> String:
-	return "%s [i]%s[/i] %s's %s." % [_log_target_desc(target), _DEFENSE_VERBS[kind], LogFormat.unit_name(_owner), ability.ability_name]
+func _defense_log_line(who: String, ability: Ability, kind: StringName) -> String:
+	return "%s [i]%s[/i] %s's %s." % [who, _DEFENSE_VERBS[kind], LogFormat.unit_name(_owner), ability.ability_name]
 
 
 func _resist_log_line(status: StatusEffect) -> String:
 	return "%s [i]resists[/i] %s." % [LogFormat.unit_name(_owner), status.status_name]
 
 
-func _hit_log_line(target, ability: Ability) -> String:
-	var location: HitLocation = hit_location_for(ability) if target is Unit else null
+func _hit_log_line(who: String, at_unit: bool, ability: Ability) -> String:
+	var location: HitLocation = hit_location_for(ability) if at_unit else null
 	if location:
-		return "%s hits %s in the %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), location.display_name.to_lower(), ability.ability_name]
-	return "%s hits %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
+		return "%s hits %s in the %s with %s." % [LogFormat.unit_name(_owner), who, location.display_name.to_lower(), ability.ability_name]
+	return "%s hits %s with %s." % [LogFormat.unit_name(_owner), who, ability.ability_name]
 
 
-func _use_log_line(target, ability: Ability) -> String:
-	return "%s uses %s on %s." % [LogFormat.unit_name(_owner), ability.ability_name, _log_target_desc(target)]
+func _use_log_line(who: String, ability: Ability) -> String:
+	return "%s uses %s on %s." % [LogFormat.unit_name(_owner), ability.ability_name, who]
 
 
 func _damage_log_line(amount: int) -> String:

@@ -10,6 +10,10 @@ extends InteractionOption
 ## shows up wanting the same "can actor attack target right now" check.
 
 func is_available(actor: Unit, target) -> bool:
+	# A prop that breaks (Breakable): anyone may smash it.
+	var prop: Breakable = Breakable.of(target)
+	if prop:
+		return prop.is_alive() and Breakable.hurt_by(actor.default_ability())
 	if not target is Unit:
 		return false
 	var unit_target: Unit = target
@@ -24,4 +28,5 @@ func is_available(actor: Unit, target) -> bool:
 
 
 func execute(actor: Unit, target) -> void:
-	actor.use_ability(actor.default_ability(), target)
+	var prop: Breakable = Breakable.of(target)
+	actor.use_ability(actor.default_ability(), prop if prop else target)

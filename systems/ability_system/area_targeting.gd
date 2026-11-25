@@ -50,6 +50,21 @@ func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies
 	return UnitQuery.area_affected(attacker.get_tree(), attacker, target, radius, affects_hostiles, affects_allies)
 
 
+## Every prop in the attacker's world whose box reaches into the sphere.
+func breakables_caught(attacker: Unit, target) -> Array[Breakable]:
+	var caught: Array[Breakable] = []
+	if not target is Vector3:
+		return caught
+	var context: WorldContext = WorldManager.context_for(attacker)
+	for node in attacker.get_tree().get_nodes_in_group(&"breakables"):
+		var prop := node as Breakable
+		if prop == null or not prop.is_alive() or WorldManager.context_for(prop) != context:
+			continue
+		if prop.closest_point(target).distance_to(target) <= radius:
+			caught.append(prop)
+	return caught
+
+
 func expects_point_target() -> bool:
 	return true
 

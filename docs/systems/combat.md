@@ -139,7 +139,30 @@ Each fight is an `Encounter` Node. It owns its turn order, round counter, phase 
 | C-15 | Autoload order is solved by `call_deferred` registration in four places, with the same comment text copied each time. | combat_manager.gd:496-501; flag_manager.gd:41-42; faction_relations.gd:60 | SaveManager and WorldManager must exist before their clients push their registration. | Order the autoloads so dependencies come first, or have SaveManager/WorldManager pull (`get_nodes_in_group("persist")`) instead of clients pushing. | R5 | S | INTENTIONAL; document why: autoload order is dodged with `call_deferred`, and each place has a comment saying so (no commit named in the report) |
 | CINE-3 | same as C-11 (combat.md): the same two call sites repeat "play, release camera, start fight" | goblin_quarry.gd:134-145, 255-271 | | | R4 | | see cinematics.md |
 
+## Breakable props (breakable.gd, loot_pile.gd)
+A `Breakable` is a child Node3D of a prop, such as a crate or a barrel. It makes the prop something you can hit and break, following BG3's rules with GURPS numbers. It is **not a Unit**: it has no turn, no stats and no defense, and the AI ignores it.
+- **What it owns:** `hp`, which is not saved. Damage short of breaking is lost on reload.
+- **Numbers:**
+  - HP is 4 × the cube root of the weight in lb (B558). The weight comes from `weight_lb` or the MovableProp's weight.
+  - `dr` comes from the material.
+  - `injury_preset` is Unliving by default.
+  - `vulnerable_to` doubles damage of those types after DR.
+  - Every hit uses the torso row; there are no hit locations.
+- **How it is hit:**
+  - It is the `target` of `UnitCombat.use_ability`, the same path a unit goes through.
+  - There is no active defense and no to-hit bonus against objects.
+  - `DamageResolver.injury` takes a Unit or a Breakable, reading `dr` instead of the DR stat.
+  - The damage effects pass a null hit location for a Breakable.
+- **Breaking (0 HP):**
+  - `AreaState.mark_removed`, keyed by the prop's persistent_id, so an authored prop stays broken.
+  - It spawns debris: rigid bodies on Corpse.BODY_LAYER that freeze after 3 s and that the grid never sees.
+  - Its StashComponent becomes a `LootPile`. The pile is spawned, so it is not saved and is lost on reload.
+  - The prop leaves the tree, then `NavigationGrid.invalidate_region` re-bakes its box, then the prop is freed.
+- **Signals out:** `damaged(amount)` and `broken`.
+- **Found by:** the "breakables" group, or `Breakable.of(node)`.
+
 ## Tests
+- tests/interaction/test_props_break.gd (Breakable: HP from weight, attack lands, blast catches, DR, break leaves debris)
 - tests/combat/test_encounters.gd (multi-encounter, world scoping; also :224 detection join)
 - tests/combat/test_downed.gd
 - tests/combat/test_commanding.gd

@@ -127,6 +127,30 @@ func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies
 	return caught
 
 
+## Every prop in the attacker's world whose middle is in the cone and in
+## sight of its origin (walls shadow it as they do a unit).
+func breakables_caught(attacker: Unit, target) -> Array[Breakable]:
+	var caught: Array[Breakable] = []
+	if not target is Vector3:
+		return caught
+	var from: Vector3 = origin(attacker, target)
+	var aim: Vector3 = direction(attacker, target)
+	var half: float = half_angle()
+	var context: WorldContext = WorldManager.context_for(attacker)
+	for node in attacker.get_tree().get_nodes_in_group(&"breakables"):
+		var prop := node as Breakable
+		if prop == null or not prop.is_alive() or WorldManager.context_for(prop) != context:
+			continue
+		var point: Vector3 = prop.closest_point(from + aim * minf(length, from.distance_to(prop.aim_point())))
+		var to: Vector3 = point - from
+		if to.length() > length or (to.length() > 0.01 and aim.angle_to(to) > half):
+			continue
+		if requires_line_of_sight and not LineOfSight.has_clear_shot_to_breakable(attacker, prop, los_obstruction_mask):
+			continue
+		caught.append(prop)
+	return caught
+
+
 func _catches(attacker: Unit, unit: Unit, from: Vector3, aim: Vector3, half: float) -> bool:
 	for sample in unit.body_shape().samples():
 		var point := Vector3(sample.x, sample.y, sample.z)

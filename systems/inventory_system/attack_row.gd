@@ -124,8 +124,13 @@ func describe_damage(attacker: Unit = null) -> String:
 
 ## Ranged and past ½D from target: GURPS halves the damage roll.
 func is_past_half_damage(attacker: Unit, target) -> bool:
-	return kind == Kind.RANGED and half_damage_range > 0.0 and target is Unit \
-		and attacker.edge_distance_to(target) > half_damage_range
+	if kind != Kind.RANGED or half_damage_range <= 0.0:
+		return false
+	# A Breakable, by its method: naming the class here would compile its
+	# preloads whenever a row .tres loads (see _st_type).
+	if target is Object and target.has_method("gap_from"):
+		return target.gap_from(attacker) > half_damage_range
+	return target is Unit and attacker.edge_distance_to(target) > half_damage_range
 
 
 ## DamageBase's SWING/THRUST share UnitCombat.DamageType's values. Naming

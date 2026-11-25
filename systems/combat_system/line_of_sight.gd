@@ -43,6 +43,8 @@ static func shot_from(attacker: Unit, eye_height: float = NAN) -> Vector3:
 ## traces and every indicator and missile follows, so the line on screen
 ## is the line tested.
 static func shot_to(target, attacker: Unit = null, obstruction_mask: int = 1) -> Vector3:
+	if target is Breakable:
+		return target.aim_point()
 	if not target is Unit:
 		return target
 	var body := target as Unit
@@ -85,6 +87,18 @@ static func _first_visible(attacker: Unit, from: Vector3, target: Unit, obstruct
 		if _clear(attacker, from, points[i], obstruction_mask, exclude):
 			return points[i]
 	return null
+
+
+## Whether the middle of a Breakable's box can be seen: the prop's own
+## collision body is not cover for itself.
+static func has_clear_shot_to_breakable(attacker: Unit, target: Breakable, obstruction_mask: int = 1) -> bool:
+	var exclude: Array = []
+	var prop := target.prop()
+	if prop is CollisionObject3D:
+		exclude.append((prop as CollisionObject3D).get_rid())
+	for body in prop.find_children("*", "CollisionObject3D", true, false) if prop else []:
+		exclude.append((body as CollisionObject3D).get_rid())
+	return _clear(attacker, shot_from(attacker), target.aim_point(), obstruction_mask, exclude)
 
 
 ## Line of sight from the attacker's eye to point itself, not to a point

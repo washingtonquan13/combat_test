@@ -42,7 +42,9 @@ func handle_left_click(router, cursor: Cursor) -> bool:
 	if cursor.unit:
 		return router.click_unit(cursor.unit, true)
 	if cursor.interactable:
-		return false
+		# A prop that breaks takes a single-target attack as a unit does.
+		var prop: Breakable = Breakable.of(cursor.interactable)
+		return prop != null and router.click_breakable(prop, ability)
 	# A unit-targeted attack that may go off at the ground (AbilityTargeting.
 	# aims_at_ground) hits the spot clicked.
 	if ability and ability.targeting and ability.targeting.aims_at_ground and cursor.ground != null:

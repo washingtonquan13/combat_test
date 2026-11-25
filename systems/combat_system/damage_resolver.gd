@@ -61,12 +61,14 @@ static func effective_dr(dr: float, armor_divisor: float = 1.0) -> int:
 ##    ignores.
 ## 4. The profile's divisor (Damage Reduction, Powers 52), after
 ##    the cap, rounded down, still at least 1.
-static func injury(raw: int, target: Unit, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, is_critical: bool = false, ignores_dr: bool = false, location: HitLocation = null, is_area: bool = false) -> int:
+## target is a Unit or a Breakable (its own dr, no stats).
+static func injury(raw: int, target, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, is_critical: bool = false, ignores_dr: bool = false, location: HitLocation = null, is_area: bool = false) -> int:
 	var profile: InjuryProfile = target.injury_profile() if target else null
 	var row: BodyRow = profile.row(location) if profile else BodyPlan.human().row(location)
 	var penetrating: int = raw
 	if not (is_critical or ignores_dr or target == null):
-		var dr: float = target.get_stat(StatIds.DR) + row.dr[wound_type]
+		var base_dr: float = target.dr if target is Breakable else target.get_stat(StatIds.DR)
+		var dr: float = base_dr + row.dr[wound_type]
 		penetrating -= effective_dr(dr, armor_divisor)
 	var multiplier: float = row.multipliers[wound_type]
 	if penetrating <= 0 or multiplier <= 0.0:

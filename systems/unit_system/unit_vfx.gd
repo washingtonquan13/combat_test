@@ -259,12 +259,18 @@ func _on_status_removed(affected_unit: Unit, effect: StatusEffect) -> void:
 
 
 func _get_target_position(target, attacker: Unit) -> Vector3:
+	# A prop broken before this fires is freed; `is` on it would error.
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return attacker.global_position
 	if target is Unit:
 		return target.global_position
 	if target is Vector3:
 		return target
 	if target is LineTarget:
 		return target.centre()
+	# A prop's floor point, as a unit's is its feet.
+	if target is Breakable:
+		return target.ground_point()
 	return attacker.global_position
 
 

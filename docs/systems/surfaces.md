@@ -82,6 +82,8 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 | Per cube: surface, key, `rounds`, patch; per cast: cells, visual, **context** | cloud_cell.gd, cloud_patch.gd | no |
 | Definition: shape, duration, status, `status_only_inside`, `blocks_sight`, cost, visuals and FX | surface.gd | authored .tres |
 
+- **Breakables:** each round, `_burn_breakables` deals each damaging ground surface's damage to the Breakables standing in it (`Breakable.injure`). Outside combat, the 6 s quiet-round timer does this.
+
 ## World scoping
 Every surface belongs to a world.
 - `spawn` files it into the caster's `WorldContext` and parents it under that world's root. With no world loaded, it uses the scene root and then the caster's own parent.

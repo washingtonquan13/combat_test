@@ -65,7 +65,16 @@ func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Di
 	for entry in affected:
 		total_damage += entry.damage
 
-	return {"affected": affected, "damage": total_damage}
+	# Props caught are hurt at the blast too: rolled now, through their
+	# own DR and vulnerabilities, like a unit.
+	var props: Array = []
+	for prop in ability.targeting.breakables_caught(attacker, target):
+		var raw: int = roll_damage()
+		var amount: int = DamageResolver.injury(raw, prop, wound_type, armor_divisor, false, false, null, true)
+		props.append({"prop": prop, "raw_damage": raw, "damage": amount})
+		total_damage += amount
+
+	return {"affected": affected, "breakables": props, "damage": total_damage}
 
 
 ## Anyone freed before the blast lands is skipped.
@@ -75,6 +84,9 @@ func commit(_attacker: Unit, _target, _ability: Ability, _is_critical: bool, pla
 	for entry in plan.affected:
 		if is_instance_valid(entry.unit):
 			entry.unit.take_damage(entry.damage)
+	for entry in plan.get("breakables", []):
+		if is_instance_valid(entry.prop):
+			entry.prop.take_damage(entry.damage)
 	return plan
 
 

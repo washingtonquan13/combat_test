@@ -35,12 +35,12 @@ func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dicti
 ## rolls and meets DR on its own (B379), so armor stops a burst one
 ## bullet at a time.
 func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
-	if not target is Unit:
+	if not (target is Unit or target is Breakable):
 		return {}
 
 	var attack: AttackRow = row_for(attacker)
 	var halved: bool = attack.is_past_half_damage(attacker, target)
-	var location: HitLocation = attacker.hit_location_for(ability)
+	var location: HitLocation = attacker.hit_location_for(ability) if target is Unit else null
 	var injuries: Array[int] = []
 	var raws: Array[int] = []
 	var raw_total: int = 0
@@ -94,6 +94,10 @@ func row_for(attacker: Unit) -> AttackRow:
 
 func located_wound_type(attacker: Unit) -> int:
 	return row_for(attacker).wound_type
+
+
+func harms() -> bool:
+	return true
 
 
 func describe() -> String:

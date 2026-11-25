@@ -18,6 +18,10 @@ func check(attacker: Unit, target) -> Reach:
 	if target is Vector3 and aims_at_ground:
 		var reach: float = attacker.body_shape().distance_to_point(target)
 		return Reach.OK if reach <= melee_range else Reach.OUT_OF_RANGE
+	if target is Breakable:
+		if not target.is_alive():
+			return Reach.INVALID
+		return Reach.OK if target.gap_from(attacker) <= melee_range else Reach.OUT_OF_RANGE
 	if not target is Unit:
 		return Reach.INVALID
 	return Reach.OK if attacker.edge_distance_to(target) <= melee_range else Reach.OUT_OF_RANGE

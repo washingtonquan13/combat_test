@@ -25,7 +25,7 @@ func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dicti
 
 
 func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
-	if not target is Unit:
+	if not (target is Unit or target is Breakable):
 		return {}
 
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
@@ -33,7 +33,7 @@ func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dic
 	# with this project's fast/not-roll-heavy combat goal.
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
-	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical, false, attacker.hit_location_for(ability))
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical, false, attacker.hit_location_for(ability) if target is Unit else null)
 	return {"raw_damage": raw_damage, "damage": applied}
 
 
@@ -55,3 +55,7 @@ func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation 
 
 func located_wound_type(_attacker: Unit) -> int:
 	return wound_type
+
+
+func harms() -> bool:
+	return true

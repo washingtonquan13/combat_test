@@ -167,6 +167,9 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -> void:
 	if element == Surface.Element.NONE:
 		return
+	# A prop struck: the floor under it, as a shot at the ground would.
+	if target is Breakable:
+		target = target.ground_point()
 	var context: WorldContext = WorldManager.context_for(attacker) if attacker else WorldManager.context()
 	var parent: Node = _parent_for(context, attacker)
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
@@ -1150,8 +1153,33 @@ func _on_quiet_round() -> void:
 ## leaves behind as it runs out (leaves_behind) then lands after this
 ## round's aging, and keeps its whole duration.
 func _age(clouds: CloudGrid, ground: SurfaceGrid) -> void:
+	_burn_breakables(ground)
 	_age_grid(ground)
 	_age_clouds(clouds)
+
+
+## Each round, what a ground surface does to the props standing in it: the
+## damage-over-time of its statuses (a fire's Burning), rolled once per
+## prop and taken through its DR and vulnerabilities - a crate in a fire
+## burns down as BG3's does. A prop has no statuses, so only the damage
+## carries over; the round it is caught in is its first.
+func _burn_breakables(ground: SurfaceGrid) -> void:
+	if ground.is_empty():
+		return
+	for node in get_tree().get_nodes_in_group(&"breakables"):
+		var prop := node as Breakable
+		if prop == null or not prop.is_alive():
+			continue
+		if _grid_for(WorldManager.context_for(prop)) != ground:
+			continue
+		var cell: SurfaceCell = ground.cell_under(prop.ground_point())
+		if cell == null or cell.surface == null:
+			continue
+		for status in cell.surface.status_effects:
+			for behavior in status.behaviors:
+				if behavior is DamageOverTimeBehavior and prop.is_alive():
+					var dot := behavior as DamageOverTimeBehavior
+					prop.injure(dot.roll_damage(), dot.wound_type, dot.armor_divisor, dot.ignores_damage_reduction)
 
 
 ## Every cube runs out on its own clock, like ground cells.

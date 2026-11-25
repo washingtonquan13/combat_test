@@ -364,7 +364,7 @@ func _input(event: InputEvent) -> void:
 ## What the mouse is over right now, on the height plane if one is up.
 ## The only mouse raycasts in the project: the world past units (see
 ## _raycast_past_units), the unit pick areas (_unit_under_mouse), and a
-## lootable corpse's pick area (_corpse_under_mouse).
+## lootable corpse's or loot pile's pick area (_corpse_under_mouse).
 ##
 ## A height plane exists only while the intent takes a height
 ## (PlayerIntent.drags_height) - Ctrl over anything else leaves the
@@ -646,11 +646,11 @@ func _unit_under_mouse(world_hit: Dictionary) -> Unit:
 	return best
 
 
-## The lootable corpse the mouse is over, by its pick area (Corpse.
-## PICK_LAYER; only a corpse holding something has one), nearer the camera
-## than the world behind it. Nothing of a corpse is solid, so the world
-## ray goes straight through it.
-func _corpse_under_mouse(world_hit: Dictionary) -> Corpse:
+## The lootable corpse - or LootPile, a broken container's contents - the
+## mouse is over, by its pick area (Corpse.PICK_LAYER; only one holding
+## something has one), nearer the camera than the world behind it. Neither
+## is solid, so the world ray goes straight through it.
+func _corpse_under_mouse(world_hit: Dictionary) -> Node3D:
 	var hit: Dictionary = _raycast(Corpse.PICK_LAYER, [], true)
 	if hit.is_empty():
 		return null
@@ -659,7 +659,8 @@ func _corpse_under_mouse(world_hit: Dictionary) -> Corpse:
 		var from: Vector3 = camera.project_ray_origin(get_viewport().get_mouse_position())
 		if from.distance_to(hit.position) > from.distance_to(world_hit.position) + 0.05:
 			return null
-	return Corpse.from_pick_area(hit.collider)
+	var owner_node: Node = (hit.collider as Node).get_parent() if hit.collider is Node else null
+	return owner_node as Node3D if owner_node and owner_node.has_method("get_interactions") else null
 
 
 ## What a ray hit, but only if that body would have accepted a click.
@@ -1029,6 +1030,27 @@ func click_unit(clicked: Unit, aiming: bool = false) -> bool:
 	return true
 
 
+## Using ability, armed, on a prop that breaks (Breakable): the same
+## use_ability a click on a unit makes. Only a single-target attack takes
+## one; anything else armed leaves the click to the prop. Returns whether
+## it was spoken for.
+func click_breakable(prop: Breakable, ability: Ability) -> bool:
+	if _breakable_ability(prop, ability) == null:
+		return false
+	PlayerInteractionState.get_active_unit().use_ability(ability, prop)
+	return true
+
+
+## ability if the active unit may aim it at prop, else null.
+func _breakable_ability(prop: Breakable, ability: Ability) -> Ability:
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	if prop == null or not prop.is_alive() or ability == null or ability.targeting == null:
+		return null
+	if acting_unit == null or acting_unit not in SelectionManager.selected_units:
+		return null
+	return ability if ability.targeting.targets_single_enemy() and Breakable.hurt_by(ability) else null
+
+
 ## If ability expects a ground point as its target (Ability.targeting.
 ## expects_point_target — Jump, an AoE, any future point-targeting
 ## ability) and the player is actually commanding the caster, uses it at
@@ -1196,7 +1218,14 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 		if at.unit:
 			return _unit_answer(at.unit, true)
 		if at.interactable:
-			return ClickAnswer.new()
+			var prop: Breakable = Breakable.of(at.interactable)
+			if _breakable_ability(prop, ability) == null:
+				return ClickAnswer.new()
+			var on_prop := ClickAnswer.new(&"use", prop.aim_point())
+			var reach: AbilityTargeting.Reach = ability.targeting.check(PlayerInteractionState.get_active_unit(), prop)
+			if reach != AbilityTargeting.Reach.OK:
+				on_prop.refused(_reach_reason(reach, true))
+			return on_prop
 		if ability and ability.targeting and ability.targeting.aims_at_ground and at.ground != null:
 			var caster: Unit = PlayerInteractionState.get_active_unit()
 			if caster == null or caster not in SelectionManager.selected_units:

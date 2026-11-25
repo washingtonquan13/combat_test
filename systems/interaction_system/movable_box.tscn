@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://systems/interaction_system/movable_prop.gd" id="1_movable"]
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_option"]
 [ext_resource type="Resource" path="res://data/interactions/examine.tres" id="3_examine"]
+[ext_resource type="Script" path="res://systems/combat_system/breakable.gd" id="4_breakable"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_box"]
 albedo_color = Color(0.55, 0.38, 0.22, 1)
@@ -25,3 +26,7 @@ mesh = SubResource("BoxMesh_box")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_box")
+
+[node name="Breakable" type="Node3D" parent="."]
+script = ExtResource("4_breakable")
+display_name = "Box"

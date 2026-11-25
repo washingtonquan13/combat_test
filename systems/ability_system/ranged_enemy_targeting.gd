@@ -25,6 +25,14 @@ func check(attacker: Unit, target) -> Reach:
 		if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, target, los_obstruction_mask):
 			return Reach.BLOCKED
 		return Reach.OK
+	if target is Breakable:
+		if not target.is_alive():
+			return Reach.INVALID
+		if target.gap_from(attacker) > max_range:
+			return Reach.OUT_OF_RANGE
+		if requires_line_of_sight and not LineOfSight.has_clear_shot_to_breakable(attacker, target, los_obstruction_mask):
+			return Reach.BLOCKED
+		return Reach.OK
 	if not target is Unit:
 		return Reach.INVALID
 	if attacker.edge_distance_to(target) > max_range:

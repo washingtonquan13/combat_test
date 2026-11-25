@@ -64,6 +64,12 @@ func located_wound_type(_attacker: Unit) -> int:
 	return -1
 
 
+## Whether this effect deals damage to the one target it is aimed at:
+## what makes an ability worth aiming at a prop (Breakable.hurt_by).
+func harms() -> bool:
+	return false
+
+
 ## Expected HP this effect would restore to ONE target — the heal-side
 ## mirror of expected_damage() above, same reasoning. Override in each
 ## healing subclass.

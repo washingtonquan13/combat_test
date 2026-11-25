@@ -16,6 +16,8 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
 | Overworld prompt current target | interact_prompt.gd:36-42, :75-84 | No |
 | Option lists on units / props | unit.gd:350 `interactions`, :844-849; interactable_prop.gd:16-33 | Content |
 
+- A prop with a `Breakable` child gets Attack added to its `interactions` at `_ready` (a fresh array; the scene's own is untouched). Picking it calls `use_ability(default_ability(), breakable)`. Like attacking a unit, it does **not** walk to the target: `InteractionApproach` walks only when `option.reach > 0`, and attack.tres has reach 0. ClickRouter's `click_breakable` uses the armed single-target attack on the prop under the mouse at once. Only an ability that `Breakable.hurt_by` allows counts: not for allies, and with a damage effect. `UnitCombat.use_ability` refuses any other as `invalid_target`, so a heal or a shove on a crate never spends the action.
+
 ## Derived / cached state
 - Intent is recomputed each frame (`intent()` ground_click_target.gd:129-139) from CameraDirector.has_control, pushed intents and AbilityManager.armed_ability; only `_last` is cached for change detection. Cleared on world_focused (:161-162).
 - `InteractionMenu._actor/_target/_options` are copies of selection at open time, not refreshed (interaction_menu.gd:19-22; options filtered once at `open_for`, :35-51).

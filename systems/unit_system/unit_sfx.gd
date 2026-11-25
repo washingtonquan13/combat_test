@@ -147,6 +147,8 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_pending_ability = ability
 	if target is LineTarget:
 		_pending_target_position = target.centre()
+	elif target is Breakable:
+		_pending_target_position = target.ground_point()
 	else:
 		_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
 

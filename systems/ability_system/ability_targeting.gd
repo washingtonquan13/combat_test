@@ -187,6 +187,13 @@ func units_caught(_attacker: Unit, _target, _affects_hostiles: bool, _affects_al
 	return []
 
 
+## The props (Breakable) the same shape catches: a blast breaks the crates
+## in it as BG3's does. A prop is on no side, so friendly fire does not
+## spare it. Base: none.
+func breakables_caught(_attacker: Unit, _target) -> Array[Breakable]:
+	return []
+
+
 ## Distance CombatAI should try to close to before considering a target
 ## in range — used for movement/standoff purposes (see AiScorer.
 ## standoff_goal). Override in each subclass; base returns 0 (stand
