@@ -30,6 +30,10 @@ enum AdvanceTrigger {
 @export var advance_trigger: AdvanceTrigger = AdvanceTrigger.ON_FINISH
 ## Only read when advance_trigger == ON_TIMER.
 @export var duration: float = 0.3
+## Plays animation_name with the body's sides swapped (ClipMirror): the
+## left hand does what the clip keys for the right. A one-handed weapon in
+## the hand its clip wasn't made for (a pistol in the off hand).
+@export var mirrored: bool = false
 
 
 func describe() -> String:

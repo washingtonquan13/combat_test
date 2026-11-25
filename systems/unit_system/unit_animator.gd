@@ -246,6 +246,7 @@ func _ready() -> void:
 		push_warning("unit_animator.gd needs both `unit` and `animation_player` assigned in the Inspector.")
 		return
 
+	_build_mirrored_clips()
 	playback = BodyAnimationTree.attach(animation_player)
 	if _locomotion_set:
 		if _locomotion_set.simple:
@@ -956,7 +957,7 @@ func _on_animation_finished(anim_name: StringName) -> void:
 
 	var blend := -1.0
 	var phase: AnimationPhase = _active_phase()
-	if phase and anim_name == phase.animation_name:
+	if phase and anim_name == _phase_clip(phase):
 		if phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_FINISH:
 			if _advance_to_next_phase(phase_blend_time):
 				return
@@ -1093,6 +1094,44 @@ func _sequence_for(motion: StringName) -> AnimationSequence:
 	return _motions.sequence_for(StringName(motion + place))
 
 
+## The clip a phase plays on this body: its own, or for a mirrored phase
+## the ClipMirror _build_mirrored_clips made of it.
+func _phase_clip(phase: AnimationPhase) -> String:
+	if not phase.mirrored:
+		return phase.animation_name
+	var full: String = MIRRORED_LIBRARY + "/" + phase.animation_name.replace("/", "_")
+	return full if animation_player.has_animation(full) else phase.animation_name
+
+
+## Every mirrored phase in this body's motion set, built once on its own
+## skeleton into a "Mirrored" library (the clip's name with "/" as "_").
+## Before the BodyAnimationTree attaches: it reads the player's libraries
+## when it does, and a library added later isn't playable until it next
+## refreshes.
+func _build_mirrored_clips() -> void:
+	if _motions == null:
+		return
+	var skeleton: Skeleton3D = null
+	for sequence in _motions.sequences.values():
+		for phase: AnimationPhase in (sequence.phases if sequence else []):
+			if not phase or not phase.mirrored or not animation_player.has_animation(phase.animation_name):
+				continue
+			var mirrored_name: String = phase.animation_name.replace("/", "_")
+			if animation_player.has_animation(MIRRORED_LIBRARY + "/" + mirrored_name):
+				continue
+			if skeleton == null:
+				skeleton = BodyAnimationTree._skeleton_under(animation_player.get_node(animation_player.root_node))
+				if skeleton == null:
+					return
+			if not animation_player.has_animation_library(MIRRORED_LIBRARY):
+				animation_player.add_animation_library(MIRRORED_LIBRARY, AnimationLibrary.new())
+			animation_player.get_animation_library(MIRRORED_LIBRARY).add_animation(mirrored_name,
+				ClipMirror.mirrored(animation_player.get_animation(phase.animation_name), skeleton))
+
+
+const MIRRORED_LIBRARY := &"Mirrored"
+
+
 ## This body's clip for `motion`, or "" when it has none.
 func _clip(motion: StringName) -> String:
 	if motion == &"" or _motions == null:
@@ -1187,7 +1226,7 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 		_active_phase_index = -1
 		return false
 
-	var started: bool = _play(next.animation_name, blend)
+	var started: bool = _play(_phase_clip(next), blend)
 
 	match next.advance_trigger:
 		AnimationPhase.AdvanceTrigger.ON_FINISH:

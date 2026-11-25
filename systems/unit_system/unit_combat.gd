@@ -466,8 +466,11 @@ func _bound_to(template: Ability, row: AttackRow, off_hand: bool, weapon_set: in
 		return per_row[key]
 	var bound: Ability = template.duplicate()
 	bound.ability_name = row.label + (" (off hand)" if off_hand else "")
+	# The off hand's motion is the row's with ".off" (attack.shoot.pistol.off,
+	# the mirrored shot): the clip was keyed for the hand the weapon is
+	# made for. A body with no ".off" entry plays the plain one.
 	if row.motion != &"":
-		bound.motion = row.motion
+		bound.motion = StringName(row.motion + ".off") if off_hand else row.motion
 	if row.cast_vfx:
 		bound.cast_vfx = row.cast_vfx
 	var effects: Array[AbilityEffect] = []

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="MotionSet" load_steps=25 format=3]
+[gd_resource type="Resource" script_class="MotionSet" load_steps=26 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/motion_set.gd" id="1_motion_set"]
 [ext_resource type="Resource" path="res://data/animation_sequences/fireball_cast.tres" id="2_fireball_cast"]
@@ -16,6 +16,7 @@
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_swing.tres" id="13_weapon_heavy_swing"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_thrust.tres" id="14_weapon_heavy_thrust"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_pistol.tres" id="15_weapon_pistol"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_pistol_off.tres" id="15_weapon_pistol_off"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_punch.tres" id="16_weapon_punch"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_crossbow.tres" id="17_weapon_reload_crossbow"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_pistol.tres" id="18_weapon_reload_pistol"]
@@ -36,6 +37,7 @@ sequences = Dictionary[StringName, ExtResource("2_iw2oy")]({
 &"attack.shoot.bow": ExtResource("8_weapon_bow"),
 &"attack.shoot.crossbow": ExtResource("11_weapon_crossbow"),
 &"attack.shoot.pistol": ExtResource("15_weapon_pistol"),
+&"attack.shoot.pistol.off": ExtResource("15_weapon_pistol_off"),
 &"attack.shoot.rifle": ExtResource("20_weapon_rifle_burst"),
 &"attack.swing": ExtResource("21_weapon_swing"),
 &"attack.swing.heavy": ExtResource("13_weapon_heavy_swing"),
