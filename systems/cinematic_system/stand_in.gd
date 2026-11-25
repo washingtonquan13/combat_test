@@ -22,8 +22,8 @@ extends Node3D
 ## somebody appears to stand.
 ##
 ## WHAT IT DOES NOT CARRY. What the body shows the player about the unit
-## (hover outline, selection and turn rings) is left off the copy and stays
-## on the unit's hidden body. Effects and floating text follow the unit, not
+## (hover outline, x-ray silhouette, selection and turn rings) is left off
+## the copy and stays the unit's own body's business. Effects and floating text follow the unit, not
 ## the copy; a scene that needs them on screen should not use a stand-in.
 
 const NODE_NAME: StringName = &"StandIn"
@@ -156,13 +156,15 @@ static func _shown_by(original: CharacterModel) -> Object:
 
 ## The body carries what the player is shown about the unit: the hover
 ## outline (UnitOutline, a parameter on its meshes, which a copy takes
-## with it) and the ring (whose decals hang under highlight_mesh). On the
+## with it), the x-ray silhouette (an overlay on its meshes, likewise) and
+## the ring (whose decals hang under highlight_mesh). On the
 ## copy nothing would drive them, so whatever was showing at the moment of
 ## the copy, a ring for the selected leader, an outline for the person just
 ## clicked to talk to, would stand frozen in every shot. They stay the
 ## unit's own, hidden with its body and back when the copy is struck.
 static func _strip_player_feedback(original: CharacterModel, copy: CharacterModel) -> void:
 	UnitOutline.clear(copy)
+	XRaySilhouettes.clear_copy(copy)
 	var own: Node = original.highlight_mesh
 	if own == null or not original.is_ancestor_of(own):
 		return

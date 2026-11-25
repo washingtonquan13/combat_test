@@ -292,5 +292,16 @@ func _unpaint(id: int) -> void:
 		mesh.material_overlay = null
 
 
+## Takes any silhouette off a copy of a body (StandIn.copy_body). A
+## duplicate keeps the overlay its original wore that moment, but no
+## XRaySilhouettes knows the copy, so nothing would ever take it off, and it
+## would go on testing against a level depth that has stopped updating.
+static func clear_copy(copy: Node) -> void:
+	for mesh: MeshInstance3D in copy.find_children("*", "MeshInstance3D", true, false):
+		var overlay := mesh.material_overlay as ShaderMaterial
+		if overlay and overlay.shader == SHADER:
+			mesh.material_overlay = null
+
+
 func _is_ours(material: Material) -> bool:
 	return material != null and (material == _party_material or material == _enemy_material)
