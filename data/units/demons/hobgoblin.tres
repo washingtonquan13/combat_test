@@ -25,14 +25,7 @@ root_id = "wild_greeting"
 script = ExtResource("1_def")
 id = "hobgoblin"
 display_name = "Hobgoblin"
-stats = Dictionary[StringName, int]({
-&"DR": 2,
-&"DX": 12,
-&"HP": 4,
-&"HT": 20,
-&"Move": -3,
-&"ST": 16
-})
+stats = Dictionary[StringName, int]({})
 advantages = Dictionary[ExtResource("adv_script"), int]({
 ExtResource("adv_damage_resistance"): 1
 })

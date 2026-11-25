@@ -26,11 +26,7 @@ root_id = "sly_greeting"
 script = ExtResource("1_def")
 id = "goblin_rogue"
 display_name = "Goblin Rogue"
-stats = Dictionary[StringName, int]({
-&"DX": 14,
-&"HP": -2,
-&"Move": -1
-})
+stats = Dictionary[StringName, int]({})
 advantages = Dictionary[ExtResource("adv_script"), int]({
 ExtResource("adv_catfall"): 1
 })
