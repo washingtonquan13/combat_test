@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=6 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_statmod"]
+[ext_resource type="Resource" path="res://assets/wearables/leather_armor/leather_armor.tres" id="4_wear"]
+
+[sub_resource type="Resource" id="Resource_statmod"]
+script = ExtResource("3_statmod")
+stat_name = &"DR"
+amount = 1
+multiplier = 1.0
+
+[resource]
+script = ExtResource("1_gear")
+slot_type = 3
+weight = 10.0
+stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
+is_shield = false
+wearable = ExtResource("4_wear")
+id = &"leather_armor"
+item_name = "Leather Armour"
+icon = ExtResource("2_icon")
+width = 2
+height = 3
+maximum_stack_count = 99

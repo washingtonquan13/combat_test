@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="Wearable" load_steps=3 format=3]
+
+[ext_resource type="Script" uid="uid://v15dcqtjioxw" path="res://systems/inventory_system/wearable.gd" id="1_wear"]
+[ext_resource type="PackedScene" path="res://assets/wearables/leather_armor/male/leather_armor.glb" id="2_cc_male"]
+
+[resource]
+script = ExtResource("1_wear")
+meshes = Dictionary[StringName, PackedScene]({ &"cc_male": ExtResource("2_cc_male") })
+hides = Array[StringName]([&"CC_Base_Pelvis"])
