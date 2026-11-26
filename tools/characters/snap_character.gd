@@ -92,7 +92,7 @@ func _run() -> void:
 		if args[k] == "--wear":
 			worn.append(load(args[k + 1]) as Wearable)
 	for child in model.get_children():
-		if child is CharacterLook:
+		if child is CharacterLook or child is CCLook:
 			child.wear(worn)
 	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if player and player.has_animation("Idle"):
