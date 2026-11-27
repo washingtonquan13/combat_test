@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="PickLockInteraction" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/lock_system/pick_lock_interaction.gd" id="1_pick"]
+
+[resource]
+script = ExtResource("1_pick")
+label = "Pick lock"
+reach = 1.5

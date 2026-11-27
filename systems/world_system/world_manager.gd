@@ -173,6 +173,9 @@ var _attention_homes: Dictionary = {}
 ## "default" fallback) that produced it.
 var _pending_spawn_point_name: StringName = &"default"
 
+## Where a persistent node's state keeps its child components' states
+## when it has more than one (see _entity_state).
+const COMPONENTS_KEY := "components"
 ## Seconds the screen takes to go black before a load, and to come back
 ## after it.
 const TRAVEL_FADE := 0.4
@@ -768,8 +771,8 @@ func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDe
 ## moment a world stopped being resident.
 ##
 ## Uses the same walk as reconciliation, and the same duck-typed
-## save_state()-on-the-node-or-a-child convention, so a component that
-## already answers load_state() is captured too.
+## save_state()-on-the-node-or-its-children convention (_entity_state),
+## so a component that already answers load_state() is captured too.
 func _capture_area_state(resident: ResidentWorld, skip_party: bool = false) -> void:
 	if resident == null or resident.area == null or not is_instance_valid(resident.world):
 		return
@@ -777,14 +780,58 @@ func _capture_area_state(resident: ResidentWorld, skip_party: bool = false) -> v
 	for node in _collect_persistent_nodes(resident.world):
 		if skip_party and node is Unit and PartyManager.is_member(node):
 			continue
-		var target: Node = node
-		if not target.has_method("save_state"):
-			for child in node.get_children():
-				if child.has_method("save_state"):
-					target = child
-					break
-		if target.has_method("save_state"):
-			AreaState.store_state(resident.area.id, node.persistent_id, target.save_state())
+		var state: Variant = _entity_state(node)
+		if state != null:
+			AreaState.store_state(resident.area.id, node.persistent_id, state)
+
+
+## What a persistent node records: its own save_state() if it has one.
+## Otherwise its direct child components' (a chest's StashComponent and
+## Lock). One component is stored as it is, the shape saves have always
+## had; two or more go under COMPONENTS_KEY, keyed by child name, so a
+## second component is never dropped in favour of the first. null: nothing
+## on it records state.
+func _entity_state(node: Node) -> Variant:
+	if node.has_method("save_state"):
+		return node.save_state()
+	var components: Array[Node] = _state_components(node)
+	if components.is_empty():
+		return null
+	if components.size() == 1:
+		return components[0].save_state()
+	var by_name := {}
+	for child in components:
+		by_name[String(child.name)] = child.save_state()
+	return {COMPONENTS_KEY: by_name}
+
+
+## The read half of _entity_state. A state without COMPONENTS_KEY was
+## written by a single component (or before a second one was added to the
+## prop), so it goes to the first one, as it always did.
+func _apply_entity_state(node: Node, state: Variant) -> void:
+	if node.has_method("load_state"):
+		node.load_state(state)
+		return
+	var components: Array[Node] = _state_components(node)
+	if components.is_empty():
+		return
+	if state is Dictionary and state.has(COMPONENTS_KEY):
+		var by_name: Dictionary = state[COMPONENTS_KEY]
+		for child in components:
+			if by_name.has(String(child.name)):
+				child.load_state(by_name[String(child.name)])
+		return
+	components[0].load_state(state)
+
+
+## Direct children only, so this can't reach into an unrelated persistent
+## node nested underneath.
+func _state_components(node: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	for child in node.get_children():
+		if child.has_method("save_state") and child.has_method("load_state"):
+			found.append(child)
+	return found
 
 
 ## Records every resident world's persistent state in AreaState while it
@@ -817,24 +864,15 @@ func _reconcile_area_state(world: Node, area_id: StringName) -> void:
 			node.queue_free()
 			continue
 
-		# The save_state()/load_state() contract may live on a CHILD
-		# component rather than the persistent_id-bearing node itself —
-		# a chest's contents are owned by its StashComponent, not by the
-		# InteractableProp directly (same "capability by composition"
-		# reasoning StashComponent.find_on()'s own header gives). Direct
-		# children only, so this can't accidentally reach into an
-		# unrelated persistent node nested underneath.
-		var target: Node = node
-		if not target.has_method("load_state"):
-			for child in node.get_children():
-				if child.has_method("load_state"):
-					target = child
-					break
-
-		if target.has_method("load_state"):
-			var state: Variant = AreaState.stored_state(area_id, entity_id)
-			if state != null:
-				target.load_state(state)
+		# The save_state()/load_state() contract may live on CHILD
+		# components rather than the persistent_id-bearing node itself —
+		# a chest's contents are owned by its StashComponent and its lock
+		# by its Lock, not by the InteractableProp directly (same
+		# "capability by composition" reasoning StashComponent.find_on()'s
+		# own header gives). See _entity_state for the shape.
+		var state: Variant = AreaState.stored_state(area_id, entity_id)
+		if state != null:
+			_apply_entity_state(node, state)
 
 
 ## Recursive: an entity's persistent_id can sit at any depth (a Unit

@@ -1,0 +1,38 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
+[ext_resource type="Resource" path="res://data/interactions/pick_lock.tres" id="2_pick"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="3_loot"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="4_examine"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="5_opt"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="6_stash"]
+[ext_resource type="Script" path="res://systems/lock_system/lock.gd" id="7_lock"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_chest"]
+albedo_color = Color(0.28, 0.2, 0.13, 1)
+metallic = 0.3
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="BoxMesh_chest"]
+material = SubResource("Mat_chest")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+
+[node name="LockedChest" type="StaticBody3D"]
+script = ExtResource("1_prop")
+interactions = Array[ExtResource("5_opt")]([ExtResource("2_pick"), ExtResource("3_loot"), ExtResource("4_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_chest")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_chest")
+
+[node name="StashComponent" parent="." instance=ExtResource("6_stash")]
+display_name = "Locked chest"
+loot_rolls = 4
+
+[node name="Lock" type="Node" parent="."]
+script = ExtResource("7_lock")
+modifier = -2
+lock_name = "Iron chest lock"

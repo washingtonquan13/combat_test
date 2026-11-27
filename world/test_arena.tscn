@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=18 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://world/test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="3_7mycd"]
@@ -14,6 +14,7 @@
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
 [ext_resource type="PackedScene" path="res://systems/inventory_system/loot_chest.tscn" id="90_lootchest"]
+[ext_resource type="PackedScene" path="res://systems/lock_system/locked_chest.tscn" id="91_lockedchest"]
 [ext_resource type="PackedScene" path="res://cinematics/test_arena_arrival.tscn" id="99_arrival"]
 [ext_resource type="Environment" path="res://world/combat_environment.tres" id="env_combat"]
 
@@ -110,6 +111,10 @@ persistent_id = &"test_arena_chest"
 [node name="LootChest" parent="." instance=ExtResource("90_lootchest")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
 persistent_id = &"test_arena_loot_chest"
+
+[node name="LockedChest" parent="." instance=ExtResource("91_lockedchest")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -11)
+persistent_id = &"test_arena_locked_chest"
 
 [node name="OverworldExit" parent="." instance=ExtResource("54_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, -8)

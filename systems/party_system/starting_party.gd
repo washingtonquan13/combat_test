@@ -24,7 +24,7 @@ const INNATE_ABILITIES: Array[String] = [
 ## These come with an advantage, and the leader hasn't got it.
 const ADVANTAGE_ABILITIES: Array[String] = ["cling"]
 ## How many of an item the character starts with, where it is not one.
-const STARTING_COUNT := {"camp_supplies": 3}
+const STARTING_COUNT := {"camp_supplies": 3, "lock_pick": 5}
 ## What the character starts wearing. Everything else goes in the bag.
 const WORN := {
 	EquipSlot.Slot.HELMET: "leather_helmet",

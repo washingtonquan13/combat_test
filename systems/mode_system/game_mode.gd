@@ -35,7 +35,7 @@ extends Node
 ##
 ## Dependency direction is one-way on purpose: GameMode asks
 ## CinematicDirector, CombatManager, Conversations, StashManager,
-## Terminal.active, WorldManager and UIStack for their state, and none of them asks GameMode
+## Terminal.active, LockpickScreen.active, WorldManager and UIStack for their state, and none of them asks GameMode
 ## back for its own. It is registered after all of them in the autoload
 ## list, which is what makes that safe. The one call the other way is
 ## input_is_taken(), which Conversations.begin and StashManager.open_stash
@@ -58,7 +58,7 @@ extends Node
 
 enum Mode {
 	MAIN_MENU, CHARACTER_CREATION, EXPLORATION, OVERWORLD, FACILITY,
-	COMBAT, DIALOGUE, NEGOTIATION, LOOTING, CUTSCENE, TERMINAL,
+	COMBAT, DIALOGUE, NEGOTIATION, LOOTING, CUTSCENE, TERMINAL, LOCKPICKING,
 }
 
 ## Emitted when a recompute finds a different answer than last time. Kept
@@ -85,8 +85,8 @@ var _last_emitted: Mode = Mode.MAIN_MENU
 ## dialogue's input rules. Nothing outranks the director while it holds
 ## the screen, which is the point of it holding the screen.
 ##
-## Among the rest the order barely matters: a conversation, a stash and
-## a terminal (Terminal.active) all ask input_is_taken() before they open,
+## Among the rest the order barely matters: a conversation, a stash, a
+## terminal (Terminal.active) and a lock being picked (LockpickScreen.active) all ask input_is_taken() before they open,
 ## so at most one of them is ever active. Whether a conversation reads as DIALOGUE or NEGOTIATION
 ## is the conversation's own presentation, not a second manager. COMBAT is
 ## asked LAST of the overlays because it is the one that genuinely
@@ -102,6 +102,8 @@ func current_mode() -> Mode:
 		return Mode.LOOTING
 	if Terminal.active != null:
 		return Mode.TERMINAL
+	if LockpickScreen.active != null:
+		return Mode.LOCKPICKING
 	if CombatManager.a_watched_fight_is_running():
 		return Mode.COMBAT
 	return base_mode()
@@ -118,8 +120,9 @@ func current_mode() -> Mode:
 ## it is what the game is before anything has been loaded or opened, which
 ## is exactly the state at boot.
 ## The one start check every modal screen asks — a conversation
-## (Conversations.begin), a stash (StashManager.open_stash) and a terminal
-## (Terminal.can_use, through the EXPLORATION check) all refuse to open
+## (Conversations.begin), a stash (StashManager.open_stash), a terminal
+## (Terminal.can_use) and the lockpicking screen (LockpickScreen.begin), the
+## last two through their EXPLORATION check, all refuse to open
 ## while this is true, instead of each naming the others.
 ## A new modal screen adds itself HERE, and every starter learns about it
 ## at once; the pairwise version needed one new guard per existing
@@ -130,7 +133,8 @@ func current_mode() -> Mode:
 ## (see CUTSCENE above), so the director holding the screen must not stop
 ## the conversation it is staging from starting.
 func input_is_taken() -> bool:
-	return Conversations.current != null or StashManager.is_active() or Terminal.active != null
+	return Conversations.current != null or StashManager.is_active() or Terminal.active != null \
+			or LockpickScreen.active != null
 
 
 func base_mode() -> Mode:
