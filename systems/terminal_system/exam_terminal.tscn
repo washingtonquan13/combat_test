@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://systems/terminal_system/terminal.tscn" id="1_term"]
+[ext_resource type="Resource" path="res://data/terminal/shelter_exam.tres" id="2_exam"]
+
+[node name="ExamTerminal" instance=ExtResource("1_term")]
+header = "SHELTER  //  ENTRANCE EXAMINATION"
+text = ""
+exam = ExtResource("2_exam")

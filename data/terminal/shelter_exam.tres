@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="TerminalExam" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/terminal_system/terminal_exam.gd" id="1_exam"]
+[ext_resource type="Script" path="res://systems/terminal_system/terminal_exam_question.gd" id="2_q"]
+
+[sub_resource type="Resource" id="q1"]
+script = ExtResource("2_q")
+part = "PART 1: COMBAT"
+points = 15
+prompt = "A demon's claws land a critical hit on you. Can you Dodge it?"
+options = PackedStringArray("Yes, if the Dodge roll succeeds", "Yes, but at -4", "No: a critical can't be dodged or parried")
+correct = 2
+
+[sub_resource type="Resource" id="q2"]
+script = ExtResource("2_q")
+part = "PART 1: COMBAT"
+points = 20
+prompt = "You have already parried once this turn. A second blow comes. Your best defense?"
+options = PackedStringArray("Parry again, at full skill", "Dodge", "Nothing: one defense per turn")
+correct = 1
+
+[sub_resource type="Resource" id="q3"]
+script = ExtResource("2_q")
+part = "PART 2: TERRAIN"
+points = 15
+prompt = "You step onto ice. Which attribute keeps you on your feet?"
+options = PackedStringArray("ST", "HT", "DX")
+correct = 2
+
+[sub_resource type="Resource" id="q4"]
+script = ExtResource("2_q")
+part = "PART 3: CONDITIONS"
+points = 30
+prompt = "Your fighter is Exhausted. What happens to their sword's damage?"
+options = PackedStringArray("Halved, along with ST", "Nothing", "One die less")
+correct = 1
+
+[sub_resource type="Resource" id="q5"]
+script = ExtResource("2_q")
+part = "PART 3: CONDITIONS"
+points = 20
+prompt = "A sleep dart hits you. Which attribute do you roll to stay awake?"
+options = PackedStringArray("Will", "HT", "Per")
+correct = 1
+
+[resource]
+script = ExtResource("1_exam")
+title = "ENTRANCE EXAMINATION"
+intro = "[b]ENTRANCE EXAMINATION[/b]
+
+5 QUESTIONS. 100 POINTS.
+Answer each with its letter. Answers are final.
+The examination is taken once. Logging off before the end voids the attempt."
+flag = "shelter_exam"
+pass_mark = 60
+questions = Array[ExtResource("2_q")]([SubResource("q1"), SubResource("q2"), SubResource("q3"), SubResource("q4"), SubResource("q5")])

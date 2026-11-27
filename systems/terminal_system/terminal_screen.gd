@@ -15,6 +15,8 @@ const DIM := Color(0.2, 0.62, 0.3)
 const DESIGN_HEIGHT := 480.0
 ## Characters typed per second.
 const TYPE_RATE := 900.0
+## The footer hint when a page gives none.
+const DEFAULT_FOOTER := "[ESC] LOG OFF    [WHEEL / UP / DOWN] SCROLL"
 ## Lines moved by one scroll step.
 const SCROLL_LINES := 2
 ## Text size and the gap between lines, on the design grid.
@@ -118,7 +120,7 @@ func _ready() -> void:
 	_body_frame.add_child(_body)
 	box.add_child(_rule())
 	_footer = _label(DIM)
-	_footer.text = "[ESC] LOG OFF    [WHEEL / UP / DOWN] SCROLL"
+	_footer.text = DEFAULT_FOOTER
 	box.add_child(_footer)
 
 
@@ -137,9 +139,11 @@ func scroll_area() -> Vector4:
 	return Vector4(r.position.x / page.x, r.position.y / page.y, r.end.x / page.x, r.end.y / page.y)
 
 
-## Clears the page and starts typing text (BBCode) under header.
-func show_page(header: String, text: String) -> void:
+## Clears the page and starts typing text (BBCode) under header, with
+## footer (plain text) as the hint line, or the default one.
+func show_page(header: String, text: String, footer: String = "") -> void:
 	_header.text = header
+	_footer.text = footer if not footer.is_empty() else DEFAULT_FOOTER
 	_body.text = text
 	_body.visible_characters = 0
 	_body.get_v_scroll_bar().value = 0.0
@@ -147,6 +151,11 @@ func show_page(header: String, text: String) -> void:
 	_scroll_at = 0.0
 	scroll_velocity = 0.0
 	_typing = true
+
+
+## The page's text without its BBCode.
+func page_text() -> String:
+	return _body.get_parsed_text()
 
 
 ## Shows the whole page at once (a click or key while it is still typing).

@@ -26,6 +26,10 @@ static var active: Terminal = null
 @export var header: String = "TERMINAL"
 ## The page, in BBCode.
 @export_multiline var text: String = ""
+## When set, the screen runs this exam instead of showing text: A-C (or
+## 1-3) answers, Enter begins, and the result goes into flags (see
+## TerminalExam). Stepping away mid-exam voids the attempt.
+@export var exam: TerminalExam = null
 ## Shown on the glass when nobody is using it.
 @export var idle_text: String = "> READY_"
 ## The page's typeface (see TerminalScreen.Face).
@@ -58,6 +62,7 @@ var _came_from: Camera3D = null
 var _overlay: UIScreen = null
 var _leaving := false
 var _tween: Tween = null
+var _exam_run: TerminalExamRun = null
 var _on_combat := _on_combat_started
 
 
@@ -121,7 +126,19 @@ func use() -> void:
 	_tween = _glide(_view_point.global_transform, view_fov)
 	_tween.finished.connect(func():
 		if active == self and not _leaving:
-			_page.show_page(header, text))
+			_show_content())
+
+
+func _show_content() -> void:
+	if exam:
+		_exam_run = TerminalExamRun.new(exam)
+		_show_exam_page()
+	else:
+		_page.show_page(header, text)
+
+
+func _show_exam_page() -> void:
+	_page.show_page(header, _exam_run.page_text(), _exam_run.footer())
 
 
 ## combat_started is relayed for every encounter, watched or not; only a
@@ -188,6 +205,7 @@ func _release() -> void:
 		_camera.queue_free()
 	_camera = null
 	_came_from = null
+	_exam_run = null
 	_leaving = false
 	if active == self:
 		active = null
@@ -230,6 +248,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("ui_cancel"):
 			get_viewport().set_input_as_handled()
 		return
+	if _exam_run and _exam_key(event):
+		get_viewport().set_input_as_handled()
+		return
 	var handled := true
 	if event.is_action_pressed("ui_cancel"):
 		step_away()
@@ -254,6 +275,33 @@ func _unhandled_input(event: InputEvent) -> void:
 	# esc menu on the Escape that just stepped away; terminal_demo checks it.
 	if handled:
 		get_viewport().set_input_as_handled()
+
+
+## Enter begins, a letter or number answers. A key while the page is still
+## typing only finishes it, so an answer is never given to a question the
+## player hasn't seen. True if the key was the exam's.
+func _exam_key(event: InputEvent) -> bool:
+	var key := event as InputEventKey
+	# Answers are final, so Ctrl+C or Alt+A must not give one.
+	if key == null or not key.pressed or key.echo \
+			or key.ctrl_pressed or key.alt_pressed or key.meta_pressed:
+		return false
+	var choice := -1
+	if key.keycode >= KEY_A and key.keycode <= KEY_I:
+		choice = key.keycode - KEY_A
+	elif key.keycode >= KEY_1 and key.keycode <= KEY_9:
+		choice = key.keycode - KEY_1
+	elif key.keycode >= KEY_KP_1 and key.keycode <= KEY_KP_9:
+		choice = key.keycode - KEY_KP_1
+	var begins := key.keycode in [KEY_ENTER, KEY_KP_ENTER]
+	if choice < 0 and not begins:
+		return false
+	if _page.finish_typing():
+		return true
+	var moved := _exam_run.begin() if begins else _exam_run.answer(choice)
+	if moved:
+		_show_exam_page()
+	return true
 
 
 func _exit_tree() -> void:
