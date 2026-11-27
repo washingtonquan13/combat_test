@@ -30,7 +30,7 @@ extends SceneTree
 # skeleton and measured: foot slide over the ground, ground clearance, how
 # near a leg comes to locking, and the largest jump any bone makes.
 
-const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
+const MODEL := "res://tools/rig/humanoid_rig_model.tscn"
 const TRIAL_LIBRARY := "res://tools/_probe/gait/trial_library.tres"
 const TRIAL_SET := "res://tools/_probe/gait/trial_set.tres"
 const GAME_LIBRARY := "res://assets/locomotion_animations.tres"

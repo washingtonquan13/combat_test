@@ -36,14 +36,14 @@ extends SceneTree
 # whatever puts that pose where the loop puts it; each over FADE frames, so
 # the handover shows no step. What those corrections came to is printed.
 #
-# Baked on the proof hero's skeleton; every humanoid model shares its rig.
+# Baked on the humanoid rig's skeleton (tools/rig); every humanoid model shares its rig.
 
 const Retarget := preload("res://tools/kimodo/soma_retarget.gd")
 const ClipScript := preload("res://systems/unit_system/locomotion_clip.gd")
 const SetScript := preload("res://systems/unit_system/locomotion_set.gd")
 
 const TAKES := "res://tools/kimodo/takes/locomotion/"
-const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
+const MODEL := "res://tools/rig/humanoid_rig_model.tscn"
 const LIBRARY_OUT := "res://assets/locomotion_animations.tres"
 const SET_OUT := "res://data/locomotion/humanoid.tres"
 const LIBRARY := "Locomotion"

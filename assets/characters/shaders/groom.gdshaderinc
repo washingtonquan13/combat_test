@@ -1,4 +1,4 @@
-// Hair cards grown by tools/characters/groom.py, shared by the two passes
+// Hair cards (their grower, tools/characters/groom.py, was deleted 2026-11-27), shared by the two passes
 // that draw them: groom.gdshader, the core, and groom_edges.gdshader, the
 // soft edges over it. Each character's strand atlas ("<name>_strands.png",
 // baked with its cards from the grown strands) holds strands, not colour:

@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cayit0kbf7d1w"
-path="res://.godot/imported/proof_hero.glb-87a5e3f8328264f2fe8fe78d5f39633f.scn"
+uid="uid://ybaet8st3mv1"
+path="res://.godot/imported/humanoid_rig.glb-5a843813af78037ade05a331c1c53531.scn"
 
 [deps]
 
-source_file="res://assets/characters/proof_hero/proof_hero.glb"
-dest_files=["res://.godot/imported/proof_hero.glb-87a5e3f8328264f2fe8fe78d5f39633f.scn"]
+source_file="res://tools/rig/humanoid_rig.glb"
+dest_files=["res://.godot/imported/humanoid_rig.glb-5a843813af78037ade05a331c1c53531.scn"]
 
 [params]
 

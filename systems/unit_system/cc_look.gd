@@ -2,8 +2,7 @@ class_name CCLook
 extends Node
 ## Puts Character Creator's look on a CC base: its materials (CCMaterials,
 ## from the JSON CC exported beside the FBX), the hairstyle and the tints of
-## its CharacterPreset. CharacterLook's counterpart for CC bodies: a sibling
-## of the model's Body.
+## its CharacterPreset. A sibling of the model's Body.
 ##
 ## Runs again on a StandIn's copy of the body (a duplicate). Materials and
 ## tints are set again, which changes nothing; the hair is attached only if

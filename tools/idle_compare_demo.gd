@@ -6,7 +6,7 @@ extends Node3D
 ##   Open tools/idle_compare_demo.tscn and run it (F6). Mouse wheel zooms,
 ##   left/right arrows orbit, 1/2/3 pick both / Mixamo / Motifect close up.
 
-const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
+const MODEL := "res://scenes/character_models/cc_male_model.tscn"
 const TAKES := {
 	"Mixamo  (current)": ["res://tools/locomotion/takes/mixamo.glb", "idle"],
 	"Motifect  idle_neutral": ["res://tools/locomotion/takes/motifect.glb", "idle"],

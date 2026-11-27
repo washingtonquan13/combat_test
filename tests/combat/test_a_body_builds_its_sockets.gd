@@ -3,14 +3,12 @@ extends AiTestCase
 ## socket profile (data/sockets/humanoid.tres) on its own bones, not placed
 ## by hand per model, so a new body gets them by having the bones.
 ##
-## 1. NOTHING MOVED. The hero's grips, which used to be hand-placed nodes,
-##    are built exactly where those were.
-## 2. EACH BODY ITS OWN. On the hero and the townsperson every socket rides
-##    the bone it names, and every sheath sits on that body's skin, however
-##    broad or narrow it is.
-## 3. ONLY ITS KIND. A dragon has none of the humanoid bones and gets none.
+## 1. EACH BODY ITS OWN. On the male and female Character Creator bodies
+##    every socket rides the bone it names, and every sheath sits on that
+##    body's skin, however broad or narrow it is.
+##    Needs the CC assets (assets/characters/cc, not in git).
+## 2. ONLY ITS KIND. A dragon has none of the humanoid bones and gets none.
 
-const OLD_MAIN_GRIP := Transform3D(Basis(Vector3(0, 0, 1), Vector3(0.94, -0.342, 0), Vector3(0.342, 0.94, 0)), Vector3(0, 0.085, 0.035))
 const RIDES := {
 	&"main_hand_grip": &"RightHand", &"off_hand_grip": &"LeftHand",
 	&"hand_anchor": &"RightMiddleProximal", &"head_anchor": &"Head",
@@ -22,15 +20,9 @@ const ON_SKIN: float = 0.02
 
 
 func run() -> void:
-	for scene in ["proof_hero_model", "townsperson_model"]:
+	for scene in ["cc_male_model", "cc_female_model"]:
 		var model: CharacterModel = _add(scene)
 		var skeleton: Skeleton3D = model._find_skeleton(model)
-		if scene == "proof_hero_model":
-			var grip: Node3D = model.main_hand_grip
-			check("hero grip where the hand-placed one was", grip != null
-				and grip.transform.origin.distance_to(OLD_MAIN_GRIP.origin) < 0.001
-				and grip.transform.basis.x.distance_to(OLD_MAIN_GRIP.basis.x) < 0.001,
-				str(grip.transform) if grip else "missing")
 		for socket: StringName in RIDES:
 			var node: Node3D = model.get(socket)
 			var attachment := node.get_parent() as BoneAttachment3D if node else null

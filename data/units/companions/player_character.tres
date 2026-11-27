@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
-[ext_resource type="PackedScene" path="res://scenes/character_models/proof_hero_model.tscn" id="3_model"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
 [ext_resource type="Script" uid="uid://1cuiym8es4oi" path="res://systems/inventory_system/item_definition.gd" id="4_itemdef"]
 [ext_resource type="Resource" path="res://data/characters/hero.tres" id="7_look"]
 [ext_resource type="Resource" path="res://data/items/work_belt.tres" id="8_belt"]

@@ -3,19 +3,20 @@
     blender -b --factory-startup --python tools/locomotion/mixamo_retarget.py
 
 Reads the Mixamo FBX takes in CLIPS (downloaded "Without Skin", 30 fps, from
-SOURCE) and writes tools/locomotion/takes/mixamo.glb: the proof hero's own
+SOURCE) and writes tools/locomotion/takes/mixamo.glb: the humanoid rig's own
 skeleton (imported from its baked .glb, so the rest is the game's to the bit)
 with one action per clip, and no mesh. The clips keep their travel and turn;
 land_mixamo.gd bakes them in place.
 
-The hero is on MPFB's "mixamo_unity" rig (tools/characters/bake_character.py),
+The rig (tools/rig/humanoid_rig.glb, the retired MPFB hero's skeleton) is
+MPFB's "mixamo_unity" rig,
 Mixamo's own bones by name (the extra jaw, eye, breast and buttock bones have
 no source and follow their parents), so each bone takes its source bone's
 motion by name. How each one takes it depends on why its rest differs from
 the source's:
 
   the limbs           differ a little by POSE: both rest in a T (the hero in
-                      MPFB's T-pose, tools/characters/tpose.py), but the
+                      MPFB's T-pose), but the
                       hero's arms sit ~4 deg, its forearms ~8 deg and its
                       hands ~12 deg off Mixamo's, and MakeHuman's fingers rest
                       curled (20-40 deg). Each is laid so its head -> child-head
@@ -38,7 +39,7 @@ import bpy, math, os
 from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-HERO = os.path.join(HERE, "..", "..", "assets", "characters", "proof_hero", "proof_hero.glb")
+HERO = os.path.join(HERE, "..", "..", "tools", "rig", "humanoid_rig.glb")
 OUT = os.path.join(HERE, "takes", "mixamo.glb")
 PACK = "D:/ai_motion/mixamo/locomotion_pack/"
 STARTS = "D:/ai_motion/mixamo/starts_stops/"

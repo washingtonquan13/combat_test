@@ -65,11 +65,11 @@ extends SceneTree
 # planted hands and feet are put back on the rungs by LadderGrip. That ramp
 # is a workaround, logged in docs/systems/unit.md.
 #
-# The clips were baked on the proof hero's own skeleton; this checks the
+# The clips were baked on the humanoid rig's skeleton (tools/rig, the old proof hero rig without its mesh); this checks the
 # imported one still is it, to the millimetre.
 
 const TAKES := "res://tools/locomotion/takes/mixamo_ladder.glb"
-const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
+const MODEL := "res://tools/rig/humanoid_rig_model.tscn"
 const OUT := "res://assets/ladder_animations.tres"
 const FPS := 30.0
 const LIMBS := ["LeftHand", "RightHand", "LeftFoot", "RightFoot"]

@@ -3,10 +3,9 @@ extends Node
 ## Moves a face that is made of blend shapes: blinks on its own, holds an
 ## expression, and mouths whatever line it is given.
 ##
-## Belongs to a CharacterModel whose meshes carry the ARKit face units
-## (eyeBlinkLeft, jawOpen, mouthSmileLeft...) and the Meta visemes
-## (viseme_aa, viseme_PP...), which is what tools/characters/bake_character.py
-## puts on every MPFB human. Every mesh under the model that has a shape of
+## Belongs to a CharacterModel whose meshes carry face shapes. It speaks
+## the ARKit face units (eyeBlinkLeft, jawOpen, mouthSmileLeft...) and the
+## Meta visemes (viseme_aa, viseme_PP...). Every mesh under the model that has a shape of
 ## the right name follows it, so a blink takes the lids AND the lashes and
 ## an open jaw takes the teeth and tongue along.
 ##

@@ -1,12 +1,14 @@
 """See an animation the way an animator checks it, from headless Blender.
 
     blender -b --factory-startup --python tools/anim/look.py -- \
-        --src assets/characters/proof_hero/proof_hero.glb \
+        --src tools/rig/humanoid_rig.glb \
         --takes tools/locomotion/takes/mixamo_duel.glb --action ss_slash_1 \
         --out recordings/anim_look/ss_slash_1 [--frames 1,8,12,14,20,30] [--count 8]
         [--track Hips,Spine2,Head,RightHand,LeftFoot,RightFoot] [--tip RightHand:0,0.9,0]
 
---src is a .glb or .blend holding the character (mesh + armature). --takes is
+--src is a .glb or .blend holding the character (mesh + armature).
+tools/rig/humanoid_rig.glb is the game's rig with no body, so only the
+trails show; pass a skinned .glb on the same rig to see a body. --takes is
 an optional second .glb whose actions drive the same skeleton. --tip adds a
 tracked point fixed in a bone's space (bone:x,y,z in metres, the bone's local
 axes), a stand-in for a blade tip when no weapon object exists; a name in

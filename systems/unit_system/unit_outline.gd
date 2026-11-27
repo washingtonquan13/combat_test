@@ -10,10 +10,10 @@ extends RefCounted
 ##
 ## What it outlines: every MeshInstance3D under the CharacterModel, so the
 ## body, what it wears and what it holds, but not the ring (highlight_mesh)
-## nor the parts inside or flat on the head (INSIDE_THE_HEAD, by the names
-## tools/characters/bake_character.py gives their materials), which add
-## nothing to the silhouette and would draw lines across the face. A mesh
-## put on while the outline shows (a weapon drawn, CharacterLook.wear) is
+## nor the parts inside or flat on the head (INSIDE_THE_HEAD, by words in
+## their mesh or material names), which add nothing to the silhouette and
+## would draw lines across the face. A mesh put on while the outline shows
+## (a weapon drawn, CCLook.wear) is
 ## caught as it enters the tree.
 
 const PASS := preload("res://assets/characters/shaders/outline_pass.tres")

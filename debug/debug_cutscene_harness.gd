@@ -41,7 +41,7 @@ const DEMO_PATH: String = "res://cinematics/demo_conversation.tscn"
 ## anchor_mark; it is a world mark because only the harness knows where
 ## the leader is standing.
 const DEMO_ANCHOR: StringName = &"DemoConversation"
-## H: the first MPFB human (data/units/npcs/proof_hero.tres) walks up to the
+## H: the proof hero (data/units/npcs/proof_hero.tres) walks up to the
 ## leader and talks, mouthing its lines and changing expression.
 const HERO_PATH: String = "res://cinematics/proof_hero_meeting.tscn"
 const HERO_ANCHOR: StringName = &"ProofHeroMeeting"

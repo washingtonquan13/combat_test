@@ -129,7 +129,7 @@ func walking_clip() -> String:
 @export var highlight_mesh: MeshInstance3D
 ## What moves this body's face, if its face moves at all: blinks, holds an
 ## expression, mouths its lines. Null for a body with no face shapes, which
-## is every body built before the MPFB humans.
+## is every body but the Character Creator humans.
 @export var face: FaceDriver
 
 @export_group("Extent")

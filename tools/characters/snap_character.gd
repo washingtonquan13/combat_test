@@ -4,7 +4,7 @@ extends SceneTree
 # a change to skin, hair or face without playing.
 #
 #   godot --path . -s tools/characters/snap_character.gd -- --out <dir>
-#       [--model res://scenes/character_models/proof_hero_model.tscn]
+#       [--model res://scenes/character_models/cc_male_model.tscn]
 #       [--tag after] [--light soft] [--wear res://...wearable.tres ...]
 #
 # Needs a window: headless Godot draws nothing.
@@ -38,7 +38,7 @@ func _arg(name: String, fallback := "") -> String:
 func _run() -> void:
 	var out := _arg("--out", "user://")
 	var tag := _arg("--tag", "snap")
-	var model_path := _arg("--model", "res://scenes/character_models/proof_hero_model.tscn")
+	var model_path := _arg("--model", "res://scenes/character_models/cc_male_model.tscn")
 	root.size = Vector2i(1200, 900)
 
 	var world := Node3D.new()
@@ -94,7 +94,7 @@ func _run() -> void:
 		if args[k] == "--wear":
 			worn.append(load(args[k + 1]) as Wearable)
 	for child in model.get_children():
-		if child is CharacterLook or child is CCLook:
+		if child is CCLook:
 			child.wear(worn)
 	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if player and player.has_animation("Idle"):

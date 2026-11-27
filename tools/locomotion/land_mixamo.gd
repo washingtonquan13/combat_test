@@ -42,7 +42,7 @@ extends SceneTree
 # (LocomotionClip.leaves_at): the idle's frame nearest the clip's last pose. A
 # turn also enters off the idle's frame nearest its first (enters_at).
 #
-# The clips were baked on the proof hero's own skeleton; this checks the
+# The clips were baked on the humanoid rig's skeleton (tools/rig, the old proof hero rig without its mesh); this checks the
 # imported one still is it, to the millimetre.
 
 const ClipScript := preload("res://systems/unit_system/locomotion_clip.gd")
@@ -50,7 +50,7 @@ const ClipScript := preload("res://systems/unit_system/locomotion_clip.gd")
 const TAKES := "res://tools/locomotion/takes/mixamo.glb"
 ## The idle's take: Motifect's idle_neutral, on the same skeleton.
 const IDLE_TAKES := "res://tools/locomotion/takes/motifect.glb"
-const MODEL := "res://scenes/character_models/proof_hero_model.tscn"
+const MODEL := "res://tools/rig/humanoid_rig_model.tscn"
 const LIBRARY_PATH := "res://assets/locomotion_animations.tres"
 const SET_PATH := "res://data/locomotion/humanoid.tres"
 const LIBRARY := "Locomotion"
