@@ -11,7 +11,13 @@ extends InteractableProp
 ## screens from opening (GameMode.input_is_taken).
 ##
 ## Scene setup: terminal.tscn. The ViewPoint marker is where the view
-## ends up, looking down its -Z at the glass.
+## ends up, looking down its -Z at the glass. Screen/ScreenLight is the
+## green spill the tube throws on the desk, the hero and the walls: a spot
+## sat just behind the glass and facing out, so it lights the room in
+## front but not the glass itself or the case around it (every face of
+## those has the light behind it). Shadows are off; the target PC is
+## low-mid end. It rides on Screen, so moving Screen onto another monitor
+## model takes the light along.
 
 ## The terminal the player is at, or null. Static so GameMode can ask
 ## without an autoload; there is only ever one player at one screen.
@@ -22,14 +28,31 @@ static var active: Terminal = null
 @export_multiline var text: String = ""
 ## Shown on the glass when nobody is using it.
 @export var idle_text: String = "> READY_"
+## The page's typeface (see TerminalScreen.Face).
+@export var face: TerminalScreen.Face = TerminalScreen.Face.DOT_GOTHIC
 @export var view_fov: float = 40.0
 @export var glide_time: float = 0.7
+## The ScreenLight's energy with the idle prompt up and with a page up.
+## The idle screen is mostly black, so it throws little light.
+@export var light_idle: float = 0.3
+@export var light_in_use: float = 1.0
+
+## How deep the tube's flicker dips (a fraction of full brightness).
+const FLICKER := 0.03
+## Flicker rate, in radians per second (about 7.5 Hz).
+const FLICKER_RATE := 47.0
+## How fast the light ramps (linearly) between idle and in use (1/s).
+const LIGHT_EASE := 4.0
 
 @onready var _viewport: SubViewport = $ScreenViewport
 @onready var _page: TerminalScreen = $ScreenViewport/TerminalScreen
 @onready var _view_point: Marker3D = $ViewPoint
 @onready var _glass: MeshInstance3D = $Screen
+@onready var _light: Light3D = $Screen/ScreenLight
 
+var _glass_material: ShaderMaterial = null
+var _light_level := 0.0
+var _flicker_time := 0.0
 var _camera: Camera3D = null
 var _came_from: Camera3D = null
 var _overlay: UIScreen = null
@@ -41,11 +64,32 @@ var _on_combat := _on_combat_started
 func _ready() -> void:
 	# Each terminal draws its own page: the scene's material is shared by
 	# every instance, so the glass gets a copy of it.
-	var glass_material := (_glass.get_active_material(0) as ShaderMaterial).duplicate() as ShaderMaterial
-	glass_material.set_shader_parameter("screen_tex", _viewport.get_texture())
-	glass_material.set_shader_parameter("lines", float(_viewport.size.y))
-	_glass.material_override = glass_material
+	_glass_material = (_glass.get_active_material(0) as ShaderMaterial).duplicate() as ShaderMaterial
+	_glass_material.set_shader_parameter("screen_tex", _viewport.get_texture())
+	_glass_material.set_shader_parameter("design_lines", TerminalScreen.DESIGN_HEIGHT)
+	_glass.material_override = _glass_material
+	_page.set_face(face)
+	# The page moves its scroll in its own _process and this one reads it;
+	# as the parent, this would run first and hand the glass last frame's.
+	_page.process_priority = process_priority - 1
+	_light_level = light_idle
+	# Instances start out of step, so a room of terminals doesn't pulse as one.
+	_flicker_time = randf() * TAU
 	_show_idle()
+
+
+## The flicker is worked out here rather than in the shader so the same
+## number dims the glass and the ScreenLight: the room's green spill
+## flickers exactly with the tube.
+func _process(delta: float) -> void:
+	_flicker_time = fmod(_flicker_time + delta * FLICKER_RATE, TAU)
+	var gain := 1.0 - FLICKER * (0.5 + 0.5 * sin(_flicker_time))
+	var target := light_in_use if active == self else light_idle
+	_light_level = move_toward(_light_level, target, absf(light_in_use - light_idle) * LIGHT_EASE * delta)
+	_light.light_energy = _light_level * gain
+	_glass_material.set_shader_parameter("glow_gain", gain)
+	_glass_material.set_shader_parameter("scroll_velocity", _page.scroll_velocity)
+	_glass_material.set_shader_parameter("scroll_rect", _page.scroll_area())
 
 
 ## Whether the player can sit down at this screen right now. UIStack is

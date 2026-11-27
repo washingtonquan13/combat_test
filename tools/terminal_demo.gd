@@ -14,6 +14,8 @@ func _run() -> void:
 	var hero: Unit = PartyManager.leader
 	SelectionManager.select(hero)
 	var terminal: Terminal = TerminalScene.instantiate()
+	if OS.get_environment("TERMINAL_FACE") == "vt323":
+		terminal.face = TerminalScreen.Face.VT323
 	WorldManager.spawn_parent().add_child(terminal)
 	var ahead := Vector3(-2.5, 0.0, 0.0)
 	terminal.global_position = hero.global_position + ahead
@@ -43,6 +45,8 @@ func _run() -> void:
 	_say("Scroll down")
 	for i in 6:
 		await _scroll_wheel(aim, MOUSE_BUTTON_WHEEL_DOWN)
+		if i == 2:
+			await _snap("3b_scrolling")  # mid-glide: the phosphor trail
 		await _wait(0.15)
 	await _wait(0.6)
 	await _snap("4_scrolled")
@@ -63,7 +67,76 @@ func _run() -> void:
 	print("DEMO RESULT: %d/%d passed" % [_passed, _passed + _failed.size()])
 	for what in _failed:
 		print("  failed: ", what)
+	if not OS.get_environment("TERMINAL_SNAPS").is_empty():
+		await _night_stills(terminal)
 	get_tree().quit()
+
+
+## The arena is in daylight, which drowns the screen's green spill. With
+## the sun off and the sky turned down, stills of the same walk-up show it.
+## Stills only, no checks; the arena is put back afterwards.
+func _night_stills(terminal: Terminal) -> void:
+	var suns: Array[Node] = get_tree().root.find_children("*", "DirectionalLight3D", true, false)
+	var sun_was: Array[bool] = []
+	for sun: DirectionalLight3D in suns:
+		sun_was.append(sun.visible)
+		sun.visible = false
+	var env: Environment = terminal.get_world_3d().environment
+	var env_was := Vector2.ZERO
+	if env:
+		env_was = Vector2(env.background_energy_multiplier, env.ambient_light_energy)
+		env.background_energy_multiplier = 0.04
+		env.ambient_light_energy = 0.04
+	await _wait(0.5)
+	await _snap("6_night_idle")
+	terminal.use()
+	await _wait(0.35)
+	await _snap("7_night_gliding")
+	await _wait(2.5)
+	await _snap("8_night_reading")
+	# What the glass and its light cost, measured at the reading view where
+	# the glass fills the screen.
+	var world_vp := terminal.get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(world_vp, true)
+	var light: Light3D = terminal.get_node("Screen/ScreenLight")
+	var glass: MeshInstance3D = terminal.get_node("Screen")
+	var with_all := await _gpu_ms(world_vp)
+	light.visible = false
+	var no_light := await _gpu_ms(world_vp)
+	glass.visible = false
+	var no_glass := await _gpu_ms(world_vp)
+	light.visible = true
+	glass.visible = true
+	RenderingServer.viewport_set_measure_render_time(world_vp, false)
+	print("GPU ms (world view, reading): all %.3f  no light %.3f  no light+glass %.3f" % [with_all, no_light, no_glass])
+	# From the side, to see the spill on the desk and the hero.
+	var reading_view := terminal.get_viewport().get_camera_3d()
+	var side := Camera3D.new()
+	terminal.add_child(side)
+	side.global_position = terminal.to_global(Vector3(1.4, 1.5, 1.6))
+	side.look_at(terminal.to_global(Vector3(0.0, 0.9, 0.4)))
+	side.make_current()
+	await _wait(0.2)
+	await _snap("9_night_side")
+	reading_view.make_current()
+	side.queue_free()
+	terminal.step_away()
+	await _wait(1.5)
+	for i in suns.size():
+		suns[i].visible = sun_was[i]
+	if env:
+		env.background_energy_multiplier = env_was.x
+		env.ambient_light_energy = env_was.y
+
+
+func _gpu_ms(vp: RID, frames := 90) -> float:
+	for i in 10:
+		await RenderingServer.frame_post_draw
+	var total := 0.0
+	for i in frames:
+		await RenderingServer.frame_post_draw
+		total += RenderingServer.viewport_get_measured_render_time_gpu(vp)
+	return total / frames
 
 
 func _pick_menu(label: String) -> bool:

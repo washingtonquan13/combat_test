@@ -38,7 +38,7 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
   - loot -> StashManager.open_stash (loot_interaction.gd:14-15)
   - travel -> closes menu, AreaExit.travel (travel_interaction.gd:13-21)
   - examine -> SystemLog (examine_interaction.gd:13-21)
-  - use (terminal) -> `Terminal.use` (systems/terminal_system/use_terminal_interaction.gd; data/interactions/use_terminal.tres, reach 1.2). The view glides into the prop's screen, a TerminalOverlay UIScreen hides the HUD, and GameMode reads TERMINAL until Escape steps away. The screen is a SubViewport page (terminal_screen.gd) drawn onto the glass through crt_screen.gdshader. Demo: tools/terminal_demo.tscn.
+  - use (terminal) -> `Terminal.use` (systems/terminal_system/use_terminal_interaction.gd; data/interactions/use_terminal.tres, reach 1.2). The view glides into the prop's screen, a TerminalOverlay UIScreen hides the HUD, and GameMode reads TERMINAL until Escape steps away. The screen is a SubViewport page (terminal_screen.gd) drawn onto the glass through crt_screen.gdshader (designed on a 640x480 grid, rendered at 1280x960; bundled OFL fonts in assets/fonts, `Terminal.face` picks DotGothic16 or VT323). Screen/ScreenLight is the green spill on the room, flickering with the glass. Demo: tools/terminal_demo.tscn (TERMINAL_FACE=vt323 for the other face).
   - attack -> combat (attack_interaction.gd:26-27)
 - Unit-side option assembly: unit.gd:844-849 (get_interactions), dialogue root via unit.gd:863-867 and `dialogue_options` export :364.
 - GameMode: prompt visible only in OVERWORLD (interact_prompt.gd:88).
