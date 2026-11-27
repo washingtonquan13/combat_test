@@ -16,6 +16,10 @@ A recorded walkthrough of the inventory, run in the real game. It is not a test 
 
 `"$GODOT" --path . --rendering-driver opengl3 --resolution 1600x900 --write-movie <out.avi> --fixed-fps 30 res://tools/item_layer_demo.tscn` records it. Drop `--write-movie`/`--fixed-fps` to only watch it.
 
+# terminal_demo
+
+A recorded walkthrough of the diegetic terminal, built on item_layer_demo's helpers. It runs 9 checks plus item_layer_demo's own boot checks; its "party bag starts empty" check fails here and does not matter. A terminal is set down beside the hero in test_arena. Right-click, Use: the hero walks up and the view glides into the CRT screen while the page types out. Then six wheel notches scroll to the end, and Escape glides back with camera control returned. Record it the same way as item_layer_demo, with `res://tools/terminal_demo.tscn`. Set `TERMINAL_SNAPS=<dir>` to also save a still of each step there. Use Forward+ for the stills: the screen is a SubViewport on a spatial shader.
+
 # attack_rows_demo
 
 A short recorded walkthrough of attack rows, built on item_layer_demo's helpers: an empty hand shows Punch on the hotbar, the iron sword turns it into Swing and Thrust, unequipping brings Punch back, and a beast's natural rows are captioned. Record it the same way as item_layer_demo, with `res://tools/attack_rows_demo.tscn`.

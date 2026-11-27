@@ -1,0 +1,102 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://systems/terminal_system/terminal.gd" id="1_term"]
+[ext_resource type="Script" path="res://systems/terminal_system/terminal_screen.gd" id="2_page"]
+[ext_resource type="Shader" path="res://systems/terminal_system/crt_screen.gdshader" id="3_crt"]
+[ext_resource type="Resource" path="res://data/interactions/use_terminal.tres" id="4_use"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="5_exam"]
+
+[sub_resource type="StandardMaterial3D" id="mat_desk"]
+albedo_color = Color(0.36, 0.34, 0.31, 1)
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="mat_case"]
+albedo_color = Color(0.55, 0.53, 0.47, 1)
+roughness = 0.7
+
+[sub_resource type="BoxMesh" id="mesh_desk"]
+material = SubResource("mat_desk")
+size = Vector3(1.1, 0.74, 0.6)
+
+[sub_resource type="BoxMesh" id="mesh_case"]
+material = SubResource("mat_case")
+size = Vector3(0.5, 0.42, 0.42)
+
+[sub_resource type="BoxMesh" id="mesh_keys"]
+material = SubResource("mat_case")
+size = Vector3(0.42, 0.03, 0.15)
+
+[sub_resource type="ShaderMaterial" id="mat_glass"]
+render_priority = 0
+shader = ExtResource("3_crt")
+
+[sub_resource type="QuadMesh" id="mesh_glass"]
+material = SubResource("mat_glass")
+size = Vector2(0.36, 0.27)
+
+[sub_resource type="BoxShape3D" id="shape"]
+size = Vector3(1.1, 1.2, 0.6)
+
+[node name="Terminal" type="StaticBody3D"]
+script = ExtResource("1_term")
+header = "TERMINAL 01  //  RESIDENT LOG"
+text = "[b]ENTRY 0001[/b]
+Placeholder log text. This page exists to prove that a terminal can show readable text on its screen; the real words come later.
+
+The quick brown fox jumps over the lazy dog. 0123456789. Pack my box with five dozen liquor jugs.
+
+[b]ENTRY 0002[/b]
+Long pages scroll. Use the mouse wheel or the arrow keys to read further down, and press Escape to step away from the terminal.
+
+Line 01
+Line 02
+Line 03
+Line 04
+Line 05
+Line 06
+Line 07
+Line 08
+Line 09
+Line 10
+Line 11
+Line 12
+
+[b]END OF LOG[/b]"
+interactions = Array[Resource]([ExtResource("4_use"), ExtResource("5_exam")])
+
+[node name="Desk" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.37, 0)
+mesh = SubResource("mesh_desk")
+
+[node name="Case" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.96, -0.05)
+mesh = SubResource("mesh_case")
+
+[node name="Keyboard" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.755, 0.2)
+mesh = SubResource("mesh_keys")
+
+[node name="Screen" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.97, 0.162)
+mesh = SubResource("mesh_glass")
+
+[node name="ViewPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.97, 0.6)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+shape = SubResource("shape")
+
+[node name="ScreenViewport" type="SubViewport" parent="."]
+disable_3d = true
+size = Vector2i(640, 480)
+render_target_update_mode = 4
+
+[node name="TerminalScreen" type="Control" parent="ScreenViewport"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_page")

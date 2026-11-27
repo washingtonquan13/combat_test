@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="UseTerminalInteraction" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/terminal_system/use_terminal_interaction.gd" id="1_use"]
+
+[resource]
+script = ExtResource("1_use")
+label = "Use"
+reach = 1.2

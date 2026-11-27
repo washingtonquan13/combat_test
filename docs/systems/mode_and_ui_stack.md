@@ -27,8 +27,9 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
   1. CUTSCENE (CinematicDirector.is_active)
   2. DIALOGUE / NEGOTIATION (`Conversations.current` and its `presentation`)
   3. LOOTING (StashManager.is_active)
-  4. COMBAT (`CombatManager.a_watched_fight_is_running`, which counts only fights in the focused world involving the player, combat_manager.gd:437-443)
-  5. `base_mode()`
+  4. TERMINAL (`Terminal.active`, a static on the prop class, systems/terminal_system/terminal.gd)
+  5. COMBAT (`CombatManager.a_watched_fight_is_running`, which counts only fights in the focused world involving the player, combat_manager.gd:437-443)
+  6. `base_mode()`
 - **`base_mode()`** (:133-139) checks, in order:
   1. focused world's `get_base_mode()`
   2. else the `character_creation` screen being open
@@ -44,7 +45,7 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
     - camera_director.gd:58
     - overworld_camera.gd:79, :95
   - `can_transition`: world_manager.gd:261, :1054
-  - `input_is_taken`: conversations.gd:52, stash_manager.gd:24-27
+  - `input_is_taken`: conversations.gd:52, stash_manager.gd:24-27. Terminal.can_use asks for EXPLORATION instead, which is stricter.
   - `mode_changed.connect`: unit_selection.gd:104, area_label.gd:29
 - **Calls in (UIStack)**
   - registration: main_root.gd:60-83
@@ -59,7 +60,7 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
 - **Signals in:** none. GameMode polls in `_process`; UIStack handles `ui_cancel` in `_unhandled_input` (:136).
 
 ## Depends on
-- GameMode reads CinematicDirector, Conversations.current, StashManager, CombatManager, WorldManager.current_world and UIStack.is_open (game_mode.gd:95-161).
+- GameMode reads CinematicDirector, Conversations.current, StashManager, Terminal.active, CombatManager, WorldManager.current_world and UIStack.is_open (game_mode.gd:95-161).
 - UIStack reads the `esc_menu` group from the SceneTree (ui_stack.gd:142).
 
 ## Assumptions and invariants
@@ -78,6 +79,8 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
   - dialogue: `Conversations.current` set/cleared
   - cutscene: CinematicDirector.is_active
   - looting: StashManager
+  - terminal: `Terminal.use` / `step_away` set and clear `Terminal.active`. Its TerminalOverlay UIScreen is popped by `close_all` on focus change or travel, and that pop steps the player away (terminal.gd `_open_overlay`). A fight starting (`CombatManager.combat_started`) also steps them away.
+    - Known gaps: a cutscene staged while the player is at a terminal outranks TERMINAL and leaves the terminal's camera and overlay in place underneath until it ends; the glide back out aims at where the tactical camera was when the player sat down; the walk-up does not pick the front of the desk, so the hero can end up beside or behind the monitor.
   - combat: an encounter in the focused world starts or ends
   - travel and load: `base_mode` changes with the focused world
 
