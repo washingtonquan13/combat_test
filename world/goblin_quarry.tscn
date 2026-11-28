@@ -1,4 +1,4 @@
-[gd_scene load_steps=116 format=3 uid="uid://qu482ob1ymw4"]
+[gd_scene load_steps=118 format=3 uid="uid://qu482ob1ymw4"]
 
 [ext_resource type="Script" uid="uid://cnj62bswphp00" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_unit"]
@@ -55,6 +55,9 @@
 [ext_resource type="PackedScene" path="res://systems/interaction_system/props/crate.tscn" id="q_crate_prop"]
 [ext_resource type="PackedScene" path="res://systems/interaction_system/props/barrel.tscn" id="q_barrel_prop"]
 [ext_resource type="PackedScene" path="res://systems/interaction_system/props/oil_barrel.tscn" id="q_oil_prop"]
+
+[ext_resource type="PackedScene" path="res://systems/lock_system/locked_chest.tscn" id="q_locked_chest"]
+[ext_resource type="PackedScene" path="res://systems/terminal_system/exam_terminal.tscn" id="q_exam_terminal"]
 
 [sub_resource type="BoxShape3D" id="walkin_0"]
 size = Vector3(2.66, 1.45, 2.26)
@@ -750,6 +753,13 @@ persistent_id = &"quarry_oil_barrel"
 [node name="QuarryOilBarrel2" parent="." instance=ExtResource("q_oil_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 35.6)
 persistent_id = &"quarry_oil_barrel_2"
+
+[node name="LockedChest" parent="." instance=ExtResource("q_locked_chest")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.5, 0.5, 34.5)
+persistent_id = &"quarry_locked_chest"
+
+[node name="ExamTerminal" parent="." instance=ExtResource("q_exam_terminal")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 4, 0, 37.5)
 
 [node name="OverworldExit" parent="." instance=ExtResource("24_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 43)

@@ -1,0 +1,37 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://uvf1vuy6cjk5"
+path="res://.godot/imported/half_plate_knight_armor_3d_model_metallic-knight_armor_3d_model_roughness.jpg-c69a109df391aea54e7b3bff19301c73.ctex"
+metadata={
+"vram_texture": false
+}
+generator_parameters={
+"md5": "158930dce32ee60757c73d1e597291f4"
+}
+
+[deps]
+
+source_file="res://assets/wearables/half_plate/male/half_plate_knight_armor_3d_model_metallic-knight_armor_3d_model_roughness.jpg"
+dest_files=["res://.godot/imported/half_plate_knight_armor_3d_model_metallic-knight_armor_3d_model_roughness.jpg-c69a109df391aea54e7b3bff19301c73.ctex"]
+
+[params]
+
+compress/mode=0
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=0
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=0
+roughness/src_normal=""
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=1
