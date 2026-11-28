@@ -11,8 +11,8 @@ extends Control
 ## SubViewport is, so raising its resolution only makes the page sharper.
 ## crt_screen.gdshader measures its scanlines on the same grid.
 
-const PHOSPHOR := Color(0.36, 1.0, 0.5)
-const DIM := Color(0.2, 0.62, 0.3)
+const PHOSPHOR := Color(0.1, 1.0, 0.5)
+const DIM := Color(0.06, 0.62, 0.3)
 ## Rows of the design grid (crt_screen.gdshader's design_lines).
 const DESIGN_HEIGHT := 480.0
 ## Characters typed per second.
@@ -42,7 +42,7 @@ const SCROLL_CATCH_UP := 18.0
 const SELECTED_TEXT := "#020803"
 ## The block behind it: a little under PHOSPHOR, so the glass and the
 ## scene's bloom don't blow it out to white-green.
-const SELECTED_BAR := Color(0.3, 0.86, 0.43)
+const SELECTED_BAR := Color(0.08, 0.86, 0.43)
 
 ## How fast the page is scrolling, in page heights per second (+ is the text
 ## moving up). Terminal hands it to the glass for the afterglow.

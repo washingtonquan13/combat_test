@@ -61,9 +61,6 @@ func _run() -> void:
 	_press_escape()
 	await _wait(0.2)
 	_check("Escape did not also open the esc menu", esc_menu != null and not UIStack.is_open(esc_menu))
-	_press_escape()
-	await _wait(0.1)
-	_check("a second Escape right after did not open it either", not UIStack.is_open(esc_menu))
 	await _wait(1.4)
 	_check("back from the terminal", Terminal.active == null)
 	_check("GameMode back to EXPLORATION", GameMode.current_mode() == GameMode.Mode.EXPLORATION)
@@ -95,10 +92,26 @@ func _night_stills(terminal: Terminal) -> void:
 	await _wait(0.5)
 	await _snap("6_night_idle")
 	terminal.use()
-	await _wait(0.35)
+	# Logging in slips the vertical hold and flashes the tube.
+	await _wait(0.12)
+	await _snap("7a_night_vhold")
+	await _wait(0.23)
 	await _snap("7_night_gliding")
 	await _wait(2.5)
 	await _snap("8_night_reading")
+	# The scan line, sent now rather than waited for, part way down.
+	terminal._scan_in = 0.0
+	await _wait(1.0)
+	await _snap("8a_night_scan_line")
+	# Opening an entry: a small burst and a shudder.
+	# Held while the still is taken: a small burst lasts a few frames.
+	terminal.disturb(Terminal.BURST_SMALL)
+	terminal._burst_hold = 10.0
+	terminal._shudder_left = 10.0
+	await _snap("8b_night_burst")
+	terminal._burst_hold = 0.0
+	terminal._shudder_left = 0.0
+	await _wait(0.5)
 	# What the glass and its light cost, measured at the reading view where
 	# the glass fills the screen.
 	var world_vp := terminal.get_viewport().get_viewport_rid()

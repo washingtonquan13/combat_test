@@ -45,6 +45,34 @@ static var active: Terminal = null
 const FLICKER := 0.03
 ## Flicker rate, in radians per second (about 7.5 Hz).
 const FLICKER_RATE := 47.0
+## The tube's disturbances. Timings and strengths follow Fallout 4's
+## [Pipboy] INI defaults (flicker every 15-25 s for 0.1-0.6 s, burst 1.0 /
+## 0.25, shudder 0.2, vertical hold 3 rolls at rate 8, a scan line every
+## 3-10 s at half a screen a second); how each number maps onto this tube
+## is a reading of their names, not a copy of the game's code.
+## A flicker dip: how often, how long, how deep, and how fast it stutters.
+const DIP_EVERY := Vector2(15.0, 25.0)
+const DIP_LENGTH := Vector2(0.1, 0.6)
+const DIP_DEPTH := 0.1
+const DIP_RATE := 22.0 * TAU
+## A burst flashes the picture when it changes: held a moment, then
+## fading by this factor per second.
+const BURST_LARGE := 1.0
+const BURST_SMALL := 0.25
+const BURST_HOLD := 0.06
+const BURST_FADE := 6.0
+const SHUDDER := 0.2
+const SHUDDER_TIME := 0.25
+## Vertical hold: the picture slips on log-in and slows into lock. Kept to
+## one roll at a few a second: the game's 3 at rate 8 sweeps the blanking
+## bar over the whole view about 8 times a second, a strobe.
+const VHOLD_ROLLS := 1.0
+const VHOLD_RATE := 2.5
+const SCAN_EVERY := Vector2(3.0, 10.0)
+const SCAN_SPEED := 0.5
+## A slow breathing of the whole tube.
+const PULSE := 0.04
+const PULSE_RATE := 0.5 * TAU
 ## How fast the light ramps (linearly) between idle and in use (1/s).
 const LIGHT_EASE := 4.0
 ## The line under a page that goes back up.
@@ -62,6 +90,19 @@ var _glass_material: ShaderMaterial = null
 var _glow_viewport: SubViewport = null
 var _light_level := 0.0
 var _flicker_time := 0.0
+var _pulse_time := 0.0
+var _dip_in := 0.0
+## The dip's own stutter phase, apart from the flicker's: their rates
+## aren't whole multiples, so one phase can't drive both.
+var _dip_time := 0.0
+var _dip_left := 0.0
+var _burst := 0.0
+var _burst_hold := 0.0
+var _shudder_left := 0.0
+## Rolls of the vertical hold still to go (counts down to 0).
+var _vhold_left := 0.0
+var _scan_in := 0.0
+var _scan_at := -1.0
 var _camera: Camera3D = null
 var _came_from: Camera3D = null
 var _overlay: UIScreen = null
@@ -95,6 +136,9 @@ func _ready() -> void:
 	_light_level = light_idle
 	# Instances start out of step, so a room of terminals doesn't pulse as one.
 	_flicker_time = randf() * TAU
+	_pulse_time = randf() * TAU
+	_dip_in = randf_range(DIP_EVERY.x, DIP_EVERY.y)
+	_scan_in = randf_range(SCAN_EVERY.x, SCAN_EVERY.y)
 	_show_idle()
 
 
@@ -126,13 +170,72 @@ func _set_redraw(mode: SubViewport.UpdateMode) -> void:
 ## flickers exactly with the tube.
 func _process(delta: float) -> void:
 	_flicker_time = fmod(_flicker_time + delta * FLICKER_RATE, TAU)
-	var gain := 1.0 - FLICKER * (0.5 + 0.5 * sin(_flicker_time))
+	_pulse_time = fmod(_pulse_time + delta * PULSE_RATE, TAU)
+	var gain := 1.0 - FLICKER * (0.5 + 0.5 * sin(_flicker_time)) \
+			- PULSE * (0.5 + 0.5 * sin(_pulse_time))
+	gain *= _dip(delta)
+	if _burst_hold > 0.0:
+		_burst_hold -= delta
+	else:
+		_burst *= exp(-BURST_FADE * delta)
+		if _burst < 0.01:
+			_burst = 0.0
+	_shudder_left = maxf(_shudder_left - delta, 0.0)
+	# Slows as it nears lock, so the picture settles rather than stops dead.
+	_vhold_left = maxf(_vhold_left - VHOLD_RATE * delta * clampf(_vhold_left * 1.5, 0.15, 1.0), 0.0)
+	_advance_scan(delta)
+	# The burst is drawn by the shader (only there, so the glass isn't
+	# flashed twice); the light gets its share of the flash here.
+	_glass_material.set_shader_parameter("burst", _burst)
+	_glass_material.set_shader_parameter("shudder", SHUDDER * minf(_shudder_left / SHUDDER_TIME, 1.0))
+	_glass_material.set_shader_parameter("vhold", fposmod(_vhold_left, 1.0))
+	_glass_material.set_shader_parameter("scan_at", _scan_at)
+	# Noise in the shader is seeded from this, not TIME: TIME grows past
+	# what its hash can resolve after a few minutes and the noise freezes.
+	_glass_material.set_shader_parameter("noise_seed", fmod(Engine.get_process_frames() * 0.618034, 1.0))
 	var target := light_in_use if active == self else light_idle
 	_light_level = move_toward(_light_level, target, absf(light_in_use - light_idle) * LIGHT_EASE * delta)
-	_light.light_energy = _light_level * gain
+	_light.light_energy = _light_level * gain * (1.0 + _burst * 0.6)
 	_glass_material.set_shader_parameter("glow_gain", gain)
 	_glass_material.set_shader_parameter("scroll_velocity", _page.scroll_velocity)
 	_glass_material.set_shader_parameter("scroll_rect", _page.scroll_area())
+
+
+## The brightness factor of a flicker dip: 1 between dips; during one, a
+## fast stutter down to 1 - DIP_DEPTH.
+func _dip(delta: float) -> float:
+	if _dip_left > 0.0:
+		_dip_left -= delta
+		if _dip_left <= 0.0:
+			_dip_in = randf_range(DIP_EVERY.x, DIP_EVERY.y)
+		_dip_time = fmod(_dip_time + DIP_RATE * delta, TAU)
+		return 1.0 - DIP_DEPTH * (0.5 + 0.5 * sin(_dip_time))
+	_dip_in -= delta
+	if _dip_in <= 0.0:
+		_dip_left = randf_range(DIP_LENGTH.x, DIP_LENGTH.y)
+	return 1.0
+
+
+func _advance_scan(delta: float) -> void:
+	if _scan_at >= 0.0:
+		_scan_at += SCAN_SPEED * delta
+		if _scan_at > 1.05:
+			_scan_at = -1.0
+			_scan_in = randf_range(SCAN_EVERY.x, SCAN_EVERY.y)
+		return
+	_scan_in -= delta
+	if _scan_in <= 0.0:
+		_scan_at = 0.0
+
+
+## Kicks the tube: a flash and a shake as the picture changes. rolls > 0
+## also slips the vertical hold that many frames.
+func disturb(strength: float, rolls: float = 0.0) -> void:
+	if strength >= _burst:
+		_burst = strength
+		_burst_hold = BURST_HOLD
+	_shudder_left = SHUDDER_TIME
+	_vhold_left = maxf(_vhold_left, rolls)
 
 
 ## Whether the player can sit down at this screen right now. UIStack is
@@ -195,6 +298,7 @@ func _show_hidden() -> void:
 func _show_content() -> void:
 	_levels = [{"menu": menu, "selected": 0}]
 	_show_level()
+	disturb(BURST_LARGE, VHOLD_ROLLS)
 
 
 ## Draws the level on top of _levels. Entries a flag hides are worked out
@@ -243,6 +347,7 @@ func _activate(index: int) -> void:
 	elif _exam_run and not _exam_run.choices().is_empty():
 		if _exam_run.choose(index):
 			_show_exam_page()
+			disturb(BURST_SMALL)
 	else:
 		_back()
 
@@ -257,6 +362,7 @@ func _open(entry: TerminalEntry) -> void:
 	else:
 		_levels.append({"entry": entry})
 	_show_level()
+	disturb(BURST_SMALL)
 
 
 ## Up a level; from the top, logs off.
@@ -266,6 +372,7 @@ func _back() -> void:
 		return
 	_levels.pop_back()
 	_show_level()
+	disturb(BURST_SMALL)
 
 
 ## combat_started is relayed for every encounter, watched or not; only a
@@ -444,6 +551,7 @@ func _exam_key(event: InputEvent) -> bool:
 		return true
 	if _exam_run.answer(choice):
 		_show_exam_page()
+		disturb(BURST_SMALL)
 	return true
 
 

@@ -31,6 +31,19 @@ uniform float halo_strength = 0.9;
 // flicker. The same number drives the ScreenLight, so the glass and the
 // spill it throws never disagree.
 uniform float glow_gain = 1.0;
+// The tube's disturbances, all fed by Terminal (see its _process), as
+// Fallout 4's Pip-Boy settings name them: a burst is a brief flash when
+// the picture changes; shudder shakes the rows sideways; vertical hold
+// rolls the whole picture up through the tube (0..1 is one full roll); the
+// scan line is a thin bright line sweeping down the tube's face, at scan_at
+// (face UV, <0 for none). noise_seed changes every frame and stays in 0..1,
+// so the hash keeps its precision; TIME does not after a few minutes.
+uniform float burst = 0.0;
+uniform float shudder = 0.0;
+uniform float vhold = 0.0;
+uniform float scan_at = -1.0;
+uniform float scan_strength = 0.12;
+uniform float noise_seed = 0.0;
 // Fed by Terminal from TerminalScreen: how fast the page scrolls, in page
 // heights per second (+ is the text moving up). The phosphor lags behind
 // moving text, leaving a brief ghost trail.
@@ -86,6 +99,19 @@ vec3 page(vec2 uv) {
 	return texture(screen_tex, uv).rgb;
 }
 
+// Where on the page the tube is showing this point: the vertical hold
+// slides the picture up and wraps it, and shudder shifts each row a
+// little sideways. The tube's face, scanlines and vignette stay put.
+vec2 picture(vec2 uv) {
+	vec2 p = uv;
+	p.y = fract(p.y - vhold);
+	float row = floor(uv.y * 160.0);
+	p.x += shudder * 0.12 * (hash(vec2(row * 0.37, noise_seed * 97.0)) - 0.5);
+	// Kept on the page: past its edge the sampler smears the last texel.
+	p.x = clamp(p.x, 0.0, 1.0);
+	return p;
+}
+
 void fragment() {
 	vec2 uv = bend(UV);
 	// The tube's face: a rounded rectangle in the bent space, so the corners
@@ -96,12 +122,14 @@ void fragment() {
 	float aa = max(fwidth(edge), 1e-4);
 	float inside = 1.0 - smoothstep(-aa, aa, edge);
 
+	vec2 face_uv = uv;
+	uv = picture(uv);
 	vec3 col = page(uv);
 	vec3 glow = texture(glow_tex, uv).rgb;
 	// The SubViewport has no mipmaps, so a far glass would sample one texel
 	// in many and sparkle; once a screen pixel spans several texels, the
 	// glow (the page already filtered) stands in for it.
-	float texels_per_pixel = fwidth(uv.y) * float(textureSize(screen_tex, 0).y);
+	float texels_per_pixel = fwidth(face_uv.y) * float(textureSize(screen_tex, 0).y);
 	col = mix(col, glow, smoothstep(2.0, 6.0, texels_per_pixel));
 	// Glow is light thrown into the dark around lit text. Where the
 	// surroundings are lit too (inside the highlight bar) it would only fill
@@ -137,22 +165,37 @@ void fragment() {
 	// One dark line per two design rows: at one per row the pattern sits at
 	// two screen pixels from the reading position and shimmers (moire).
 	float scan_lines = design_lines * 0.5;
-	float scan = 0.5 + 0.5 * cos(uv.y * scan_lines * 6.2831853);
+	float scan = 0.5 + 0.5 * cos(face_uv.y * scan_lines * 6.2831853);
 	// Further off, a pixel spans more lines still; the pattern fades out
 	// before it gets that fine.
-	float lines_per_pixel = fwidth(uv.y * scan_lines);
+	float lines_per_pixel = fwidth(face_uv.y * scan_lines);
 	col *= 1.0 - scanline_strength * scan * (1.0 - smoothstep(0.25, 0.5, lines_per_pixel));
-	vec2 e = uv * (1.0 - uv);
+	vec2 e = face_uv * (1.0 - face_uv);
 	col *= mix(1.0, pow(clamp(e.x * e.y * 16.0, 0.0, 1.0), 0.35), vignette);
 
 	// The roll band: a wide soft bar drifting down every ~16 s.
 	float band_at = fract(TIME * 0.06) * 1.6 - 0.3;
-	float band = exp(-pow((uv.y - band_at) * 7.0, 2.0));
+	float band = exp(-pow((face_uv.y - band_at) * 7.0, 2.0));
 	col *= 1.0 + roll_strength * band;
 	col += base_glow * band;
+	// The scan line: thin and bright, with a short soft tail above it. Its
+	// core widens to at least a pixel and a half, dimming to match, so on a
+	// far glass it stays one soft line instead of popping in and out.
+	if (scan_at >= 0.0) {
+		float d = face_uv.y - scan_at;
+		float w = max(1.0 / 260.0, fwidth(face_uv.y) * 1.5);
+		float line = exp(-pow(d / w, 2.0)) * (1.0 / 260.0) / w + 0.35 * exp(d * 40.0) * step(d, 0.0);
+		// Lit text under it brightens; the black lifts to a faint line.
+		col += (col * 4.0 + normalize(base_glow) * 0.5) * line * scan_strength;
+	}
+	// A burst flashes the halo round the text and lifts the black. It adds
+	// the blurred page rather than scaling the picture: lit cores are near
+	// the cap, and scaling them pushed red and blue up under a clipped
+	// green, turning the flash cyan-white.
+	col += glow * burst * 0.8 + base_glow * burst * 6.0;
 	// Grain, new each frame, at screen pixels so it never beats with the
 	// scanlines or the text.
-	float grain = hash(FRAGCOORD.xy + floor(TIME * 60.0) * vec2(37.0, 17.0)) - 0.5;
+	float grain = hash(FRAGCOORD.xy + noise_seed * vec2(91.0, 53.0)) - 0.5;
 	col *= 1.0 + noise_strength * grain;
 
 	col *= glow_gain;
@@ -160,7 +203,13 @@ void fragment() {
 	// Capped at white, so the glass never feeds the glow pass more than a
 	// lit page would. Reflections come on top and are left uncapped: they
 	// are the scene's own light.
-	EMISSION = min(col, vec3(1.0)) * inside;
+	// While the picture rolls, the gap between frames (the blanking bar)
+	// passes through as a black band, over everything the tube adds.
+	float blank = 1.0;
+	if (vhold > 0.0) {
+		blank = smoothstep(0.0, 0.04, uv.y) * smoothstep(1.0, 0.96, uv.y);
+	}
+	EMISSION = min(col, vec3(1.0)) * inside * blank;
 
 	// The glass: near-black, glossy, with faint smudges and dust that dull
 	// the reflection in patches. Fixed to the unbent UV, so they sit on the
