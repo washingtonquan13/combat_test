@@ -14,8 +14,12 @@ func execute(actor: Unit, target) -> void:
 	var lock := Lock.find_on(target as Node)
 	if lock == null or not lock.locked:
 		return
+	if lock.jammed:
+		SystemLog.print("The lock is jammed. Only its key will open it now.")
+		return
 	if not lock.can_pick(actor):
-		SystemLog.print("%s can't pick this lock. It needs its key." % LogFormat.unit_name(actor))
+		SystemLog.print("%s can't pick this lock: a %s lock needs Lockpicking %d." % [
+				LogFormat.unit_name(actor), lock.tier_name().to_lower(), lock.required_skill()])
 		return
 	if not PartyManager.inventory.has(Lock.LOCK_PICK):
 		SystemLog.print("No lock picks.")

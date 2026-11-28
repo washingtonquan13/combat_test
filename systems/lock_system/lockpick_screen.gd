@@ -5,19 +5,29 @@ extends UIScreen
 ## light) on a panel over the game. The game camera stays where it is and
 ## the world keeps running behind the panel.
 ##
-## The rule is adapted from Hexadotz's Lockpick-minigames (MIT,
-## github.com/Hexadotz/Lockpick-minigames):
+## The rule is Fallout 3 / New Vegas's (the numbers are that game's
+## iLockSweetSpotLength / iConcentricLength settings, on its 0..1000 arc):
 ##   - The pick points at the mouse: its angle is the cursor's direction
 ##     from the lock's centre on screen, clamped to the upper half, -90 to
 ##     90. The angle maps onto 0..PICK_RANGE.
-##   - The lock hides a sweet spot somewhere on that range.
-##   - Holding D (or the left mouse button) turns the plug. How far it can
-##     turn falls off with the pick's distance from the sweet spot: all
-##     the way within the inner fifth of sweet_range, not at all past it.
-##   - Turning it the full 90 degrees opens the lock.
-## Added here: sweet_range comes from the picker's Lockpicking against the
-## lock (sweet_range_for), and a plug pushed against its limit strains the
-## pick, which shakes and then snaps, using up one lock pick.
+##   - The lock hides a sweet spot. Its width comes from the lock's tier
+##     (SWEET_LENGTH: 400 of the 1000 on a very easy lock, 25 on a very
+##     hard one). Anywhere inside it the plug turns all the way.
+##   - Past its edge the plug still turns, less the further out, down to
+##     nothing CONCENTRIC beyond the edge, on every tier. How far the plug
+##     gets is how close the pick is.
+##   - Holding D (or the left mouse button) turns the plug. Turning it the
+##     full 90 degrees opens the lock.
+##   - A plug pushed against its limit strains the pick, which shakes,
+##     louder and harder as it wears, and then snaps, using up one lock
+##     pick: about the third full push in the wrong place, later in short
+##     taps. How long it lasts comes from the tier and the picker's
+##     Lockpicking over the tier's need (pick_life_for).
+##   - Force Lock (F) rolls Lockpicking against the tier (Lock.force_target)
+##     once: success opens it, failure jams it for good.
+##   - Stepping away keeps nothing: the next try places a new sweet spot
+##     and starts a fresh pick.
+## Who may try at all is Lock.can_pick (the tier's skill need).
 ##
 ## Out of combat only. While it is up GameMode reports LOCKPICKING (it
 ## reads `active`), which takes world clicks and the camera away like a
@@ -27,16 +37,23 @@ extends UIScreen
 ## autoload, the same as Terminal.active.
 static var active: LockpickScreen = null
 
-## The pick's travel, in the units sweet_range is measured in.
-const PICK_RANGE := 10.0
+## The pick's travel: 1000 over the 180 degrees it can point, Fallout's
+## own units.
+const PICK_RANGE := 1000.0
 ## The plug's full turn: this far opens the lock.
 const OPEN_ANGLE := 90.0
 ## Degrees per second the plug turns while held, and springs back after.
 const TURN_SPEED := 180.0
 const RETURN_SPEED := 360.0
-## The inner part of sweet_range, as a fraction of it, that turns all the
-## way. Without one, only the exact centre would open.
-const FULL_TURN_SHARE := 0.2
+## The sweet spot's full width on PICK_RANGE, by Lock.Tier.
+const SWEET_LENGTH := [400.0, 200.0, 100.0, 50.0, 25.0]
+## How far past the sweet spot's edge the plug still turns part way, on
+## every tier.
+const CONCENTRIC := 200.0
+## Seconds a pick lasts pushed against the plug, by Lock.Tier, for a picker
+## who just meets the tier's need. Each point over it adds PICK_LIFE_PER_POINT.
+const PICK_LIFE := [1.6, 1.3, 1.0, 0.8, 0.6]
+const PICK_LIFE_PER_POINT := 0.06
 ## Seconds a new pick takes to come in after one snaps.
 const NEW_PICK_DELAY := 0.5
 ## Seconds the opened lock stays up before the panel closes.
@@ -48,6 +65,17 @@ const PICK_FOLLOW := 40.0
 ## Inside this many pixels of the lock's centre the cursor's direction is
 ## too twitchy to steer by, so the pick stays where it was.
 const DEAD_ZONE := 12.0
+## Plays a tick each time the pick has moved this far along PICK_RANGE.
+const TICK_EVERY := 40.0
+## Seconds the panel stays up after a force jams the lock.
+const JAM_HOLD := 0.9
+
+const TICK_SOUND: AudioStream = preload("res://assets/audio/lock/pick_tick.wav")
+const BIND_SOUND: AudioStream = preload("res://assets/audio/lock/bind.wav")
+const STRAIN_SOUND: AudioStream = preload("res://assets/audio/lock/strain.wav")
+const SNAP_SOUND: AudioStream = preload("res://assets/audio/lock/snap.wav")
+const OPEN_SOUND: AudioStream = preload("res://assets/audio/lock/open.wav")
+const JAM_SOUND: AudioStream = preload("res://assets/audio/lock/jam.wav")
 
 var lock: Lock = null
 var picker: Unit = null
@@ -59,10 +87,12 @@ static func can_pick_now(by: Unit) -> bool:
 	return is_instance_valid(by) and by.is_alive() and not by.is_downed() 			and not by.status_prevents_turn() and not by.in_combat()
 
 
-## How far from the sweet spot the plug still turns at all.
-var sweet_range := 1.0
-## Seconds of strain the current pick has left.
+## Half the sweet spot's width: inside this distance of sweet_spot the
+## plug turns all the way.
+var sweet_half := 50.0
+## Seconds of strain the current pick has left, and a fresh one's.
 var pick_life := 1.0
+var pick_life_full := 1.0
 
 ## The pick's position on 0..PICK_RANGE, and the plug's turn in degrees
 ## (0 at rest, OPEN_ANGLE open).
@@ -71,6 +101,8 @@ var plug := 0.0
 ## True while the plug is pushed against its limit short of open.
 var forcing := false
 var opened := false
+## A force failed: the panel is about to close.
+var jammed := false
 
 ## Set by drive() (tests and demos): the pick and the turn come from here
 ## instead of the mouse and keyboard.
@@ -82,18 +114,22 @@ var _driven_turn := false
 var _turn_armed := false
 var _new_pick_in := 0.0
 var _rng := RandomNumberGenerator.new()
+## Where the pick was at the last tick.
+var _tick_at := 0.0
+var _strain: AudioStreamPlayer = null
 var _on_combat := _on_combat_started
 
 var _view: SubViewportContainer = null
 var _plug_node: Node3D = null
 var _pick_node: Node3D = null
 var _status: Label = null
+var _force_button: Button = null
 
 
 ## Opens the screen on lock for picker. False, with the reason in the log,
 ## if it can't open now.
 static func begin(on_lock: Lock, by: Unit) -> bool:
-	if active != null or on_lock == null or not on_lock.locked or not can_pick_now(by):
+	if active != null or on_lock == null or not on_lock.locked or not can_pick_now(by) 			or not on_lock.can_pick(by):
 		return false
 	if not PartyManager.inventory.has(Lock.LOCK_PICK):
 		SystemLog.print("No lock picks.")
@@ -115,26 +151,20 @@ static func begin(on_lock: Lock, by: Unit) -> bool:
 	return true
 
 
-## How far from the sweet spot the plug still turns, for an effective
-## skill: 0.67 at 10, doubling every 5 points (Fallout's novice locks
-## forgive a lot, its master locks a hair).
-static func sweet_range_for(effective_skill: int) -> float:
-	return clampf(0.67 * pow(2.0, (effective_skill - 10) / 5.0), 0.2, 2.0)
+## Seconds a pick lasts against a plug of tier for a picker margin points
+## over its need.
+static func pick_life_for(tier: int, margin: int) -> float:
+	return PICK_LIFE[tier] * clampf(1.0 + PICK_LIFE_PER_POINT * margin, 0.7, 2.0)
 
 
-## Seconds a pick lasts pushed against the plug: longer for the skilled.
-static func pick_life_for(effective_skill: int) -> float:
-	return clampf(0.5 + 0.05 * effective_skill, 0.5, 2.0)
-
-
-## How far the plug can turn with the pick at `at`: all the way near the
-## sweet spot, falling to nothing at sweet_range from it.
+## How far the plug can turn with the pick at `at`: all the way inside the
+## sweet spot, falling off in a straight line to nothing CONCENTRIC past
+## its edge.
 func allowed_turn(at: float) -> float:
-	var distance := absf(at - sweet_spot)
-	var full := sweet_range * FULL_TURN_SHARE
-	if distance <= full:
+	var past := absf(at - sweet_spot) - sweet_half
+	if past <= 0.0:
 		return OPEN_ANGLE
-	return OPEN_ANGLE * clampf(1.0 - (distance - full) / (sweet_range - full), 0.0, 1.0)
+	return OPEN_ANGLE * clampf(1.0 - past / CONCENTRIC, 0.0, 1.0)
 
 
 ## Takes the pick and the turn away from the mouse and keyboard.
@@ -147,11 +177,13 @@ func drive(at: float, turning: bool) -> void:
 func _setup(on_lock: Lock, by: Unit) -> void:
 	lock = on_lock
 	picker = by
-	var skill := lock.effective_skill(picker)
-	sweet_range = sweet_range_for(skill)
-	pick_life = pick_life_for(skill)
+	sweet_half = SWEET_LENGTH[lock.tier] * 0.5
+	pick_life_full = pick_life_for(lock.tier, lock.skill_margin(picker))
+	pick_life = pick_life_full
 	_rng.randomize()
-	sweet_spot = _rng.randf_range(0.0, PICK_RANGE)
+	# Wholly on the arc, so every spot can be found.
+	sweet_spot = _rng.randf_range(sweet_half, PICK_RANGE - sweet_half)
+	_tick_at = pick
 	hides_hud = true
 	blocks_input_below = true
 	visible = false
@@ -163,31 +195,47 @@ func _setup(on_lock: Lock, by: Unit) -> void:
 
 
 func _process(delta: float) -> void:
-	if active != self or opened:
+	if active != self:
 		return
 	# One rule for every way the picker stops being able to pick: killed,
 	# downed, stunned, pulled into a fight (started or joined), or anything
-	# that outranks the screen (a cutscene, a conversation).
+	# that outranks the screen (a cutscene, a conversation). It holds during
+	# the beat after the lock opens or jams too.
 	if not can_pick_now(picker) or GameMode.current_mode() != GameMode.Mode.LOCKPICKING:
 		close()
+		return
+	if opened or jammed:
 		return
 	var turning := _read_turn()
 	if _new_pick_in > 0.0:
 		_new_pick_in -= delta
 		turning = false
 		_pick_node.visible = _new_pick_in <= 0.0
+		if _pick_node.visible:
+			_update_status()
 	elif not turning:
 		# The pick only moves while the plug is at rest, as in the original.
 		var target := _read_pick()
 		pick = target if _driven else lerpf(pick, target, 1.0 - exp(-PICK_FOLLOW * delta))
+		if absf(pick - _tick_at) >= TICK_EVERY:
+			_tick_at = pick
+			_play(TICK_SOUND, -6.0)
 	var limit := allowed_turn(pick)
 	if turning:
 		plug = minf(plug + TURN_SPEED * delta, limit)
 	else:
 		plug = maxf(plug - RETURN_SPEED * delta, 0.0)
+	var was_forcing := forcing
 	forcing = turning and plug >= limit and limit < OPEN_ANGLE
+	if forcing and not was_forcing:
+		_play(BIND_SOUND)
+		_strain.play()
+	elif was_forcing and not forcing:
+		_strain.stop()
 	if forcing:
 		pick_life -= delta
+		# The rattle gets louder as the pick gives.
+		_strain.volume_db = lerpf(-14.0, -2.0, 1.0 - pick_life / pick_life_full)
 		if pick_life <= 0.0:
 			_snap_pick()
 	if plug >= OPEN_ANGLE:
@@ -213,17 +261,67 @@ func _read_pick() -> float:
 func _read_turn() -> bool:
 	if _driven:
 		return _driven_turn
-	var held := Input.is_physical_key_pressed(KEY_D) or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	# A click on the Force button isn't a turn.
+	var on_button := _force_button.get_global_rect().has_point(get_global_mouse_position())
+	var held := Input.is_physical_key_pressed(KEY_D) \
+			or (Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not on_button)
 	if not held:
 		_turn_armed = true
 	return held and _turn_armed
+
+
+## Force Lock: one roll of Lockpicking against the tier. Success opens
+## the lock; failure jams it, and only its key opens it after.
+func force() -> void:
+	if active != self or opened or jammed:
+		return
+	var roll := SuccessRoll.roll_vs(lock.force_target(picker), _rng)
+	SystemLog.print("%s forces the lock. %s" % [LogFormat.unit_name(picker),
+			DialogueFormat.skill_result(Lock.SKILL, roll)])
+	if roll.success:
+		_open_lock(true)
+		return
+	jammed = true
+	forcing = false
+	_strain.stop()
+	lock.jam()
+	_play(JAM_SOUND)
+	SystemLog.print("The lock jams. Only its key will open it now.")
+	_update_status("The lock jams.")
+	_force_button.disabled = true
+	get_tree().create_timer(JAM_HOLD).timeout.connect(func():
+		if is_instance_valid(self):
+			close())
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if active == self and key and key.pressed and not key.echo and key.physical_keycode == KEY_F:
+		force()
+		get_viewport().set_input_as_handled()
+
+
+## A one-shot sound. It plays from the lock, not the panel, so closing the
+## panel (the lock opening, a jam) doesn't cut it off.
+func _play(stream: AudioStream, volume_db := 0.0) -> void:
+	var player := AudioStreamPlayer.new()
+	player.stream = stream
+	player.volume_db = volume_db
+	lock.add_child(player)
+	player.finished.connect(player.queue_free)
+	player.play()
 
 
 func _snap_pick() -> void:
 	PartyManager.inventory.consume(Lock.LOCK_PICK)
 	plug = 0.0
 	forcing = false
-	pick_life = pick_life_for(lock.effective_skill(picker))
+	_strain.stop()
+	_play(SNAP_SOUND)
+	pick_life = pick_life_full
+	# Let go before the next pick turns: a held key would otherwise spend
+	# the whole stack in one press.
+	_turn_armed = false
 	if not PartyManager.inventory.has(Lock.LOCK_PICK):
 		SystemLog.print("The pick snaps. That was the last one.")
 		close()
@@ -235,14 +333,21 @@ func _snap_pick() -> void:
 	_update_status("The pick snaps.")
 
 
-func _open_lock() -> void:
+## forced: opened by Force Lock, which logs its own line.
+func _open_lock(forced := false) -> void:
 	opened = true
 	plug = OPEN_ANGLE
+	forcing = false
+	_strain.stop()
+	_force_button.disabled = true
+	_play(OPEN_SOUND)
 	lock.unlock()
-	SystemLog.print("%s picks the lock." % LogFormat.unit_name(picker))
+	if not forced:
+		SystemLog.print("%s picks the lock." % LogFormat.unit_name(picker))
 	_draw_lock()
 	get_tree().create_timer(OPEN_HOLD).timeout.connect(func():
-		if not is_instance_valid(self):
+		# Closed meanwhile (a cutscene, a conversation): the stash stays shut.
+		if not is_instance_valid(self) or active != self:
 			return
 		var stash := StashComponent.find_on(lock.get_parent())
 		var by := picker
@@ -282,8 +387,11 @@ func _draw_lock() -> void:
 	_plug_node.rotation.z = -deg_to_rad(plug)
 	_pick_node.rotation.z = deg_to_rad(90.0 - pick / PICK_RANGE * 180.0)
 	if forcing:
-		_pick_node.position = Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), 0) * 0.012
-		_plug_node.rotation.z += deg_to_rad(_rng.randf_range(-1.5, 1.5))
+		# Shakes harder as the pick wears: a warning before it goes.
+		var shake := lerpf(0.5, 2.0, 1.0 - pick_life / pick_life_full)
+		_pick_node.position = Vector3(_rng.randf_range(-1, 1), _rng.randf_range(-1, 1), 0) * 0.008 * shake
+		_pick_node.rotation.z += deg_to_rad(_rng.randf_range(-1.0, 1.0) * shake)
+		_plug_node.rotation.z += deg_to_rad(_rng.randf_range(-1.0, 1.0) * shake)
 	else:
 		_pick_node.position = Vector3.ZERO
 
@@ -293,19 +401,11 @@ func _update_status(note: String = "") -> void:
 	for item in PartyManager.inventory.items():
 		if item.definition == Lock.LOCK_PICK:
 			picks += item.count
-	_status.text = "%s    Lockpicking %d    Lock picks: %d" % [_lock_rating(), lock.effective_skill(picker), picks]
+	var need := "" if lock.required_skill() == 0 else " (needs %d)" % lock.required_skill()
+	_status.text = "%s lock%s    Lockpicking %d    Lock picks: %d" % [lock.tier_name(), need,
+			Lock.skill_of(picker), picks]
 	if not note.is_empty():
 		_status.text += "    " + note
-
-
-func _lock_rating() -> String:
-	if lock.modifier >= 2:
-		return "Easy lock"
-	if lock.modifier >= -2:
-		return "Average lock"
-	if lock.modifier >= -6:
-		return "Hard lock"
-	return "Very hard lock"
 
 
 # --- Building the panel and the lock's own little world ---
@@ -343,8 +443,19 @@ func _build_panel() -> void:
 	_status = Label.new()
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_status)
+	_force_button = Button.new()
+	_force_button.text = "Force lock (F)  %d%%" % roundi(
+			SuccessRoll.chances(lock.force_target(picker)).success * 100.0)
+	_force_button.tooltip_text = "One roll of Lockpicking. Fail and the lock jams: only its key opens it after."
+	_force_button.focus_mode = Control.FOCUS_NONE
+	_force_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_force_button.pressed.connect(force)
+	box.add_child(_force_button)
+	_strain = AudioStreamPlayer.new()
+	_strain.stream = STRAIN_SOUND
+	add_child(_strain)
 	var hint := Label.new()
-	hint.text = "Point the mouse to set the pick. Hold D or the left button to turn. Esc to stop."
+	hint.text = "Point the mouse to set the pick. Hold D or the left button to turn. F forces it. Esc to stop."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.modulate = Color(1, 1, 1, 0.6)
 	box.add_child(hint)

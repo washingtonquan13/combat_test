@@ -34,5 +34,5 @@ loot_rolls = 4
 
 [node name="Lock" type="Node" parent="."]
 script = ExtResource("7_lock")
-modifier = -2
+tier = 1
 lock_name = "Iron chest lock"

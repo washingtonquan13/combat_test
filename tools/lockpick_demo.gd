@@ -1,8 +1,10 @@
 extends "res://tools/item_layer_demo.gd"
 ## Recorded walkthrough of the lockpicking screen — NOT a test. Boots into
 ## the game, sets a locked chest by the hero, right-clicks it, picks "Pick lock", forces the
-## pick in the wrong place until it snaps, then finds the sweet spot and
-## turns the plug. Ends with a save/load round trip of the chest.
+## pick in the wrong place until it snaps, turns it part way near the
+## spot, then finds the spot and turns the plug. Then a save/load round
+## trip of the chest, a fight closing the screen, Force Lock, and a lock
+## too hard for the hero.
 ##
 ## The pick and the turn are driven through LockpickScreen.drive(), not
 ## the mouse: where the sweet spot is is random, and the demo needs to
@@ -54,7 +56,10 @@ func _run() -> void:
 	_check("GameMode reports LOCKPICKING", GameMode.current_mode() == GameMode.Mode.LOCKPICKING)
 	_check("the tactical camera has no control", not CameraDirector.has_control())
 	_check("the game camera did not move", hero.get_viewport().get_camera_3d() == camera)
-	print("sweet spot %.2f, range %.2f, pick life %.2f" % [screen.sweet_spot, screen.sweet_range, screen.pick_life])
+	print("sweet spot %.0f, half width %.0f, pick life %.2f" % [screen.sweet_spot, screen.sweet_half, screen.pick_life])
+	_check("the sweet spot is the tier's width (an easy lock: 200 of the 1000)", is_equal_approx(screen.sweet_half * 2.0, LockpickScreen.SWEET_LENGTH[screen.lock.tier]) and screen.lock.tier == Lock.Tier.EASY)
+	_check("the spot lies wholly on the arc", screen.sweet_spot - screen.sweet_half >= 0.0
+		and screen.sweet_spot + screen.sweet_half <= LockpickScreen.PICK_RANGE)
 	await _wait(0.5)
 	await _snap("1_open")
 
@@ -78,7 +83,10 @@ func _run() -> void:
 	await _wait(0.8)
 
 	_say("Partway: the plug turns some")
-	var near := screen.sweet_spot + screen.sweet_range * 0.6 * (1.0 if screen.sweet_spot < 5.0 else -1.0)
+	# Half way through the partial zone past the spot's edge: half a turn.
+	var side := 1.0 if screen.sweet_spot < LockpickScreen.PICK_RANGE * 0.5 else -1.0
+	var near := screen.sweet_spot + (screen.sweet_half + LockpickScreen.CONCENTRIC * 0.5) * side
+	_check("the rule gives half a turn there", is_equal_approx(screen.allowed_turn(near), LockpickScreen.OPEN_ANGLE * 0.5))
 	screen.drive(near, false)
 	await _wait(0.2)
 	screen.drive(near, true)
@@ -141,6 +149,42 @@ func _run() -> void:
 	_check("GameMode reports COMBAT", GameMode.current_mode() == GameMode.Mode.COMBAT)
 	if fight:
 		CombatManager.end_combat(&"", fight)
+	await _wait(0.5)
+	foe.queue_free()
+	await _wait(0.5)
+
+	_say("Force Lock: one roll, open or jammed")
+	var third: Node3D = LockedChestScene.instantiate()
+	WorldManager.spawn_parent().add_child(third)
+	third.global_position = hero.global_position + Vector3(0.0, 0.5, 2.0)
+	var third_lock := Lock.find_on(third)
+	_check("the screen opens on a third chest", LockpickScreen.begin(third_lock, hero))
+	await _wait(0.5)
+	await _snap("5_force_button")
+	LockpickScreen.active.force()
+	await _wait(0.2)
+	print("forced: locked=%s jammed=%s" % [third_lock.locked, third_lock.jammed])
+	_check("the force either opened it or jammed it", third_lock.locked == third_lock.jammed)
+	await _wait(1.5)
+	if StashManager.is_active():
+		StashManager.close_stash()
+	_check("the screen has closed after the force", LockpickScreen.active == null)
+	if third_lock.jammed:
+		_check("a jammed lock won't open the screen again", not LockpickScreen.begin(third_lock, hero))
+		_check("a jammed lock saves jammed", third_lock.save_state().get("jammed") == true)
+	await _wait(0.5)
+
+	_say("A very hard lock: the hero hasn't the skill")
+	var fourth: Node3D = LockedChestScene.instantiate()
+	WorldManager.spawn_parent().add_child(fourth)
+	fourth.global_position = hero.global_position + Vector3(0.0, 0.5, -2.0)
+	var hard := Lock.find_on(fourth)
+	hard.tier = Lock.Tier.VERY_HARD
+	print("hero Lockpicking %d, needs %d" % [Lock.skill_of(hero), hard.required_skill()])
+	_check("the hero may not try it", not hard.can_pick(hero))
+	PickLockInteraction.new().execute(hero, fourth)
+	await _wait(0.3)
+	_check("Pick lock refuses it without opening the screen", LockpickScreen.active == null)
 	_finish()
 
 
