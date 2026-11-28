@@ -1,7 +1,7 @@
 extends "res://tools/terminal_demo.gd"
 ## Recorded walkthrough of the exam terminal — NOT a test. Sets the
 ## shelter exam terminal down in test_arena, sits at it, and takes the exam
-## with real key presses: one wrong answer (Q4, 30 points), so 70 / 100,
+## with real key presses (Enter on the menu's first line opens it): one wrong answer (Q4, 30 points), so 70 / 100,
 ## a pass. Then steps away and back to see the result on file. Also checks
 ## that stepping away mid-exam records nothing.
 ##
@@ -21,15 +21,18 @@ func _run() -> void:
 	WorldManager.spawn_parent().add_child(terminal)
 	terminal.global_position = hero.global_position + Vector3(-2.5, 0.0, 0.0)
 	terminal.look_at(hero.global_position, Vector3.UP, true)
-	var exam := terminal.exam
+	var exam: TerminalExam = terminal.menu.entries[0].exam
 	FlagManager.clear_flag(exam.score_flag())
 	FlagManager.clear_flag(exam.passed_flag())
 	var page: TerminalScreen = terminal.get_node("ScreenViewport/TerminalScreen")
 	await _wait(1.0)
 
-	_say("Sit down: the intro")
+	_say("Sit down: the menu, then the intro")
 	await _sit(terminal)
-	_check("the intro is up", page.page_text().contains("PRESS [ENTER] TO BEGIN"))
+	_check("the menu is up", page.page_text().contains("BEGIN ENTRANCE EXAMINATION"))
+	await _snap("exam_0_menu")
+	await _key(KEY_ENTER)
+	_check("the intro is up", page.page_text().contains("5 QUESTIONS. 100 POINTS."))
 	await _snap("exam_1_intro")
 
 	_say("Enter begins; a key while the page types only finishes it")
@@ -46,7 +49,8 @@ func _run() -> void:
 
 	_say("Back again: the exam starts over")
 	await _sit(terminal)
-	_check("the intro is up again", page.page_text().contains("PRESS [ENTER] TO BEGIN"))
+	await _key(KEY_ENTER)
+	_check("the intro is up again", page.page_text().contains("5 QUESTIONS. 100 POINTS."))
 	await _key(KEY_ENTER)
 	for i in KEYS.size():
 		_check("question %d is up" % (i + 1), page.page_text().contains("QUESTION %d OF 5" % (i + 1)))
@@ -63,6 +67,7 @@ func _run() -> void:
 	_say("Back once more: result on file")
 	await _press_and_settle_escape()
 	await _sit(terminal)
+	await _key(KEY_ENTER)
 	_check("the result is on file", page.page_text().contains("RESULT ON FILE"))
 	_check("with the same score", page.page_text().contains("SCORE  70 / 100"))
 	await _key(KEY_A)
@@ -81,7 +86,7 @@ func _run() -> void:
 
 func _sit(terminal: Terminal) -> void:
 	terminal.use()
-	await _wait(terminal.glide_time + 0.3)
+	await _wait(0.6)
 	_check("at the terminal", Terminal.active == terminal)
 
 
@@ -89,15 +94,3 @@ func _press_and_settle_escape() -> void:
 	_press_escape()
 	await _wait(1.2)
 
-
-## A real key press, through WorldView's SubViewport like a player's, then
-## (by default) long enough for the next page to type out.
-func _key(code: Key, settle := 0.8) -> void:
-	for pressed in [true, false]:
-		var key := InputEventKey.new()
-		key.keycode = code
-		key.physical_keycode = code
-		key.pressed = pressed
-		Input.parse_input_event(key)
-	await get_tree().process_frame
-	await _wait(settle)

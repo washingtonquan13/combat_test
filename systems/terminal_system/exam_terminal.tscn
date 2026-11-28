@@ -1,9 +1,28 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" path="res://systems/terminal_system/terminal.tscn" id="1_term"]
 [ext_resource type="Resource" path="res://data/terminal/shelter_exam.tres" id="2_exam"]
+[ext_resource type="Script" path="res://systems/terminal_system/terminal_menu.gd" id="3_menu"]
+[ext_resource type="Script" path="res://systems/terminal_system/terminal_entry.gd" id="4_entry"]
+
+[sub_resource type="Resource" id="entry_exam"]
+script = ExtResource("4_entry")
+label = "BEGIN ENTRANCE EXAMINATION"
+exam = ExtResource("2_exam")
+
+[sub_resource type="Resource" id="entry_about"]
+script = ExtResource("4_entry")
+label = "ABOUT THE EXAMINATION"
+page = "EVERY APPLICANT FOR RESIDENCE SITS THE ENTRANCE EXAMINATION ONCE. THE RESULT GOES ON FILE AND DECIDES YOUR ASSIGNMENT.
+
+ANSWER EACH QUESTION WITH THE ARROW KEYS AND ENTER, A CLICK, OR THE LETTER BESIDE THE ANSWER. LEAVING THE TERMINAL BEFORE THE LAST ANSWER VOIDS THE ATTEMPT."
+
+[sub_resource type="Resource" id="menu_root"]
+script = ExtResource("3_menu")
+intro = "SHELTER ADMISSIONS
+APPLICANT, IDENTIFY YOURSELF AT THE DESK AFTER COMPLETION."
+entries = Array[ExtResource("4_entry")]([SubResource("entry_exam"), SubResource("entry_about")])
 
 [node name="ExamTerminal" instance=ExtResource("1_term")]
 header = "SHELTER  //  ENTRANCE EXAMINATION"
-text = ""
-exam = ExtResource("2_exam")
+menu = SubResource("menu_root")

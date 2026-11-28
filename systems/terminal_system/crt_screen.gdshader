@@ -8,6 +8,8 @@ render_mode cull_back, fog_disabled;
 // scene's lights and sky leave faint highlights and reflections on it.
 
 uniform sampler2D screen_tex : source_color, filter_linear, repeat_disable;
+// The page blurred (Terminal's GlowViewport, terminal_glow.gdshader).
+uniform sampler2D glow_tex : source_color, filter_linear, repeat_disable;
 // The page is laid out on a 640x480 design grid and drawn at whatever
 // resolution the SubViewport has (TerminalScreen scales its layout to fit).
 // Scanlines and the bleed are measured in design rows, not texels, so a
@@ -22,9 +24,9 @@ uniform float vignette = 0.55;
 uniform float brightness = 1.35;
 // The tube's own faint glow where nothing is drawn.
 uniform vec3 base_glow : source_color = vec3(0.012, 0.03, 0.016);
-// Soft light around bright text (a ring blur of the page added back). Done
-// here rather than left to the environment's glow, which differs per area.
-uniform float halo_strength = 0.25;
+// Soft light around bright text (glow_tex added back). Done here rather
+// than left to the environment's glow, which differs per area.
+uniform float halo_strength = 0.9;
 // Fed every frame by Terminal: 1.0 at rest, dipping with the tube's
 // flicker. The same number drives the ScreenLight, so the glass and the
 // spill it throws never disagree.
@@ -94,30 +96,19 @@ void fragment() {
 	float aa = max(fwidth(edge), 1e-4);
 	float inside = 1.0 - smoothstep(-aa, aa, edge);
 
-	// One design pixel, in UV.
-	vec2 px = vec2(1.0 / (design_lines * ASPECT), 1.0 / design_lines);
 	vec3 col = page(uv);
-	// Two rings around this point, staggered: the halo, and (the inner one)
-	// the far-away fallback below. A single ring drew a hard outline at its
-	// radius instead of a glow that falls off.
-	vec3 ring = vec3(0.0);
-	vec3 outer = vec3(0.0);
-	for (int i = 0; i < 6; i++) {
-		float a = float(i) * 1.0471976;
-		ring += page(uv + vec2(cos(a), sin(a)) * px * 1.6);
-		outer += page(uv + vec2(cos(a + 0.5236), sin(a + 0.5236)) * px * 3.6);
-	}
-	ring /= 6.0;
-	outer /= 6.0;
+	vec3 glow = texture(glow_tex, uv).rgb;
 	// The SubViewport has no mipmaps, so a far glass would sample one texel
 	// in many and sparkle; once a screen pixel spans several texels, the
-	// ring stands in for the filtered average.
+	// glow (the page already filtered) stands in for it.
 	float texels_per_pixel = fwidth(uv.y) * float(textureSize(screen_tex, 0).y);
-	col = mix(col, (col + ring * 6.0) / 7.0, smoothstep(1.5, 4.0, texels_per_pixel));
-	// A soft bleed: the phosphor glows a little into its neighbours.
-	col += 0.25 * (page(uv + vec2(px.x, 0.0)) + page(uv - vec2(px.x, 0.0)));
-	col /= 1.5;
-	col += (ring * 0.4 + outer * 0.6) * halo_strength;
+	col = mix(col, glow, smoothstep(2.0, 6.0, texels_per_pixel));
+	// Glow is light thrown into the dark around lit text. Where the
+	// surroundings are lit too (inside the highlight bar) it would only fill
+	// the dark letters cut out of the bar and wash them out, so it fades
+	// away as the blurred page gets bright.
+	float around = dot(glow, vec3(0.3, 0.59, 0.11));
+	col += glow * halo_strength * (1.0 - smoothstep(0.2, 0.6, around));
 
 	// Afterglow: this point still shows, fading, what was here a moment ago,
 	// which has since moved by the scroll. Capped so a fast fling smears a

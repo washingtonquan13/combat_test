@@ -2,8 +2,11 @@ class_name Terminal
 extends InteractableProp
 ## A diegetic computer terminal: a prop whose screen is a live 2D page
 ## (TerminalScreen, drawn into a SubViewport and put on the glass through
-## crt_screen.gdshader). "Use" (UseTerminalInteraction) glides the view
-## into the screen and types the page out; Escape glides back out.
+## crt_screen.gdshader). "Use" (UseTerminalInteraction) cuts the view
+## to the screen and types out its menu (TerminalMenu), which works like
+## a Fallout terminal's: Up/Down or the mouse moves the highlight, Enter or
+## a click opens the entry, Tab (or a right click) goes back a level and
+## logs off from the top. Escape logs off from anywhere.
 ##
 ## While the player is at one, GameMode reports TERMINAL (it reads
 ## Terminal.active), which takes the tactical camera and world clicks away
@@ -24,18 +27,15 @@ extends InteractableProp
 static var active: Terminal = null
 
 @export var header: String = "TERMINAL"
-## The page, in BBCode.
-@export_multiline var text: String = ""
-## When set, the screen runs this exam instead of showing text: A-C (or
-## 1-3) answers, Enter begins, and the result goes into flags (see
-## TerminalExam). Stepping away mid-exam voids the attempt.
-@export var exam: TerminalExam = null
+## What the screen offers. An exam entry runs the exam (TerminalExam):
+## the answers are menu lines, and A-I / 1-9 pick one too. Logging off or
+## going back mid-exam voids the attempt.
+@export var menu: TerminalMenu = null
 ## Shown on the glass when nobody is using it.
 @export var idle_text: String = "> READY_"
 ## The page's typeface (see TerminalScreen.Face).
 @export var face: TerminalScreen.Face = TerminalScreen.Face.DOT_GOTHIC
 @export var view_fov: float = 40.0
-@export var glide_time: float = 0.7
 ## The ScreenLight's energy with the idle prompt up and with a page up.
 ## The idle screen is mostly black, so it throws little light.
 @export var light_idle: float = 0.3
@@ -47,6 +47,9 @@ const FLICKER := 0.03
 const FLICKER_RATE := 47.0
 ## How fast the light ramps (linearly) between idle and in use (1/s).
 const LIGHT_EASE := 4.0
+## The line under a page that goes back up.
+const RETURN_LINE := "[RETURN]"
+const GLOW_SHADER := preload("res://systems/terminal_system/terminal_glow.gdshader")
 
 @onready var _viewport: SubViewport = $ScreenViewport
 @onready var _page: TerminalScreen = $ScreenViewport/TerminalScreen
@@ -55,15 +58,26 @@ const LIGHT_EASE := 4.0
 @onready var _light: Light3D = $Screen/ScreenLight
 
 var _glass_material: ShaderMaterial = null
+## The page blurred at a quarter of its resolution: the glass's glow.
+var _glow_viewport: SubViewport = null
 var _light_level := 0.0
 var _flicker_time := 0.0
 var _camera: Camera3D = null
 var _came_from: Camera3D = null
 var _overlay: UIScreen = null
 var _leaving := false
-var _tween: Tween = null
 var _exam_run: TerminalExamRun = null
+## Where the player is in the menus: each level is {menu, selected} for a
+## menu, {entry, run} for an open page or exam. The last is on screen.
+var _levels: Array[Dictionary] = []
 var _on_combat := _on_combat_started
+## Units hidden because they stand where the view comes in; shown again on
+## release.
+var _hidden: Array[Node3D] = []
+
+## How near (m, across the floor) to the view's path a unit must stand to
+## be hidden: the hero walks up to the screen and would fill the shot.
+const HIDE_RADIUS := 0.9
 
 
 func _ready() -> void:
@@ -71,6 +85,7 @@ func _ready() -> void:
 	# every instance, so the glass gets a copy of it.
 	_glass_material = (_glass.get_active_material(0) as ShaderMaterial).duplicate() as ShaderMaterial
 	_glass_material.set_shader_parameter("screen_tex", _viewport.get_texture())
+	_glass_material.set_shader_parameter("glow_tex", _make_glow())
 	_glass_material.set_shader_parameter("design_lines", TerminalScreen.DESIGN_HEIGHT)
 	_glass.material_override = _glass_material
 	_page.set_face(face)
@@ -81,6 +96,29 @@ func _ready() -> void:
 	# Instances start out of step, so a room of terminals doesn't pulse as one.
 	_flicker_time = randf() * TAU
 	_show_idle()
+
+
+## Builds the GlowViewport after ScreenViewport, so it blurs this frame's
+## page rather than last frame's.
+func _make_glow() -> Texture2D:
+	_glow_viewport = SubViewport.new()
+	_glow_viewport.name = "GlowViewport"
+	_glow_viewport.disable_3d = true
+	_glow_viewport.size = _viewport.size / 4
+	var blur := ColorRect.new()
+	blur.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var material := ShaderMaterial.new()
+	material.shader = GLOW_SHADER
+	material.set_shader_parameter("page_tex", _viewport.get_texture())
+	blur.material = material
+	_glow_viewport.add_child(blur)
+	_viewport.add_sibling(_glow_viewport)
+	return _glow_viewport.get_texture()
+
+
+func _set_redraw(mode: SubViewport.UpdateMode) -> void:
+	_viewport.render_target_update_mode = mode
+	_glow_viewport.render_target_update_mode = mode
 
 
 ## The flicker is worked out here rather than in the shader so the same
@@ -113,32 +151,121 @@ func use() -> void:
 	_camera.name = "TerminalView"
 	_camera.near = 0.03
 	add_child(_camera)
-	if _came_from:
-		_camera.global_transform = _came_from.global_transform
-		_camera.fov = _came_from.fov
+	_camera.global_transform = _view_point.global_transform
+	_camera.fov = view_fov
 	CameraDirector.activate_cinematic_camera(_camera)
 	# A fight that starts while the player is reading pulls them out.
 	if not CombatManager.combat_started.is_connected(_on_combat):
 		CombatManager.combat_started.connect(_on_combat)
 	_open_overlay()
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_set_redraw(SubViewport.UPDATE_ALWAYS)
 	_page.show_page(header, "")
-	_tween = _glide(_view_point.global_transform, view_fov)
-	_tween.finished.connect(func():
-		if active == self and not _leaving:
-			_show_content())
+	_hide_blockers()
+	_show_content()
+
+
+## Hides the units standing between the glass and where the view comes in
+## (the hero, who walked up to use it, and anyone at their shoulder).
+func _hide_blockers() -> void:
+	var from := _came_from.global_position if _came_from else _view_point.global_position
+	var to := _view_point.global_position
+	for node in get_tree().get_nodes_in_group("units"):
+		var unit := node as Node3D
+		if unit == null or not unit.visible or unit.get_world_3d() != get_world_3d():
+			continue
+		var at := unit.global_position
+		# Nearest point on the floor-plane segment from the glass out to
+		# a little behind the view point, toward where the view starts.
+		var a := Vector2(_glass.global_position.x, _glass.global_position.z)
+		var out := Vector2(to.x, to.z) + (Vector2(from.x, from.z) - Vector2(to.x, to.z)).limit_length(1.0)
+		var p := Vector2(at.x, at.z)
+		var t := clampf((p - a).dot(out - a) / maxf((out - a).length_squared(), 0.0001), 0.0, 1.0)
+		if p.distance_to(a.lerp(out, t)) < HIDE_RADIUS:
+			unit.visible = false
+			_hidden.append(unit)
+
+
+func _show_hidden() -> void:
+	for unit in _hidden:
+		if is_instance_valid(unit):
+			unit.visible = true
+	_hidden.clear()
 
 
 func _show_content() -> void:
-	if exam:
-		_exam_run = TerminalExamRun.new(exam)
+	_levels = [{"menu": menu, "selected": 0}]
+	_show_level()
+
+
+## Draws the level on top of _levels. Entries a flag hides are worked out
+## here, each time, so one set while the player was in a submenu shows up.
+func _show_level() -> void:
+	var level: Dictionary = _levels.back()
+	_exam_run = null
+	if level.has("menu"):
+		var at: TerminalMenu = level.menu
+		var labels := PackedStringArray()
+		if at:
+			for entry in at.shown_entries():
+				labels.append(entry.label)
+		var back := "[ESC / TAB] LOG OFF" if _levels.size() == 1 else "[TAB] BACK    [ESC] LOG OFF"
+		_page.show_page(header, at.intro if at else "", "[UP/DOWN] SELECT    [ENTER] OPEN    " + back,
+				labels, level.selected)
+		return
+	var entry: TerminalEntry = level.entry
+	if entry.exam:
+		_exam_run = level.run
 		_show_exam_page()
 	else:
-		_page.show_page(header, text)
+		_page.show_page(header, entry.page, "[WHEEL / UP / DOWN] SCROLL    [ENTER / TAB] BACK    [ESC] LOG OFF",
+				PackedStringArray([RETURN_LINE]))
 
 
 func _show_exam_page() -> void:
-	_page.show_page(header, _exam_run.page_text(), _exam_run.footer())
+	var choices := _exam_run.choices()
+	if choices.is_empty():
+		choices.append(RETURN_LINE)
+	_page.show_page(header, _exam_run.page_text(), _exam_run.footer(), choices)
+
+
+## Opens line index: an entry on a menu, an answer on an exam, Return on a
+## page. A press while the page is still typing only finishes it.
+func _activate(index: int) -> void:
+	if _page.finish_typing():
+		return
+	var level: Dictionary = _levels.back()
+	if level.has("menu"):
+		var shown: Array[TerminalEntry] = level.menu.shown_entries() if level.menu else []
+		if index < 0 or index >= shown.size():
+			return
+		level.selected = index
+		_open(shown[index])
+	elif _exam_run and not _exam_run.choices().is_empty():
+		if _exam_run.choose(index):
+			_show_exam_page()
+	else:
+		_back()
+
+
+func _open(entry: TerminalEntry) -> void:
+	if not entry.sets_flag.is_empty():
+		FlagManager.set_flag(entry.sets_flag)
+	if entry.exam:
+		_levels.append({"entry": entry, "run": TerminalExamRun.new(entry.exam)})
+	elif entry.submenu:
+		_levels.append({"menu": entry.submenu, "selected": 0})
+	else:
+		_levels.append({"entry": entry})
+	_show_level()
+
+
+## Up a level; from the top, logs off.
+func _back() -> void:
+	if _levels.size() <= 1:
+		step_away()
+		return
+	_levels.pop_back()
+	_show_level()
 
 
 ## combat_started is relayed for every encounter, watched or not; only a
@@ -148,55 +275,17 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 		step_away()
 
 
-## Glides back out to the camera the player came from and hands it back.
+## Cuts back to the camera the player came from.
 func step_away() -> void:
 	if active != self or _leaving:
 		return
 	_leaving = true
-	if _tween:
-		_tween.kill()
 	if _overlay and UIStack.is_open(_overlay):
 		UIStack.pop(_overlay)
-	if is_instance_valid(_came_from) and is_instance_valid(_camera):
-		_tween = _glide(_came_from.global_transform, _came_from.fov)
-		_tween.finished.connect(_release)
-	else:
-		_release()
-
-
-## Moves the view in a straight line while it keeps looking at the glass,
-## so the screen stays in frame the whole way. Blending the two end
-## rotations directly would point a top-down camera at the horizon halfway
-## through. Near each end the rotation eases into that end's own.
-func _glide(to: Transform3D, fov: float) -> Tween:
-	var from := _camera.global_transform
-	var from_fov := _camera.fov
-	var tween := create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_method(_glide_step.bind(from, to, from_fov, fov), 0.0, 1.0, glide_time)
-	return tween
-
-
-func _glide_step(weight: float, from: Transform3D, to: Transform3D, from_fov: float, to_fov: float) -> void:
-	if not is_instance_valid(_camera):
-		return
-	var at := from.origin.lerp(to.origin, weight)
-	var rotation := from.basis.get_rotation_quaternion().slerp(
-			to.basis.get_rotation_quaternion(), weight)
-	var to_glass := _glass.global_position - at
-	if to_glass.length() > 0.01:
-		# Straight down at the glass has no "up" to keep; any level one will do.
-		var up := Vector3.UP if absf(to_glass.normalized().y) < 0.99 else Vector3.FORWARD
-		var facing := Basis.looking_at(to_glass, up).get_rotation_quaternion()
-		rotation = from.basis.get_rotation_quaternion().slerp(facing, smoothstep(0.0, 0.4, weight))
-		rotation = rotation.slerp(to.basis.get_rotation_quaternion(), smoothstep(0.6, 1.0, weight))
-	_camera.global_transform = Transform3D(Basis(rotation), at)
-	_camera.fov = lerpf(from_fov, to_fov, weight)
+	_release()
 
 
 func _release() -> void:
-	if _tween:
-		_tween.kill()
-	_tween = null
 	if CombatManager.combat_started.is_connected(_on_combat):
 		CombatManager.combat_started.disconnect(_on_combat)
 	if is_instance_valid(_camera):
@@ -206,6 +295,8 @@ func _release() -> void:
 	_camera = null
 	_came_from = null
 	_exam_run = null
+	_levels.clear()
+	_show_hidden()
 	_leaving = false
 	if active == self:
 		active = null
@@ -217,7 +308,7 @@ func _release() -> void:
 func _show_idle() -> void:
 	_page.show_page(header, idle_text)
 	_page.finish_typing()
-	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
+	_set_redraw(SubViewport.UPDATE_ONCE)
 
 
 # A screen on UIStack while the player is at the terminal: it takes the HUD
@@ -251,19 +342,48 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _exam_run and _exam_key(event):
 		get_viewport().set_input_as_handled()
 		return
+	# Still gliding in: nothing on the glass to pick yet.
+	if _levels.is_empty():
+		if event.is_action_pressed("ui_cancel"):
+			step_away()
+			get_viewport().set_input_as_handled()
+		return
+	var on_page: bool = not _levels.back().has("menu") and _exam_run == null
 	var handled := true
 	if event.is_action_pressed("ui_cancel"):
 		step_away()
+	elif event is InputEventMouseMotion:
+		var item := _item_under_mouse()
+		if item >= 0:
+			_page.select(item)
+		handled = false
 	elif event is InputEventMouseButton and event.pressed:
 		match event.button_index:
 			MOUSE_BUTTON_WHEEL_UP: _page.scroll(-1.0)
 			MOUSE_BUTTON_WHEEL_DOWN: _page.scroll(1.0)
-			MOUSE_BUTTON_LEFT: _page.finish_typing()
+			MOUSE_BUTTON_LEFT:
+				var item := _item_under_mouse()
+				if item >= 0:
+					_page.select(item)
+					_activate(item)
+				else:
+					_page.finish_typing()
+			MOUSE_BUTTON_RIGHT: _back()
 			_: handled = false
+	elif _is_key(event, [KEY_TAB, KEY_BACKSPACE]):
+		_back()
+	elif event.is_action_pressed("ui_accept") or _is_key(event, [KEY_KP_ENTER]):
+		_activate(_page.selected())
 	elif event.is_action_pressed("ui_up", true):
-		_page.scroll(-1.0)
+		if on_page:
+			_page.scroll(-1.0)
+		else:
+			_page.select(_page.selected() - 1)
 	elif event.is_action_pressed("ui_down", true):
-		_page.scroll(1.0)
+		if on_page:
+			_page.scroll(1.0)
+		else:
+			_page.select(_page.selected() + 1)
 	elif event.is_action_pressed("ui_page_up"):
 		_page.scroll(-8.0)
 	elif event.is_action_pressed("ui_page_down"):
@@ -277,9 +397,34 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Enter begins, a letter or number answers. A key while the page is still
-## typing only finishes it, so an answer is never given to a question the
-## player hasn't seen. True if the key was the exam's.
+static func _is_key(event: InputEvent, keys: Array) -> bool:
+	var key := event as InputEventKey
+	return key != null and key.pressed and not key.echo and key.keycode in keys
+
+
+## The menu line under the mouse, or -1: the mouse ray meets the glass,
+## and the point is bent the way crt_screen.gdshader bends the picture.
+func _item_under_mouse() -> int:
+	if not is_instance_valid(_camera) or _page.item_count() == 0:
+		return -1
+	var mouse := get_viewport().get_mouse_position()
+	var plane := Plane(_glass.global_basis.z.normalized(), _glass.global_position)
+	var hit: Variant = plane.intersects_ray(_camera.project_ray_origin(mouse), _camera.project_ray_normal(mouse))
+	if hit == null:
+		return -1
+	var local: Vector3 = _glass.global_transform.affine_inverse() * (hit as Vector3)
+	var quad := (_glass.mesh as QuadMesh).size
+	var uv := Vector2(local.x / quad.x + 0.5, 0.5 - local.y / quad.y)
+	var curvature: float = _glass_material.get_shader_parameter("curvature")
+	var c := uv * 2.0 - Vector2.ONE
+	c *= 1.0 + curvature * c.dot(c) * 0.5
+	return _page.item_at((c * 0.5 + Vector2(0.5, 0.5)) * Vector2(_viewport.size))
+
+
+## A letter or number answers the question up (Enter on the highlighted
+## line does too, through _activate). A key while the page is still typing
+## only finishes it, so an answer is never given to a question the player
+## hasn't seen. True if the key was the exam's.
 func _exam_key(event: InputEvent) -> bool:
 	var key := event as InputEventKey
 	# Answers are final, so Ctrl+C or Alt+A must not give one.
@@ -293,13 +438,11 @@ func _exam_key(event: InputEvent) -> bool:
 		choice = key.keycode - KEY_1
 	elif key.keycode >= KEY_KP_1 and key.keycode <= KEY_KP_9:
 		choice = key.keycode - KEY_KP_1
-	var begins := key.keycode in [KEY_ENTER, KEY_KP_ENTER]
-	if choice < 0 and not begins:
+	if choice < 0 or _exam_run.stage != TerminalExamRun.Stage.QUESTION:
 		return false
 	if _page.finish_typing():
 		return true
-	var moved := _exam_run.begin() if begins else _exam_run.answer(choice)
-	if moved:
+	if _exam_run.answer(choice):
 		_show_exam_page()
 	return true
 

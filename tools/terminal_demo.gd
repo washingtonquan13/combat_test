@@ -37,16 +37,21 @@ func _run() -> void:
 	_check("the hero walked up and is at the terminal", Terminal.active == terminal)
 	_check("GameMode reports TERMINAL", GameMode.current_mode() == GameMode.Mode.TERMINAL)
 	_check("the tactical camera has no control", not CameraDirector.has_control())
-	await _wait(0.35)
-	await _snap("2_gliding")
 	await _wait(2.5)
 	await _snap("3_reading")
 
+	_check("the menu is up", page_text(terminal).contains("RESIDENT LOG"))
+	_say("Open the log, down to entry 2, open it")
+	await _key(KEY_ENTER)
+	_check("the log submenu is up", page_text(terminal).contains("2 ENTRIES"))
+	await _key(KEY_DOWN, 0.2)
+	await _key(KEY_ENTER)
+	_check("entry 2 is up", page_text(terminal).contains("Long pages scroll"))
 	_say("Scroll down")
 	for i in 6:
 		await _scroll_wheel(aim, MOUSE_BUTTON_WHEEL_DOWN)
 		if i == 2:
-			await _snap("3b_scrolling")  # mid-glide: the phosphor trail
+			await _snap("3b_scrolling")  # mid-scroll: the phosphor trail
 		await _wait(0.15)
 	await _wait(0.6)
 	await _snap("4_scrolled")
@@ -58,7 +63,7 @@ func _run() -> void:
 	_check("Escape did not also open the esc menu", esc_menu != null and not UIStack.is_open(esc_menu))
 	_press_escape()
 	await _wait(0.1)
-	_check("a second Escape mid-glide did not open it either", not UIStack.is_open(esc_menu))
+	_check("a second Escape right after did not open it either", not UIStack.is_open(esc_menu))
 	await _wait(1.4)
 	_check("back from the terminal", Terminal.active == null)
 	_check("GameMode back to EXPLORATION", GameMode.current_mode() == GameMode.Mode.EXPLORATION)
@@ -184,3 +189,20 @@ func _snap(tag: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path)
 	print("saved ", path)
 	_caption.visible = true
+
+
+func page_text(terminal: Terminal) -> String:
+	return (terminal.get_node("ScreenViewport/TerminalScreen") as TerminalScreen).page_text()
+
+
+## A real key press, through WorldView's SubViewport like a player's, then
+## (by default) long enough for the next page to type out.
+func _key(code: Key, settle := 0.8) -> void:
+	for pressed in [true, false]:
+		var key := InputEventKey.new()
+		key.keycode = code
+		key.physical_keycode = code
+		key.pressed = pressed
+		Input.parse_input_event(key)
+	await get_tree().process_frame
+	await _wait(settle)

@@ -1,7 +1,9 @@
 class_name TerminalScreen
 extends Control
 ## The page drawn inside a terminal's SubViewport: a header, the body text
-## typed out a few characters at a time, and a footer hint. Pure 2D, no
+## typed out a few characters at a time, an optional column of menu lines
+## under it with one highlighted (a solid phosphor block, the text cut out
+## of it), and a footer hint. Pure 2D, no
 ## knowledge of the 3D prop around it (see Terminal, which owns this and
 ## feeds it scroll input while the player is at the terminal).
 ##
@@ -19,8 +21,11 @@ const TYPE_RATE := 900.0
 const DEFAULT_FOOTER := "[ESC] LOG OFF    [WHEEL / UP / DOWN] SCROLL"
 ## Lines moved by one scroll step.
 const SCROLL_LINES := 2
-## Text size and the gap between lines, on the design grid.
-const FONT_SIZE := 18.0
+## Text size and the gap between lines, on the design grid. DotGothic16 is
+## drawn on a 16-dot grid: at 16 (32 px on the 1280x960 page) every dot is
+## exactly 2x2 pixels. At 18 the dots fell across pixel edges and the
+## strokes came out uneven, some one pixel wide and some two.
+const FONT_SIZE := 16.0
 const LINE_GAP := 3.0
 
 ## The two bundled faces (OFL, licences beside them). DotGothic16 is the
@@ -32,6 +37,12 @@ enum Face { DOT_GOTHIC, VT323 }
 ## How quickly the view catches up with a scroll (1/s). Gliding rather than
 ## jumping is what gives the shader's phosphor trail something to trail.
 const SCROLL_CATCH_UP := 18.0
+
+## The selected menu line, drawn as text cut out of a phosphor block.
+const SELECTED_TEXT := "#020803"
+## The block behind it: a little under PHOSPHOR, so the glass and the
+## scene's bloom don't blow it out to white-green.
+const SELECTED_BAR := Color(0.3, 0.86, 0.43)
 
 ## How fast the page is scrolling, in page heights per second (+ is the text
 ## moving up). Terminal hands it to the glass for the afterglow.
@@ -46,6 +57,11 @@ var _footer: Label
 var _typing := false
 var _scroll_to := 0.0
 var _scroll_at := 0.0
+var _text := ""
+var _items := PackedStringArray()
+var _selected := -1
+## Where each menu line starts in the parsed text, for hit tests.
+var _item_at_char: Array[int] = []
 
 
 ## The face at size (pixels). VT323's fallback is DotGothic16 trimmed to
@@ -85,6 +101,7 @@ func _ready() -> void:
 	_scale = get_viewport_rect().size.y / DESIGN_HEIGHT
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var back := ColorRect.new()
+	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	back.color = Color(0.01, 0.03, 0.015)
 	back.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(back)
@@ -141,16 +158,108 @@ func scroll_area() -> Vector4:
 
 ## Clears the page and starts typing text (BBCode) under header, with
 ## footer (plain text) as the hint line, or the default one.
-func show_page(header: String, text: String, footer: String = "") -> void:
+##
+## items, when given, are menu lines listed under the text, with selected
+## highlighted (select() moves it without retyping the page).
+func show_page(header: String, text: String, footer: String = "",
+		items := PackedStringArray(), selected := 0) -> void:
 	_header.text = header
 	_footer.text = footer if not footer.is_empty() else DEFAULT_FOOTER
-	_body.text = text
+	_text = text
+	_items = items
+	_selected = clampi(selected, 0, items.size() - 1) if not items.is_empty() else -1
+	_render()
 	_body.visible_characters = 0
 	_body.get_v_scroll_bar().value = 0.0
 	_scroll_to = 0.0
 	_scroll_at = 0.0
 	scroll_velocity = 0.0
 	_typing = true
+
+
+## Moves the highlight to menu line index, keeping what has been typed,
+## and scrolls it into view.
+func select(index: int) -> void:
+	if _items.is_empty():
+		return
+	index = clampi(index, 0, _items.size() - 1)
+	if index == _selected:
+		return
+	_selected = index
+	var shown := _body.visible_characters
+	_render()
+	_body.visible_characters = shown
+	_scroll_into_view(index)
+
+
+func selected() -> int:
+	return _selected
+
+
+func item_count() -> int:
+	return _items.size()
+
+
+## The menu line under page_position (in this viewport's pixels), or -1.
+## A line still being typed out can't be picked.
+func item_at(page_position: Vector2) -> int:
+	var rect := _body.get_global_rect()
+	if not rect.has_point(page_position):
+		return -1
+	var y := page_position.y - rect.position.y + _body.get_v_scroll_bar().value
+	for i in _items.size():
+		var at := _item_at_char[i]
+		if _typing and at >= _body.visible_characters:
+			return -1
+		var top := _body.get_line_offset(_body.get_character_line(at))
+		var bottom := _body.get_line_offset(_body.get_character_line(_item_end_char(i))) + line_height()
+		if y >= top and y < bottom:
+			return i
+	return -1
+
+
+func _item_end_char(index: int) -> int:
+	return _item_at_char[index] + _items[index].length() + 1
+
+
+## The body's BBCode: the page text, then the menu lines. A line's text is
+## the same characters selected or not (only colours change), so
+## visible_characters and the hit-test offsets hold across select().
+func _render() -> void:
+	var bbcode := _text
+	if not _items.is_empty():
+		var lines := PackedStringArray()
+		for i in _items.size():
+			var line := " %s " % _items[i].replace("[", "[lb]")
+			if i == _selected:
+				# The cut-out letters get a one-dot outline in their own colour:
+				# at a dot wide, the bright bar's bloom filled them in.
+				line = "[bgcolor=#%s][color=%s][outline_size=%d][outline_color=%s]%s[/outline_color][/outline_size][/color][/bgcolor]" % [
+						SELECTED_BAR.to_html(false), SELECTED_TEXT, _px(1.0), SELECTED_TEXT, line]
+			lines.append(line)
+		bbcode += ("
+
+" if not _text.is_empty() else "") + "
+".join(lines)
+	_body.text = bbcode
+	# The lines are the last thing on the page, so they are found from the end.
+	var parsed := _body.get_parsed_text()
+	_item_at_char.resize(_items.size())
+	var before := parsed.length()
+	for i in range(_items.size() - 1, -1, -1):
+		before = parsed.rfind(" %s " % _items[i], before - 1)
+		_item_at_char[i] = maxi(before, 0)
+
+
+func _scroll_into_view(index: int) -> void:
+	var bar := _body.get_v_scroll_bar()
+	var top := _body.get_line_offset(_body.get_character_line(_item_at_char[index]))
+	var bottom := _body.get_line_offset(_body.get_character_line(_item_end_char(index))) + line_height()
+	if top < _scroll_to:
+		_scroll_to = top
+	elif bottom > _scroll_to + _body.size.y:
+		_scroll_to = bottom - _body.size.y
+	_scroll_to = clampf(_scroll_to, 0.0, maxf(0.0, bar.max_value - bar.page))
 
 
 ## The page's text without its BBCode.

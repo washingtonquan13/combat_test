@@ -7,23 +7,23 @@
 script = ExtResource("2_q")
 part = "PART 1: COMBAT"
 points = 15
-prompt = "A demon's claws land a critical hit on you. Can you Dodge it?"
-options = PackedStringArray("Yes, if the Dodge roll succeeds", "Yes, but at -4", "No: a critical can't be dodged or parried")
+prompt = "A DEMON'S CLAWS LAND A CRITICAL HIT ON YOU. CAN YOU DODGE IT?"
+options = PackedStringArray("YES, IF THE DODGE ROLL SUCCEEDS", "YES, BUT AT -4", "NO: A CRITICAL CAN'T BE DODGED OR PARRIED")
 correct = 2
 
 [sub_resource type="Resource" id="q2"]
 script = ExtResource("2_q")
 part = "PART 1: COMBAT"
 points = 20
-prompt = "You have already parried once this turn. A second blow comes. Your best defense?"
-options = PackedStringArray("Parry again, at full skill", "Dodge", "Nothing: one defense per turn")
+prompt = "YOU HAVE ALREADY PARRIED ONCE THIS TURN. A SECOND BLOW COMES. YOUR BEST DEFENSE?"
+options = PackedStringArray("PARRY AGAIN, AT FULL SKILL", "DODGE", "NOTHING: ONE DEFENSE PER TURN")
 correct = 1
 
 [sub_resource type="Resource" id="q3"]
 script = ExtResource("2_q")
 part = "PART 2: TERRAIN"
 points = 15
-prompt = "You step onto ice. Which attribute keeps you on your feet?"
+prompt = "YOU STEP ONTO ICE. WHICH ATTRIBUTE KEEPS YOU ON YOUR FEET?"
 options = PackedStringArray("ST", "HT", "DX")
 correct = 2
 
@@ -31,16 +31,16 @@ correct = 2
 script = ExtResource("2_q")
 part = "PART 3: CONDITIONS"
 points = 30
-prompt = "Your fighter is Exhausted. What happens to their sword's damage?"
-options = PackedStringArray("Halved, along with ST", "Nothing", "One die less")
+prompt = "YOUR FIGHTER IS EXHAUSTED. WHAT HAPPENS TO THEIR SWORD'S DAMAGE?"
+options = PackedStringArray("HALVED, ALONG WITH ST", "NOTHING", "ONE DIE LESS")
 correct = 1
 
 [sub_resource type="Resource" id="q5"]
 script = ExtResource("2_q")
 part = "PART 3: CONDITIONS"
 points = 20
-prompt = "A sleep dart hits you. Which attribute do you roll to stay awake?"
-options = PackedStringArray("Will", "HT", "Per")
+prompt = "A SLEEP DART HITS YOU. WHICH ATTRIBUTE DO YOU ROLL TO STAY AWAKE?"
+options = PackedStringArray("WILL", "HT", "PER")
 correct = 1
 
 [resource]
@@ -49,8 +49,8 @@ title = "ENTRANCE EXAMINATION"
 intro = "[b]ENTRANCE EXAMINATION[/b]
 
 5 QUESTIONS. 100 POINTS.
-Answer each with its letter. Answers are final.
-The examination is taken once. Logging off before the end voids the attempt."
+ANSWER EACH WITH ITS LETTER. ANSWERS ARE FINAL.
+THE EXAMINATION IS TAKEN ONCE. LOGGING OFF BEFORE THE END VOIDS THE ATTEMPT."
 flag = "shelter_exam"
 pass_mark = 60
 questions = Array[ExtResource("2_q")]([SubResource("q1"), SubResource("q2"), SubResource("q3"), SubResource("q4"), SubResource("q5")])

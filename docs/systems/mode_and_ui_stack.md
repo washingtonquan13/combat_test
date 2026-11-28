@@ -81,7 +81,7 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
   - cutscene: CinematicDirector.is_active
   - looting: StashManager
   - terminal: `Terminal.use` / `step_away` set and clear `Terminal.active`. Its TerminalOverlay UIScreen is popped by `close_all` on focus change or travel, and that pop steps the player away (terminal.gd `_open_overlay`). A fight starting (`CombatManager.combat_started`) also steps them away.
-    - Known gaps: a cutscene staged while the player is at a terminal outranks TERMINAL and leaves the terminal's camera and overlay in place underneath until it ends; the glide back out aims at where the tactical camera was when the player sat down; the walk-up does not pick the front of the desk, so the hero can end up beside or behind the monitor.
+    - Known gaps: a cutscene staged while the player is at a terminal outranks TERMINAL and leaves the terminal's camera and overlay in place underneath until it ends; the walk-up does not pick the front of the desk, so the hero can end up beside or behind the monitor.
   - combat: an encounter in the focused world starts or ends
   - travel and load: `base_mode` changes with the focused world
 

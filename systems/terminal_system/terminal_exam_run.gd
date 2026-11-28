@@ -5,8 +5,10 @@ extends RefCounted
 ## terminal and drops it when they step away, so leaving before the last
 ## answer voids the attempt: nothing is recorded until the end.
 ##
-## Pages are BBCode for TerminalScreen; this knows nothing about the 3D
-## prop or input. Terminal maps keys onto begin() and answer().
+## Pages are BBCode for TerminalScreen, with the things the player can pick
+## (choices()) listed under them as menu lines; this knows nothing about
+## the 3D prop or input. Terminal maps Enter, clicks and letter keys onto
+## choose() and answer().
 
 enum Stage { INTRO, QUESTION, RESULT }
 
@@ -55,6 +57,26 @@ func answer(choice: int) -> bool:
 	return true
 
 
+## The lines the player can pick on this page: Begin on the intro, the
+## answers on a question, none on the result.
+func choices() -> PackedStringArray:
+	match stage:
+		Stage.INTRO:
+			return PackedStringArray(["BEGIN EXAMINATION"])
+		Stage.QUESTION:
+			var q := question()
+			var lines := PackedStringArray()
+			for i in _option_count(q):
+				lines.append("%s. %s" % [LETTERS[i], q.options[i]])
+			return lines
+	return PackedStringArray()
+
+
+## Picks choices()[index]. False if there is no such choice.
+func choose(index: int) -> bool:
+	return begin() if stage == Stage.INTRO and index == 0 else answer(index)
+
+
 func score() -> int:
 	if on_file:
 		return exam.recorded_score()
@@ -69,7 +91,7 @@ func score() -> int:
 func page_text() -> String:
 	match stage:
 		Stage.INTRO:
-			return exam.intro + "\n\n[b]PRESS [lb]ENTER[rb] TO BEGIN.[/b]"
+			return exam.intro
 		Stage.QUESTION:
 			return _question_text()
 	return _result_text()
@@ -78,10 +100,10 @@ func page_text() -> String:
 func footer() -> String:
 	match stage:
 		Stage.INTRO:
-			return "[ENTER] BEGIN    [ESC] LOG OFF"
+			return "[ENTER] BEGIN    [TAB] BACK    [ESC] LOG OFF"
 		Stage.QUESTION:
-			return "[%s] ANSWER    [ESC] LOG OFF" % _letter_range(_option_count(question()))
-	return "[ESC] LOG OFF    [WHEEL / UP / DOWN] SCROLL"
+			return "[UP/DOWN] SELECT  [ENTER / %s] ANSWER    [ESC] LOG OFF" % _letter_range(_option_count(question()))
+	return "[ENTER / TAB] BACK    [ESC] LOG OFF"
 
 
 func _question_text() -> String:
@@ -93,9 +115,6 @@ func _question_text() -> String:
 	lines.append("[b]QUESTION %d OF %d[/b]  [color=%s](%d POINTS)[/color]" % [n + 1, exam.questions.size(), DIM, q.points])
 	lines.append("")
 	lines.append(q.prompt)
-	lines.append("")
-	for i in _option_count(q):
-		lines.append("%s. %s" % [LETTERS[i], q.options[i]])
 	return "\n".join(lines)
 
 
