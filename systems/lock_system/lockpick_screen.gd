@@ -7,8 +7,9 @@ extends UIScreen
 ##
 ## The rule is adapted from Hexadotz's Lockpick-minigames (MIT,
 ## github.com/Hexadotz/Lockpick-minigames):
-##   - The mouse's x across the panel sets the pick's angle, -90 to 90.
-##     The angle maps onto 0..PICK_RANGE.
+##   - The pick points at the mouse: its angle is the cursor's direction
+##     from the lock's centre on screen, clamped to the upper half, -90 to
+##     90. The angle maps onto 0..PICK_RANGE.
 ##   - The lock hides a sweet spot somewhere on that range.
 ##   - Holding D (or the left mouse button) turns the plug. How far it can
 ##     turn falls off with the pick's distance from the sweet spot: all
@@ -41,6 +42,12 @@ const NEW_PICK_DELAY := 0.5
 ## Seconds the opened lock stays up before the panel closes.
 const OPEN_HOLD := 0.4
 const VIEW_SIZE := Vector2i(520, 420)
+## How quickly the drawn pick catches up with the cursor (1/s): enough to
+## take the stair-steps out of mouse motion without feeling like lag.
+const PICK_FOLLOW := 40.0
+## Inside this many pixels of the lock's centre the cursor's direction is
+## too twitchy to steer by, so the pick stays where it was.
+const DEAD_ZONE := 12.0
 
 var lock: Lock = null
 var picker: Unit = null
@@ -171,7 +178,8 @@ func _process(delta: float) -> void:
 		_pick_node.visible = _new_pick_in <= 0.0
 	elif not turning:
 		# The pick only moves while the plug is at rest, as in the original.
-		pick = _read_pick()
+		var target := _read_pick()
+		pick = target if _driven else lerpf(pick, target, 1.0 - exp(-PICK_FOLLOW * delta))
 	var limit := allowed_turn(pick)
 	if turning:
 		plug = minf(plug + TURN_SPEED * delta, limit)
@@ -190,9 +198,16 @@ func _process(delta: float) -> void:
 func _read_pick() -> float:
 	if _driven:
 		return _driven_pick
-	var rect := _view.get_global_rect()
-	var t := clampf((get_global_mouse_position().x - rect.position.x) / rect.size.x, 0.0, 1.0)
-	return t * PICK_RANGE
+	# The lock's camera looks straight down its axis, so the pivot is the
+	# middle of the view on screen.
+	var from := get_global_mouse_position() - _view.get_global_rect().get_center()
+	if from.length() < DEAD_ZONE:
+		return pick
+	# The angle from straight up, + to the left (the pick's own rotation.z):
+	# 90 points left (0 on the range), -90 right (PICK_RANGE). Below the
+	# centre it pins to whichever side the cursor is on.
+	var angle := clampf(rad_to_deg(atan2(-from.x, -from.y)), -90.0, 90.0)
+	return (90.0 - angle) / 180.0 * PICK_RANGE
 
 
 func _read_turn() -> bool:
@@ -329,7 +344,7 @@ func _build_panel() -> void:
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_status)
 	var hint := Label.new()
-	hint.text = "Move the mouse to set the pick. Hold D or the left button to turn. Esc to stop."
+	hint.text = "Point the mouse to set the pick. Hold D or the left button to turn. Esc to stop."
 	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint.modulate = Color(1, 1, 1, 0.6)
 	box.add_child(hint)
